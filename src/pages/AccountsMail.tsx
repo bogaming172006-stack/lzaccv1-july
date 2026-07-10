@@ -25,6 +25,7 @@ import { db, setDoc, doc } from '../firebase';
 import { updateDashboardPartiesCount } from '../lib/transactionService';
 import { v4 as uuidv4 } from 'uuid';
 import { formatContactWith91 } from '../lib/phoneUtils';
+import { GOOGLE_SHEETS_CONFIG } from '../googleSheetsConfig';
 
 const extractSpreadsheetId = (input: string | null): string => {
   const trimmed = (input || '').trim();
@@ -297,32 +298,32 @@ export default function AccountsMail() {
         stored.includes('AKfycbxWRUu2VCfdz5z_CYb51qKnPRRd8VI88Y8yazN3VOSAjHF9MHlVdO7xCypdkpsFvmNvRw') ||
         stored.includes('AKfycbzSA6jJe-6e-iqUJVvmhKXbUcVBZkHb5l9NBnz2UaeQMTzoDEkgE3nzHfIR542VE0vKRg') ||
         stored.includes('AKfycbxi2BmVNb-IAzRnUmvqcEERgVrjyJzUijUZSJLPEhhHKgPuWFFK0Tw4PUfjoOaxZfBgFQ')) {
-      return 'https://script.google.com/macros/s/AKfycbzwA1bsYtS-x4p-EpYuupZrDvYNLqZmClZuYon4DS97duRthDEOr3XwDIIsMkPcONBA/exec';
+      return GOOGLE_SHEETS_CONFIG.APPS_SCRIPT_URL;
     }
     return stored;
   });
 
   const [sheetTitle, setSheetTitle] = useState(() => {
-    return localStorage.getItem('greenzar_sheet_tab_name') || 'Sheet1';
+    return localStorage.getItem('greenzar_sheet_tab_name') || GOOGLE_SHEETS_CONFIG.DEFAULT_TAB_NAME;
   });
 
   // Google Sheets API v4 (used for reading data)
   const [v4SpreadsheetId, setV4SpreadsheetId] = useState(() => {
     const stored = localStorage.getItem('greenzar_v4_spreadsheet_id');
     if (!stored || stored === '1mWsUiIiJ-olbfiCvfMY3gnOBaAUkQBWWZqTMK-0MccY') {
-      return '1sHj-A4tGwcDXVuMjAe5tHblN9qMy1rtjpPHfRDDTapw';
+      return GOOGLE_SHEETS_CONFIG.SPREADSHEET_ID;
     }
     return extractSpreadsheetId(stored);
   });
 
   const [v4ApiKey, setV4ApiKey] = useState(() => {
-    return localStorage.getItem('greenzar_v4_api_key') || 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0';
+    return localStorage.getItem('greenzar_v4_api_key') || GOOGLE_SHEETS_CONFIG.API_KEY;
   });
 
   const [v4Range, setV4Range] = useState(() => {
     const stored = localStorage.getItem('greenzar_v4_range');
     if (!stored || stored === 'Sheet1!A2:C') {
-      return 'Sheet1!A2:D';
+      return GOOGLE_SHEETS_CONFIG.DEFAULT_RANGE;
     }
     return stored;
   });
@@ -416,21 +417,21 @@ export default function AccountsMail() {
         stored.includes('AKfycbxWRUu2VCfdz5z_CYb51qKnPRRd8VI88Y8yazN3VOSAjHF9MHlVdO7xCypdkpsFvmNvRw') ||
         stored.includes('AKfycbzSA6jJe-6e-iqUJVvmhKXbUcVBZkHb5l9NBnz2UaeQMTzoDEkgE3nzHfIR542VE0vKRg') ||
         stored.includes('AKfycbxi2BmVNb-IAzRnUmvqcEERgVrjyJzUijUZSJLPEhhHKgPuWFFK0Tw4PUfjoOaxZfBgFQ')) {
-      localStorage.setItem('greenzar_apps_script_url', 'https://script.google.com/macros/s/AKfycbzwA1bsYtS-x4p-EpYuupZrDvYNLqZmClZuYon4DS97duRthDEOr3XwDIIsMkPcONBA/exec');
+      localStorage.setItem('greenzar_apps_script_url', GOOGLE_SHEETS_CONFIG.APPS_SCRIPT_URL);
     }
     const storedSheet = localStorage.getItem('greenzar_v4_spreadsheet_id');
     if (!storedSheet || storedSheet === '1mWsUiIiJ-olbfiCvfMY3gnOBaAUkQBWWZqTMK-0MccY') {
-      localStorage.setItem('greenzar_v4_spreadsheet_id', '1sHj-A4tGwcDXVuMjAe5tHblN9qMy1rtjpPHfRDDTapw');
+      localStorage.setItem('greenzar_v4_spreadsheet_id', GOOGLE_SHEETS_CONFIG.SPREADSHEET_ID);
     }
     if (!localStorage.getItem('greenzar_v4_api_key')) {
-      localStorage.setItem('greenzar_v4_api_key', 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0');
+      localStorage.setItem('greenzar_v4_api_key', GOOGLE_SHEETS_CONFIG.API_KEY);
     }
     if (!localStorage.getItem('greenzar_sheet_tab_name')) {
-      localStorage.setItem('greenzar_sheet_tab_name', 'Sheet1');
+      localStorage.setItem('greenzar_sheet_tab_name', GOOGLE_SHEETS_CONFIG.DEFAULT_TAB_NAME);
     }
     const storedRange = localStorage.getItem('greenzar_v4_range');
     if (!storedRange || storedRange === 'Sheet1!A2:C' || storedRange === 'Sheet1!A2:D') {
-      localStorage.setItem('greenzar_v4_range', 'Sheet1!A2:H');
+      localStorage.setItem('greenzar_v4_range', GOOGLE_SHEETS_CONFIG.DEFAULT_RANGE);
     }
   }, []);
 

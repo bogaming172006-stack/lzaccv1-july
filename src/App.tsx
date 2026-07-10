@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { formatContactWith91 } from './lib/phoneUtils';
+import { GOOGLE_SHEETS_CONFIG } from './googleSheetsConfig';
 import { AuthProvider, useAuth } from './AuthContext';
 import { LedgerProvider, useLedger } from './LedgerContext';
 import { ThemeProvider } from './ThemeContext';
@@ -145,10 +146,12 @@ const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 const triggerGoogleSheetSync = async (activeLedgerId: string) => {
-  const appsScriptUrl = localStorage.getItem('greenzar_apps_script_url');
-  if (!appsScriptUrl || !appsScriptUrl.trim()) return;
+  let appsScriptUrl = localStorage.getItem('greenzar_apps_script_url');
+  if (!appsScriptUrl || !appsScriptUrl.trim()) {
+    appsScriptUrl = GOOGLE_SHEETS_CONFIG.APPS_SCRIPT_URL;
+  }
 
-  const sheetTitle = localStorage.getItem('greenzar_sheet_tab_name') || 'Sheet1';
+  const sheetTitle = localStorage.getItem('greenzar_sheet_tab_name') || GOOGLE_SHEETS_CONFIG.DEFAULT_TAB_NAME;
 
   try {
     const { getFilteredCacheItems } = await import('./lib/idbCache');
@@ -258,10 +261,12 @@ const AppContent: React.FC = () => {
       const isAutoSyncEnabled = localStorage.getItem('greenzar_realtime_sheet_sync') !== 'false';
       if (!isAutoSyncEnabled) return;
 
-      const appsScriptUrl = localStorage.getItem('greenzar_apps_script_url');
-      if (!appsScriptUrl || !appsScriptUrl.trim()) return;
+      let appsScriptUrl = localStorage.getItem('greenzar_apps_script_url');
+      if (!appsScriptUrl || !appsScriptUrl.trim()) {
+        appsScriptUrl = GOOGLE_SHEETS_CONFIG.APPS_SCRIPT_URL;
+      }
 
-      const sheetTitle = localStorage.getItem('greenzar_sheet_tab_name') || 'Sheet1';
+      const sheetTitle = localStorage.getItem('greenzar_sheet_tab_name') || GOOGLE_SHEETS_CONFIG.DEFAULT_TAB_NAME;
 
       try {
         const { getFilteredCacheItems } = await import('./lib/idbCache');
