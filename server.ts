@@ -511,7 +511,7 @@ app.post("/api/db/restore", async (req, res) => {
 // ---------------------------------------------------------
 app.get("/api/parties/export", async (req, res) => {
   const apiKey = (req.query.apiKey as string || req.headers["x-api-key"] as string || "").trim();
-  const expectedKey = (process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyBczDk2oh7TvzawNxnBh3U4kBgIZrsrtsI").trim();
+  const expectedKey = (process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0").trim();
   
   if (expectedKey && apiKey !== expectedKey) {
     return res.status(401).json({ error: "Unauthorized: Invalid API Key" });
@@ -621,7 +621,7 @@ app.get("/api/sheets/read-proxy", async (req, res) => {
 // ---------------------------------------------------------
 app.get("/api/parties/live", async (req, res) => {
   const spreadsheetId = (req.query.spreadsheetId as string || process.env.GOOGLE_SPREADSHEET_ID || "1sHj-A4tGwcDXVuMjAe5tHblN9qMy1rtjpPHfRDDTapw").trim();
-  const apiKey = (req.query.apiKey as string || process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyBczDk2oh7TvzawNxnBh3U4kBgIZrsrtsI").trim();
+  const apiKey = (req.query.apiKey as string || process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0").trim();
   const range = (req.query.range as string || "Sheet1!A2:H").trim();
 
   if (!spreadsheetId) {

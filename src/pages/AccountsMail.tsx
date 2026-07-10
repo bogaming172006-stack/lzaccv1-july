@@ -316,7 +316,7 @@ export default function AccountsMail() {
   });
 
   const [v4ApiKey, setV4ApiKey] = useState(() => {
-    return localStorage.getItem('greenzar_v4_api_key') || 'AIzaSyBczDk2oh7TvzawNxnBh3U4kBgIZrsrtsI';
+    return localStorage.getItem('greenzar_v4_api_key') || 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0';
   });
 
   const [v4Range, setV4Range] = useState(() => {
@@ -423,7 +423,7 @@ export default function AccountsMail() {
       localStorage.setItem('greenzar_v4_spreadsheet_id', '1sHj-A4tGwcDXVuMjAe5tHblN9qMy1rtjpPHfRDDTapw');
     }
     if (!localStorage.getItem('greenzar_v4_api_key')) {
-      localStorage.setItem('greenzar_v4_api_key', 'AIzaSyBczDk2oh7TvzawNxnBh3U4kBgIZrsrtsI');
+      localStorage.setItem('greenzar_v4_api_key', 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0');
     }
     if (!localStorage.getItem('greenzar_sheet_tab_name')) {
       localStorage.setItem('greenzar_sheet_tab_name', 'Sheet1');
@@ -911,7 +911,7 @@ export default function AccountsMail() {
   const resetToDefaults = () => {
     const defaultUrl = 'https://script.google.com/macros/s/AKfycbzwA1bsYtS-x4p-EpYuupZrDvYNLqZmClZuYon4DS97duRthDEOr3XwDIIsMkPcONBA/exec';
     const defaultSpreadsheetId = '1sHj-A4tGwcDXVuMjAe5tHblN9qMy1rtjpPHfRDDTapw';
-    const defaultApiKey = 'AIzaSyBczDk2oh7TvzawNxnBh3U4kBgIZrsrtsI';
+    const defaultApiKey = 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0';
     const defaultTabName = 'Sheet1';
     const defaultRange = 'Sheet1!A2:H';
 
