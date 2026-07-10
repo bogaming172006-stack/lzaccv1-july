@@ -1,0 +1,6 @@
+{
+  "name": "Greenzar Accounting System",
+  "description": "An elegant accounting and ledger management system with multi-user sign-in.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
