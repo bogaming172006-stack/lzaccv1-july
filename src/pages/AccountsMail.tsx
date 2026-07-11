@@ -286,46 +286,51 @@ export default function AccountsMail() {
   // Apps Script Web App Endpoint URL (used for pushing data)
   const [appsScriptUrl, setAppsScriptUrl] = useState(() => {
     const stored = localStorage.getItem('greenzar_apps_script_url');
-    if (!stored || 
-        stored.includes('AKfycbwJLtr0KjDiLo7j4oaTW2Q1mZKhB-VFeMmU3Wkyrk7ZDEVfE_W-qgv4yrpXjfAszaH1Fg') || 
-        stored.includes('AKfycbzlXn0Ot87HWFk0i5D0-2zA22YaFTwo83z7nNOYes0dds4dzAegstmnmhfkrkoKJChj6Q') || 
-        stored.includes('AKfycbwl0FAyUHSpIhwDPegydP5b8KgFavcQzON_OmzSqeJ9ug8da8fPuSyZ86SZk-Lv7Q_aHA') ||
-        stored.includes('AKfycbzf6Ova3trn3HcX4ErVg-mcXRvdkC1TB-txwAYF4ynWC7ZT18juy2yc9xMQbK_UC7MLww') ||
-        stored.includes('AKfycbxrvjYS-v8mV-iLmTxqLO7x9sbbj5jXIpJjTwzhMfMaDmjdejctrbqIncGFauTRsUek_Q') ||
-        stored.includes('AKfycbyWznlRrApnINLQHM9FSsokRj6GDUPh0e-7yS_IJniLlPkN4YD1dfCAhnjNClTZAFYLmw') ||
-        stored.includes('AKfycbxHUzSQPjsaxcLo-8uQNfSYNqMIlE_5_LniAbVV_n_W5srQbt6vCIsb3HYIWAT3iwOl') ||
-        stored.includes('AKfycbxWRUu2VCfdz5z_CYb51qKnPRRd8VI88Y8yazN3VOSAjHF9MHlVdO7xCypdkpsFvmNvRw') ||
-        stored.includes('AKfycbzSA6jJe-6e-iqUJVvmhKXbUcVBZkHb5l9NBnz2UaeQMTzoDEkgE3nzHfIR542VE0vKRg') ||
-        stored.includes('AKfycbxi2BmVNb-IAzRnUmvqcEERgVrjyJzUijUZSJLPEhhHKgPuWFFK0Tw4PUfjoOaxZfBgFQ') ||
-        stored.includes('AKfycbzwA1bsYtS-x4p-EpYuupZrDvYNLqZmClZuYon4DS97duRthDEOr3XwDIIsMkPcONBA') ||
-        stored.includes('AKfycbwO7VJlP-gHvS7KzUrtPrJRS39O7S6PLX81dRvL-e4TiBifyg47vNwnpq-RIGgX-MYB9g') ||
-        stored.includes('AKfycbznmjyYhnHzS-bJfp0XfnOdgMBf8X5VqdVEw98q56yNjb-gP2cleEykcCZG6QD-SpwYOg')) {
-      return 'https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec';
+    const defaultUrl = 'https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec';
+    if (!stored || stored.trim() === '' || stored.includes('AKfycbwJL') || stored.includes('AKfycbzl') || stored.includes('AKfycbwl') || stored.includes('AKfycbzf') || stored.includes('AKfycbxr') || stored.includes('AKfycbyW') || stored.includes('AKfycbxH') || stored.includes('AKfycbxW') || stored.includes('AKfycbzS') || stored.includes('AKfycbxi') || stored.includes('AKfycbzw') || stored.includes('AKfycbwO') || stored.includes('AKfycbzn') || stored !== defaultUrl) {
+      localStorage.setItem('greenzar_apps_script_url', defaultUrl);
+      return defaultUrl;
     }
     return stored;
   });
 
   const [sheetTitle, setSheetTitle] = useState(() => {
-    return localStorage.getItem('greenzar_sheet_tab_name') || 'Sheet1';
+    const stored = localStorage.getItem('greenzar_sheet_tab_name');
+    const defaultTab = 'Sheet1';
+    if (!stored || stored !== defaultTab) {
+      localStorage.setItem('greenzar_sheet_tab_name', defaultTab);
+      return defaultTab;
+    }
+    return stored;
   });
 
   // Google Sheets API v4 (used for reading data)
   const [v4SpreadsheetId, setV4SpreadsheetId] = useState(() => {
     const stored = localStorage.getItem('greenzar_v4_spreadsheet_id');
-    if (!stored || stored === '1mWsUiIiJ-olbfiCvfMY3gnOBaAUkQBWWZqTMK-0MccY' || stored === '1VvluNPAvviO-93-8FntfLc8lTpi-przr6S1OTKUW4gg' || stored === '1sHj-A4tGwcDXVuMjAe5tHblN9qMy1rtjpPHfRDDTapw') {
-      return '1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM';
+    const defaultSheetId = '1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM';
+    if (!stored || extractSpreadsheetId(stored) !== defaultSheetId) {
+      localStorage.setItem('greenzar_v4_spreadsheet_id', defaultSheetId);
+      return defaultSheetId;
     }
-    return extractSpreadsheetId(stored);
+    return defaultSheetId;
   });
 
   const [v4ApiKey, setV4ApiKey] = useState(() => {
-    return localStorage.getItem('greenzar_v4_api_key') || 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0';
+    const stored = localStorage.getItem('greenzar_v4_api_key');
+    const defaultApiKey = 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0';
+    if (!stored || stored !== defaultApiKey) {
+      localStorage.setItem('greenzar_v4_api_key', defaultApiKey);
+      return defaultApiKey;
+    }
+    return stored;
   });
 
   const [v4Range, setV4Range] = useState(() => {
     const stored = localStorage.getItem('greenzar_v4_range');
-    if (!stored || stored === 'Sheet1!A2:C') {
-      return 'Sheet1!A2:D';
+    const defaultRange = 'Sheet1!A2:H';
+    if (!stored || stored === 'Sheet1!A2:C' || stored === 'Sheet1!A2:D' || stored !== defaultRange) {
+      localStorage.setItem('greenzar_v4_range', defaultRange);
+      return defaultRange;
     }
     return stored;
   });
@@ -407,44 +412,26 @@ export default function AccountsMail() {
 
   // Initialize spreadsheet defaults
   useEffect(() => {
-    const stored = localStorage.getItem('greenzar_apps_script_url');
-    if (!stored || 
-        stored.includes('AKfycbwJLtr0KjDiLo7j4oaTW2Q1mZKhB-VFeMmU3Wkyrk7ZDEVfE_W-qgv4yrpXjfAszaH1Fg') || 
-        stored.includes('AKfycbzlXn0Ot87HWFk0i5D0-2zA22YaFTwo83z7nNOYes0dds4dzAegstmnmhfkrkoKJChj6Q') || 
-        stored.includes('AKfycbwl0FAyUHSpIhwDPegydP5b8KgFavcQzON_OmzSqeJ9ug8da8fPuSyZ86SZk-Lv7Q_aHA') ||
-        stored.includes('AKfycbzf6Ova3trn3HcX4ErVg-mcXRvdkC1TB-txwAYF4ynWC7ZT18juy2yc9xMQbK_UC7MLww') ||
-        stored.includes('AKfycbxrvjYS-v8mV-iLmTxqLO7x9sbbj5jXIpJjTwzhMfMaDmjdejctrbqIncGFauTRsUek_Q') ||
-        stored.includes('AKfycbyWznlRrApnINLQHM9FSsokRj6GDUPh0e-7yS_IJniLlPkN4YD1dfCAhnjNClTZAFYLmw') ||
-        stored.includes('AKfycbxHUzSQPjsaxcLo-8uQNfSYNqMIlE_5_LniAbVV_n_W5srQbt6vCIsb3HYIWAT3iwOl') ||
-        stored.includes('AKfycbxWRUu2VCfdz5z_CYb51qKnPRRd8VI88Y8yazN3VOSAjHF9MHlVdO7xCypdkpsFvmNvRw') ||
-        stored.includes('AKfycbzSA6jJe-6e-iqUJVvmhKXbUcVBZkHb5l9NBnz2UaeQMTzoDEkgE3nzHfIR542VE0vKRg') ||
-        stored.includes('AKfycbxi2BmVNb-IAzRnUmvqcEERgVrjyJzUijUZSJLPEhhHKgPuWFFK0Tw4PUfjoOaxZfBgFQ') ||
-        stored.includes('AKfycbzwA1bsYtS-x4p-EpYuupZrDvYNLqZmClZuYon4DS97duRthDEOr3XwDIIsMkPcONBA') ||
-        stored.includes('AKfycbwO7VJlP-gHvS7KzUrtPrJRS39O7S6PLX81dRvL-e4TiBifyg47vNwnpq-RIGgX-MYB9g') ||
-        stored.includes('AKfycbznmjyYhnHzS-bJfp0XfnOdgMBf8X5VqdVEw98q56yNjb-gP2cleEykcCZG6QD-SpwYOg')) {
-      const defaultUrl = 'https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec';
-      localStorage.setItem('greenzar_apps_script_url', defaultUrl);
-      setAppsScriptUrl(defaultUrl);
-    }
-    const storedSheet = localStorage.getItem('greenzar_v4_spreadsheet_id');
-    if (!storedSheet || storedSheet === '1mWsUiIiJ-olbfiCvfMY3gnOBaAUkQBWWZqTMK-0MccY' || storedSheet === '1VvluNPAvviO-93-8FntfLc8lTpi-przr6S1OTKUW4gg' || storedSheet === '1sHj-A4tGwcDXVuMjAe5tHblN9qMy1rtjpPHfRDDTapw') {
-      const defaultSheetId = '1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM';
-      localStorage.setItem('greenzar_v4_spreadsheet_id', defaultSheetId);
-      setV4SpreadsheetId(defaultSheetId);
-    }
-    if (!localStorage.getItem('greenzar_v4_api_key')) {
-      localStorage.setItem('greenzar_v4_api_key', 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0');
-      setV4ApiKey('AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0');
-    }
-    if (!localStorage.getItem('greenzar_sheet_tab_name')) {
-      localStorage.setItem('greenzar_sheet_tab_name', 'Sheet1');
-      setSheetTitle('Sheet1');
-    }
-    const storedRange = localStorage.getItem('greenzar_v4_range');
-    if (!storedRange || storedRange === 'Sheet1!A2:C' || storedRange === 'Sheet1!A2:D') {
-      localStorage.setItem('greenzar_v4_range', 'Sheet1!A2:H');
-      setV4Range('Sheet1!A2:H');
-    }
+    const defaultUrl = 'https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec';
+    const defaultSheetId = '1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM';
+    const defaultApiKey = 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0';
+    const defaultTabName = 'Sheet1';
+    const defaultRange = 'Sheet1!A2:H';
+
+    localStorage.setItem('greenzar_apps_script_url', defaultUrl);
+    setAppsScriptUrl(defaultUrl);
+
+    localStorage.setItem('greenzar_v4_spreadsheet_id', defaultSheetId);
+    setV4SpreadsheetId(defaultSheetId);
+
+    localStorage.setItem('greenzar_v4_api_key', defaultApiKey);
+    setV4ApiKey(defaultApiKey);
+
+    localStorage.setItem('greenzar_sheet_tab_name', defaultTabName);
+    setSheetTitle(defaultTabName);
+
+    localStorage.setItem('greenzar_v4_range', defaultRange);
+    setV4Range(defaultRange);
   }, []);
 
   // Fetch spreadsheet data from either Apps Script read-proxy or Google Sheets API v4 via backend proxy
