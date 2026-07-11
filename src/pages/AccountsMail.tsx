@@ -285,54 +285,29 @@ export default function AccountsMail() {
 
   // Apps Script Web App Endpoint URL (used for pushing data)
   const [appsScriptUrl, setAppsScriptUrl] = useState(() => {
-    const stored = localStorage.getItem('greenzar_apps_script_url');
-    const defaultUrl = 'https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec';
-    if (!stored || stored.trim() === '' || stored.includes('AKfycbwJL') || stored.includes('AKfycbzl') || stored.includes('AKfycbwl') || stored.includes('AKfycbzf') || stored.includes('AKfycbxr') || stored.includes('AKfycbyW') || stored.includes('AKfycbxH') || stored.includes('AKfycbxW') || stored.includes('AKfycbzS') || stored.includes('AKfycbxi') || stored.includes('AKfycbzw') || stored.includes('AKfycbwO') || stored.includes('AKfycbzn') || stored !== defaultUrl) {
-      localStorage.setItem('greenzar_apps_script_url', defaultUrl);
-      return defaultUrl;
-    }
-    return stored;
+    const isCustom = localStorage.getItem('greenzar_has_custom_config') === 'true';
+    return isCustom ? (localStorage.getItem('greenzar_apps_script_url') || '') : '';
   });
 
   const [sheetTitle, setSheetTitle] = useState(() => {
-    const stored = localStorage.getItem('greenzar_sheet_tab_name');
-    const defaultTab = 'Sheet1';
-    if (!stored || stored !== defaultTab) {
-      localStorage.setItem('greenzar_sheet_tab_name', defaultTab);
-      return defaultTab;
-    }
-    return stored;
+    const isCustom = localStorage.getItem('greenzar_has_custom_config') === 'true';
+    return isCustom ? (localStorage.getItem('greenzar_sheet_tab_name') || 'Sheet1') : 'Sheet1';
   });
 
   // Google Sheets API v4 (used for reading data)
   const [v4SpreadsheetId, setV4SpreadsheetId] = useState(() => {
-    const stored = localStorage.getItem('greenzar_v4_spreadsheet_id');
-    const defaultSheetId = '1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM';
-    if (!stored || extractSpreadsheetId(stored) !== defaultSheetId) {
-      localStorage.setItem('greenzar_v4_spreadsheet_id', defaultSheetId);
-      return defaultSheetId;
-    }
-    return defaultSheetId;
+    const isCustom = localStorage.getItem('greenzar_has_custom_config') === 'true';
+    return isCustom ? (localStorage.getItem('greenzar_v4_spreadsheet_id') || '') : '';
   });
 
   const [v4ApiKey, setV4ApiKey] = useState(() => {
-    const stored = localStorage.getItem('greenzar_v4_api_key');
-    const defaultApiKey = 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0';
-    if (!stored || stored !== defaultApiKey) {
-      localStorage.setItem('greenzar_v4_api_key', defaultApiKey);
-      return defaultApiKey;
-    }
-    return stored;
+    const isCustom = localStorage.getItem('greenzar_has_custom_config') === 'true';
+    return isCustom ? (localStorage.getItem('greenzar_v4_api_key') || '') : '';
   });
 
   const [v4Range, setV4Range] = useState(() => {
-    const stored = localStorage.getItem('greenzar_v4_range');
-    const defaultRange = 'Sheet1!A2:H';
-    if (!stored || stored === 'Sheet1!A2:C' || stored === 'Sheet1!A2:D' || stored !== defaultRange) {
-      localStorage.setItem('greenzar_v4_range', defaultRange);
-      return defaultRange;
-    }
-    return stored;
+    const isCustom = localStorage.getItem('greenzar_has_custom_config') === 'true';
+    return isCustom ? (localStorage.getItem('greenzar_v4_range') || 'Sheet1!A2:H') : 'Sheet1!A2:H';
   });
 
   // Business States
@@ -412,26 +387,69 @@ export default function AccountsMail() {
 
   // Initialize spreadsheet defaults
   useEffect(() => {
-    const defaultUrl = 'https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec';
-    const defaultSheetId = '1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM';
-    const defaultApiKey = 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0';
-    const defaultTabName = 'Sheet1';
-    const defaultRange = 'Sheet1!A2:H';
+    const initConfigs = async () => {
+      try {
+        const hasCustomConfig = localStorage.getItem('greenzar_has_custom_config') === 'true';
+        const storedScriptUrl = localStorage.getItem('greenzar_apps_script_url');
+        const storedSpreadsheetId = localStorage.getItem('greenzar_v4_spreadsheet_id');
+        const storedApiKey = localStorage.getItem('greenzar_v4_api_key');
+        const storedTabName = localStorage.getItem('greenzar_sheet_tab_name');
+        const storedRange = localStorage.getItem('greenzar_v4_range');
 
-    localStorage.setItem('greenzar_apps_script_url', defaultUrl);
-    setAppsScriptUrl(defaultUrl);
+        // Fetch from server configs as fallbacks
+        const res = await fetch('/api/sheets/config');
+        if (res.ok) {
+          const config = await res.json();
+          
+          if (!hasCustomConfig) {
+            // Overwrite with server environment parameters permanently
+            setAppsScriptUrl(config.appsScriptUrl);
+            setV4SpreadsheetId(config.spreadsheetId);
+            setV4ApiKey(config.apiKey);
+            setSheetTitle(config.range.split('!')[0] || 'Sheet1');
+            setV4Range(config.range);
+          } else {
+            // Load custom local config with server values as fallback
+            setAppsScriptUrl(storedScriptUrl || config.appsScriptUrl);
+            setV4SpreadsheetId(storedSpreadsheetId || config.spreadsheetId);
+            setV4ApiKey(storedApiKey || config.apiKey);
+            setSheetTitle(storedTabName || config.range.split('!')[0] || 'Sheet1');
+            setV4Range(storedRange || config.range);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load server sheet configs:', err);
+        // Soft fallback to hardcoded defaults if backend call fails and no localStorage exists
+        const defaultUrl = 'https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec';
+        const defaultSheetId = '1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM';
+        const defaultApiKey = 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0';
+        const defaultTabName = 'Sheet1';
+        const defaultRange = 'Sheet1!A2:H';
 
-    localStorage.setItem('greenzar_v4_spreadsheet_id', defaultSheetId);
-    setV4SpreadsheetId(defaultSheetId);
+        if (!localStorage.getItem('greenzar_apps_script_url')) {
+          localStorage.setItem('greenzar_apps_script_url', defaultUrl);
+          setAppsScriptUrl(defaultUrl);
+        }
+        if (!localStorage.getItem('greenzar_v4_spreadsheet_id')) {
+          localStorage.setItem('greenzar_v4_spreadsheet_id', defaultSheetId);
+          setV4SpreadsheetId(defaultSheetId);
+        }
+        if (!localStorage.getItem('greenzar_v4_api_key')) {
+          localStorage.setItem('greenzar_v4_api_key', defaultApiKey);
+          setV4ApiKey(defaultApiKey);
+        }
+        if (!localStorage.getItem('greenzar_sheet_tab_name')) {
+          localStorage.setItem('greenzar_sheet_tab_name', defaultTabName);
+          setSheetTitle(defaultTabName);
+        }
+        if (!localStorage.getItem('greenzar_v4_range')) {
+          localStorage.setItem('greenzar_v4_range', defaultRange);
+          setV4Range(defaultRange);
+        }
+      }
+    };
 
-    localStorage.setItem('greenzar_v4_api_key', defaultApiKey);
-    setV4ApiKey(defaultApiKey);
-
-    localStorage.setItem('greenzar_sheet_tab_name', defaultTabName);
-    setSheetTitle(defaultTabName);
-
-    localStorage.setItem('greenzar_v4_range', defaultRange);
-    setV4Range(defaultRange);
+    initConfigs();
   }, []);
 
   // Fetch spreadsheet data from either Apps Script read-proxy or Google Sheets API v4 via backend proxy
@@ -900,6 +918,7 @@ export default function AccountsMail() {
     localStorage.setItem('greenzar_apps_script_url', appsScriptUrl.trim());
     localStorage.setItem('greenzar_sheet_tab_name', sheetTitle.trim());
     localStorage.setItem('greenzar_sheet_read_only_mode', String(isReadOnlyMode));
+    localStorage.setItem('greenzar_has_custom_config', 'true');
     
     setIsConfigOpen(false);
     setSuccessMsg('Settings saved successfully!');
@@ -908,28 +927,44 @@ export default function AccountsMail() {
   };
 
   // Reset parameters to official application defaults
-  const resetToDefaults = () => {
-    const defaultUrl = 'https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec';
-    const defaultSpreadsheetId = '1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM';
-    const defaultApiKey = 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0';
-    const defaultTabName = 'Sheet1';
-    const defaultRange = 'Sheet1!A2:H';
+  const resetToDefaults = async () => {
+    localStorage.removeItem('greenzar_has_custom_config');
+    localStorage.removeItem('greenzar_v4_spreadsheet_id');
+    localStorage.removeItem('greenzar_v4_api_key');
+    localStorage.removeItem('greenzar_v4_range');
+    localStorage.removeItem('greenzar_apps_script_url');
+    localStorage.removeItem('greenzar_sheet_tab_name');
+    localStorage.removeItem('greenzar_sheet_read_only_mode');
 
-    setAppsScriptUrl(defaultUrl);
-    setV4SpreadsheetId(defaultSpreadsheetId);
-    setV4ApiKey(defaultApiKey);
-    setSheetTitle(defaultTabName);
-    setV4Range(defaultRange);
-    setIsReadOnlyMode(true);
+    try {
+      const res = await fetch('/api/sheets/config');
+      if (res.ok) {
+        const config = await res.json();
+        setAppsScriptUrl(config.appsScriptUrl);
+        setV4SpreadsheetId(config.spreadsheetId);
+        setV4ApiKey(config.apiKey);
+        setSheetTitle(config.range.split('!')[0] || 'Sheet1');
+        setV4Range(config.range);
+        setIsReadOnlyMode(true);
+        setSuccessMsg('Successfully restored all parameters to server environment defaults!');
+      } else {
+        throw new Error();
+      }
+    } catch (e) {
+      const defaultUrl = 'https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec';
+      const defaultSpreadsheetId = '1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM';
+      const defaultApiKey = 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0';
+      const defaultTabName = 'Sheet1';
+      const defaultRange = 'Sheet1!A2:H';
 
-    localStorage.setItem('greenzar_apps_script_url', defaultUrl);
-    localStorage.setItem('greenzar_v4_spreadsheet_id', defaultSpreadsheetId);
-    localStorage.setItem('greenzar_v4_api_key', defaultApiKey);
-    localStorage.setItem('greenzar_sheet_tab_name', defaultTabName);
-    localStorage.setItem('greenzar_v4_range', defaultRange);
-    localStorage.setItem('greenzar_sheet_read_only_mode', 'true');
-
-    setSuccessMsg('Reset all connection parameters to default. Please save config or refresh.');
+      setAppsScriptUrl(defaultUrl);
+      setV4SpreadsheetId(defaultSpreadsheetId);
+      setV4ApiKey(defaultApiKey);
+      setSheetTitle(defaultTabName);
+      setV4Range(defaultRange);
+      setIsReadOnlyMode(true);
+      setSuccessMsg('Reset all connection parameters to hardcoded system defaults.');
+    }
     setTimeout(() => setSuccessMsg(null), 4000);
   };
 

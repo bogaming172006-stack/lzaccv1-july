@@ -617,16 +617,23 @@ app.get("/api/sheets/read-proxy", async (req, res) => {
 });
 
 // ---------------------------------------------------------
+// GOOGLE SHEETS CONFIG ENDPOINT (METADATA API)
+// ---------------------------------------------------------
+app.get("/api/sheets/config", (req, res) => {
+  res.json({
+    spreadsheetId: (process.env.GOOGLE_SPREADSHEET_ID || "1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM").trim(),
+    apiKey: (process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0").trim(),
+    range: "Sheet1!A2:H",
+    appsScriptUrl: (process.env.GOOGLE_APPS_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec").trim()
+  });
+});
+
+// ---------------------------------------------------------
 // GOOGLE SHEETS LIVE PARTY LOOKUP (READ-ONLY PROXY API)
 // ---------------------------------------------------------
 app.get("/api/parties/live", async (req, res) => {
   let rawSpreadsheetId = (req.query.spreadsheetId as string || process.env.GOOGLE_SPREADSHEET_ID || "1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM").trim();
-  if (
-    !rawSpreadsheetId ||
-    rawSpreadsheetId === "1mWsUiIiJ-olbfiCvfMY3gnOBaAUkQBWWZqTMK-0MccY" ||
-    rawSpreadsheetId === "1VvluNPAvviO-93-8FntfLc8lTpi-przr6S1OTKUW4gg" ||
-    rawSpreadsheetId === "1sHj-A4tGwcDXVuMjAe5tHblN9qMy1rtjpPHfRDDTapw"
-  ) {
+  if (!rawSpreadsheetId) {
     rawSpreadsheetId = "1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM";
   }
   const spreadsheetId = rawSpreadsheetId;
