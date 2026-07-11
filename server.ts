@@ -620,7 +620,16 @@ app.get("/api/sheets/read-proxy", async (req, res) => {
 // GOOGLE SHEETS LIVE PARTY LOOKUP (READ-ONLY PROXY API)
 // ---------------------------------------------------------
 app.get("/api/parties/live", async (req, res) => {
-  const spreadsheetId = (req.query.spreadsheetId as string || process.env.GOOGLE_SPREADSHEET_ID || "1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM").trim();
+  let rawSpreadsheetId = (req.query.spreadsheetId as string || process.env.GOOGLE_SPREADSHEET_ID || "1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM").trim();
+  if (
+    !rawSpreadsheetId ||
+    rawSpreadsheetId === "1mWsUiIiJ-olbfiCvfMY3gnOBaAUkQBWWZqTMK-0MccY" ||
+    rawSpreadsheetId === "1VvluNPAvviO-93-8FntfLc8lTpi-przr6S1OTKUW4gg" ||
+    rawSpreadsheetId === "1sHj-A4tGwcDXVuMjAe5tHblN9qMy1rtjpPHfRDDTapw"
+  ) {
+    rawSpreadsheetId = "1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM";
+  }
+  const spreadsheetId = rawSpreadsheetId;
   const apiKey = (req.query.apiKey as string || process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0").trim();
   const range = (req.query.range as string || "Sheet1!A2:H").trim();
 
