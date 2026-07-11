@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { formatContactWith91 } from './lib/phoneUtils';
-import { GOOGLE_SHEETS_CONFIG } from './googleSheetsConfig';
 import { AuthProvider, useAuth } from './AuthContext';
 import { LedgerProvider, useLedger } from './LedgerContext';
 import { ThemeProvider } from './ThemeContext';
@@ -146,12 +145,10 @@ const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 const triggerGoogleSheetSync = async (activeLedgerId: string) => {
-  let appsScriptUrl = localStorage.getItem('greenzar_apps_script_url');
-  if (!appsScriptUrl || !appsScriptUrl.trim()) {
-    appsScriptUrl = GOOGLE_SHEETS_CONFIG.APPS_SCRIPT_URL;
-  }
+  const appsScriptUrl = localStorage.getItem('greenzar_apps_script_url');
+  if (!appsScriptUrl || !appsScriptUrl.trim()) return;
 
-  const sheetTitle = localStorage.getItem('greenzar_sheet_tab_name') || GOOGLE_SHEETS_CONFIG.DEFAULT_TAB_NAME;
+  const sheetTitle = localStorage.getItem('greenzar_sheet_tab_name') || 'Sheet1';
 
   try {
     const { getFilteredCacheItems } = await import('./lib/idbCache');
@@ -257,24 +254,31 @@ const AppContent: React.FC = () => {
     let intervalId: NodeJS.Timeout | null = null;
     let lastPayloadString = '';
 
-    const performScanSync = async () => {
+    const performScanSync = async (forceSync = false) => {
       const isAutoSyncEnabled = localStorage.getItem('greenzar_realtime_sheet_sync') !== 'false';
       if (!isAutoSyncEnabled) return;
 
-      let appsScriptUrl = localStorage.getItem('greenzar_apps_script_url');
-      if (!appsScriptUrl || !appsScriptUrl.trim()) {
-        appsScriptUrl = GOOGLE_SHEETS_CONFIG.APPS_SCRIPT_URL;
-      }
+      const appsScriptUrl = localStorage.getItem('greenzar_apps_script_url');
+      if (!appsScriptUrl || !appsScriptUrl.trim()) return;
 
-      const sheetTitle = localStorage.getItem('greenzar_sheet_tab_name') || GOOGLE_SHEETS_CONFIG.DEFAULT_TAB_NAME;
+      const sheetTitle = localStorage.getItem('greenzar_sheet_tab_name') || 'Sheet1';
 
       try {
         const { getFilteredCacheItems } = await import('./lib/idbCache');
         const { syncCollection } = await import('./lib/syncCache');
+
+        if (forceSync) {
+          console.log('[Background Auto-Sync] Forcing collection sync with Firestore...');
+          await syncCollection<any>('parties', activeLedger.id, 'parties');
+          await syncCollection<any>('transactions', activeLedger.id, 'transactions');
+        }
         
         // Fast local fetch from IndexedDB cache (instantaneous)
         const activeParties = await getFilteredCacheItems<any>('parties', p => p.ledgerId === activeLedger.id && p.status !== 'Inactive');
         const activeTransactions = await getFilteredCacheItems<any>('transactions', t => t.ledgerId === activeLedger.id);
+
+        // Sort parties deterministically by ID to ensure stable signature/payload matching across scans
+        activeParties.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
 
         const currentPayload = activeParties.map(party => {
           const partyTx = activeTransactions
@@ -360,18 +364,25 @@ const AppContent: React.FC = () => {
     };
 
     // Run the scan check instantly, then every 1000ms (1 second)
-    performScanSync();
-    intervalId = setInterval(performScanSync, 1000);
+    performScanSync(true);
+    intervalId = setInterval(() => performScanSync(false), 1000);
 
     // Also trigger on database sync event for instant responsiveness
     const handleDatabaseSynced = () => {
-      performScanSync();
+      performScanSync(true);
     };
     window.addEventListener('database-synced', handleDatabaseSynced);
+
+    // Also trigger when window gains focus to refresh stale background state
+    const handleFocus = () => {
+      performScanSync(true);
+    };
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       if (intervalId) clearInterval(intervalId);
       window.removeEventListener('database-synced', handleDatabaseSynced);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [activeLedger?.id]);
 

@@ -2,7 +2,6 @@ import express from "express";
 import path from "path";
 import dotenv from "dotenv";
 import { createClient } from "@libsql/client";
-import { GOOGLE_SHEETS_CONFIG } from "./src/googleSheetsConfig";
 
 // Load environment variables
 dotenv.config({ override: true });
@@ -512,7 +511,7 @@ app.post("/api/db/restore", async (req, res) => {
 // ---------------------------------------------------------
 app.get("/api/parties/export", async (req, res) => {
   const apiKey = (req.query.apiKey as string || req.headers["x-api-key"] as string || "").trim();
-  const expectedKey = (process.env.GOOGLE_SHEETS_API_KEY || GOOGLE_SHEETS_CONFIG.API_KEY).trim();
+  const expectedKey = (process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0").trim();
   
   if (expectedKey && apiKey !== expectedKey) {
     return res.status(401).json({ error: "Unauthorized: Invalid API Key" });
@@ -621,9 +620,9 @@ app.get("/api/sheets/read-proxy", async (req, res) => {
 // GOOGLE SHEETS LIVE PARTY LOOKUP (READ-ONLY PROXY API)
 // ---------------------------------------------------------
 app.get("/api/parties/live", async (req, res) => {
-  const spreadsheetId = (req.query.spreadsheetId as string || process.env.GOOGLE_SPREADSHEET_ID || GOOGLE_SHEETS_CONFIG.SPREADSHEET_ID).trim();
-  const apiKey = (req.query.apiKey as string || process.env.GOOGLE_SHEETS_API_KEY || GOOGLE_SHEETS_CONFIG.API_KEY).trim();
-  const range = (req.query.range as string || GOOGLE_SHEETS_CONFIG.DEFAULT_RANGE).trim();
+  const spreadsheetId = (req.query.spreadsheetId as string || process.env.GOOGLE_SPREADSHEET_ID || "1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM").trim();
+  const apiKey = (req.query.apiKey as string || process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0").trim();
+  const range = (req.query.range as string || "Sheet1!A2:H").trim();
 
   if (!spreadsheetId) {
     return res.status(400).json({ error: "Missing Google Spreadsheet ID. Please configure it in Settings or the configuration block." });
@@ -633,13 +632,11 @@ app.get("/api/parties/live", async (req, res) => {
   }
 
   try {
-    console.log(`[Google Sheets API] Initiating fetch for Spreadsheet ID: "${spreadsheetId}", Range: "${range}"`);
     const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?key=${encodeURIComponent(apiKey)}`;
     const response = await fetch(sheetsUrl);
     
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`[Google Sheets Error] Fetch to Google Sheets failed. Status: ${response.status}. URL used: https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?key=REDACTED. Raw response:`, errText);
       let parsedErr;
       try {
         parsedErr = JSON.parse(errText);
@@ -649,8 +646,6 @@ app.get("/api/parties/live", async (req, res) => {
       const errMsg = parsedErr.error?.message || `Google API responded with HTTP status ${response.status}`;
       return res.status(response.status).json({ error: errMsg });
     }
-
-    console.log(`[Google Sheets API] Successfully fetched spreadsheet data for ID: "${spreadsheetId}"`);
 
     const data = await response.json();
     const rows = data.values || [];
