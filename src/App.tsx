@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './AuthContext';
 import { LedgerProvider, useLedger } from './LedgerContext';
 import { ThemeProvider } from './ThemeContext';
 import { setLocalFallback } from './firebase';
+import { fetchSheetsConfig } from './lib/sheetsConfig';
 import Navigation from './components/Navigation';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -145,12 +146,13 @@ const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 const triggerGoogleSheetSync = async (activeLedgerId: string) => {
-  const appsScriptUrl = localStorage.getItem('greenzar_apps_script_url');
-  if (!appsScriptUrl || !appsScriptUrl.trim()) return;
-
-  const sheetTitle = localStorage.getItem('greenzar_sheet_tab_name') || 'Sheet1';
-
   try {
+    const config = await fetchSheetsConfig();
+    const appsScriptUrl = config.appsScriptUrl;
+    if (!appsScriptUrl || !appsScriptUrl.trim()) return;
+
+    const sheetTitle = config.sheetTitle;
+
     const { getFilteredCacheItems } = await import('./lib/idbCache');
     const { syncCollection } = await import('./lib/syncCache');
     
@@ -255,15 +257,16 @@ const AppContent: React.FC = () => {
     let lastPayloadString = '';
 
     const performScanSync = async (forceSync = false) => {
-      const isAutoSyncEnabled = localStorage.getItem('greenzar_realtime_sheet_sync') !== 'false';
-      if (!isAutoSyncEnabled) return;
-
-      const appsScriptUrl = localStorage.getItem('greenzar_apps_script_url');
-      if (!appsScriptUrl || !appsScriptUrl.trim()) return;
-
-      const sheetTitle = localStorage.getItem('greenzar_sheet_tab_name') || 'Sheet1';
-
       try {
+        const config = await fetchSheetsConfig();
+        const isAutoSyncEnabled = config.isAutoSyncing;
+        if (!isAutoSyncEnabled) return;
+
+        const appsScriptUrl = config.appsScriptUrl;
+        if (!appsScriptUrl || !appsScriptUrl.trim()) return;
+
+        const sheetTitle = config.sheetTitle;
+
         const { getFilteredCacheItems } = await import('./lib/idbCache');
         const { syncCollection } = await import('./lib/syncCache');
 

@@ -619,13 +619,81 @@ app.get("/api/sheets/read-proxy", async (req, res) => {
 // ---------------------------------------------------------
 // GOOGLE SHEETS CONFIG ENDPOINT (METADATA API)
 // ---------------------------------------------------------
-app.get("/api/sheets/config", (req, res) => {
+app.get("/api/sheets/config", async (req, res) => {
+  try {
+    const client = safeClient;
+    await ensureTablesExist(client);
+    const result = await client.execute({
+      sql: "SELECT data FROM settings WHERE id = ?",
+      args: ["google_sheets_config"]
+    });
+
+    if (result.rows.length > 0) {
+      const savedConfig = JSON.parse(result.rows[0].data as string);
+      return res.json({
+        spreadsheetId: (savedConfig.spreadsheetId || "").trim(),
+        apiKey: (savedConfig.apiKey || "").trim(),
+        range: (savedConfig.range || "Sheet1!A2:H").trim(),
+        appsScriptUrl: (savedConfig.appsScriptUrl || "").trim(),
+        sheetTitle: (savedConfig.sheetTitle || "Sheet1").trim(),
+        isReadOnlyMode: savedConfig.isReadOnlyMode !== undefined ? savedConfig.isReadOnlyMode : true,
+        isAutoSyncing: savedConfig.isAutoSyncing !== undefined ? savedConfig.isAutoSyncing : true,
+        isCustom: true
+      });
+    }
+  } catch (error) {
+    console.warn("Failed to load saved sheets config from DB, falling back to environment:", error);
+  }
+
+  // Fallback to environment variables
   res.json({
     spreadsheetId: (process.env.GOOGLE_SPREADSHEET_ID || "1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM").trim(),
     apiKey: (process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0").trim(),
     range: "Sheet1!A2:H",
-    appsScriptUrl: (process.env.GOOGLE_APPS_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec").trim()
+    appsScriptUrl: (process.env.GOOGLE_APPS_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec").trim(),
+    sheetTitle: "Sheet1",
+    isReadOnlyMode: true,
+    isAutoSyncing: true,
+    isCustom: false
   });
+});
+
+app.post("/api/sheets/config", async (req, res) => {
+  try {
+    const client = safeClient;
+    await ensureTablesExist(client);
+    const { spreadsheetId, apiKey, range, appsScriptUrl, sheetTitle, isReadOnlyMode, isAutoSyncing, reset } = req.body;
+
+    if (reset) {
+      await client.execute({
+        sql: "DELETE FROM settings WHERE id = ?",
+        args: ["google_sheets_config"]
+      });
+      return res.json({ success: true, message: "Configuration reset to default" });
+    }
+
+    const configData = {
+      id: "google_sheets_config",
+      spreadsheetId: (spreadsheetId || "").trim(),
+      apiKey: (apiKey || "").trim(),
+      range: (range || "Sheet1!A2:H").trim(),
+      appsScriptUrl: (appsScriptUrl || "").trim(),
+      sheetTitle: (sheetTitle || "Sheet1").trim(),
+      isReadOnlyMode: isReadOnlyMode !== undefined ? isReadOnlyMode : true,
+      isAutoSyncing: isAutoSyncing !== undefined ? isAutoSyncing : true,
+      isCustom: true
+    };
+
+    await client.execute({
+      sql: "INSERT OR REPLACE INTO settings (id, data) VALUES (?, ?)",
+      args: ["google_sheets_config", JSON.stringify(configData)]
+    });
+
+    res.json({ success: true, config: configData });
+  } catch (error: any) {
+    console.error("Failed to save sheets config to DB:", error);
+    res.status(500).json({ error: error.message || String(error) });
+  }
 });
 
 // ---------------------------------------------------------

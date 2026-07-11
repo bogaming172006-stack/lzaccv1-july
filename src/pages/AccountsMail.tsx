@@ -25,6 +25,7 @@ import { db, setDoc, doc } from '../firebase';
 import { updateDashboardPartiesCount } from '../lib/transactionService';
 import { v4 as uuidv4 } from 'uuid';
 import { formatContactWith91 } from '../lib/phoneUtils';
+import { fetchSheetsConfig, saveSheetsConfig, resetSheetsConfig } from '../lib/sheetsConfig';
 
 const extractSpreadsheetId = (input: string | null): string => {
   const trimmed = (input || '').trim();
@@ -284,31 +285,16 @@ export default function AccountsMail() {
   }
 
   // Apps Script Web App Endpoint URL (used for pushing data)
-  const [appsScriptUrl, setAppsScriptUrl] = useState(() => {
-    const isCustom = localStorage.getItem('greenzar_has_custom_config') === 'true';
-    return isCustom ? (localStorage.getItem('greenzar_apps_script_url') || '') : '';
-  });
+  const [appsScriptUrl, setAppsScriptUrl] = useState('');
 
-  const [sheetTitle, setSheetTitle] = useState(() => {
-    const isCustom = localStorage.getItem('greenzar_has_custom_config') === 'true';
-    return isCustom ? (localStorage.getItem('greenzar_sheet_tab_name') || 'Sheet1') : 'Sheet1';
-  });
+  const [sheetTitle, setSheetTitle] = useState('Sheet1');
 
   // Google Sheets API v4 (used for reading data)
-  const [v4SpreadsheetId, setV4SpreadsheetId] = useState(() => {
-    const isCustom = localStorage.getItem('greenzar_has_custom_config') === 'true';
-    return isCustom ? (localStorage.getItem('greenzar_v4_spreadsheet_id') || '') : '';
-  });
+  const [v4SpreadsheetId, setV4SpreadsheetId] = useState('');
 
-  const [v4ApiKey, setV4ApiKey] = useState(() => {
-    const isCustom = localStorage.getItem('greenzar_has_custom_config') === 'true';
-    return isCustom ? (localStorage.getItem('greenzar_v4_api_key') || '') : '';
-  });
+  const [v4ApiKey, setV4ApiKey] = useState('');
 
-  const [v4Range, setV4Range] = useState(() => {
-    const isCustom = localStorage.getItem('greenzar_has_custom_config') === 'true';
-    return isCustom ? (localStorage.getItem('greenzar_v4_range') || 'Sheet1!A2:H') : 'Sheet1!A2:H';
-  });
+  const [v4Range, setV4Range] = useState('Sheet1!A2:H');
 
   // Business States
   const [v4Parties, setV4Parties] = useState<{ partyName: string; outstandingAmount: number; email: string; phone: string; rawOutstanding: string }[]>([]);
@@ -316,9 +302,7 @@ export default function AccountsMail() {
   const [showRawGrid, setShowRawGrid] = useState(false);
   const [localParties, setLocalParties] = useState<Party[]>([]);
   const [activeTab, setActiveTab] = useState<'local' | 'spreadsheet'>('local');
-  const [isAutoSyncing, setIsAutoSyncing] = useState(() => {
-    return localStorage.getItem('greenzar_realtime_sheet_sync') !== 'false';
-  });
+  const [isAutoSyncing, setIsAutoSyncing] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -327,15 +311,25 @@ export default function AccountsMail() {
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [showScriptCode, setShowScriptCode] = useState(false);
-  const [isReadOnlyMode, setIsReadOnlyMode] = useState(() => {
-    return localStorage.getItem('greenzar_sheet_read_only_mode') !== 'false';
-  });
+  const [isReadOnlyMode, setIsReadOnlyMode] = useState(true);
   const [isDiagnosing, setIsDiagnosing] = useState(false);
   const [diagnosticLogs, setDiagnosticLogs] = useState<{ type: 'info' | 'success' | 'error'; text: string }[]>([]);
 
-  const toggleAutoSync = (enabled: boolean) => {
+  const toggleAutoSync = async (enabled: boolean) => {
     setIsAutoSyncing(enabled);
-    localStorage.setItem('greenzar_realtime_sheet_sync', String(enabled));
+    try {
+      await saveSheetsConfig({
+        spreadsheetId: v4SpreadsheetId,
+        apiKey: v4ApiKey,
+        range: v4Range,
+        appsScriptUrl: appsScriptUrl,
+        sheetTitle: sheetTitle,
+        isReadOnlyMode: isReadOnlyMode,
+        isAutoSyncing: enabled
+      });
+    } catch (e) {
+      console.error('Failed to save auto sync setting to database:', e);
+    }
   };
 
   const fetchLocalParties = async () => {
@@ -389,63 +383,16 @@ export default function AccountsMail() {
   useEffect(() => {
     const initConfigs = async () => {
       try {
-        const hasCustomConfig = localStorage.getItem('greenzar_has_custom_config') === 'true';
-        const storedScriptUrl = localStorage.getItem('greenzar_apps_script_url');
-        const storedSpreadsheetId = localStorage.getItem('greenzar_v4_spreadsheet_id');
-        const storedApiKey = localStorage.getItem('greenzar_v4_api_key');
-        const storedTabName = localStorage.getItem('greenzar_sheet_tab_name');
-        const storedRange = localStorage.getItem('greenzar_v4_range');
-
-        // Fetch from server configs as fallbacks
-        const res = await fetch('/api/sheets/config');
-        if (res.ok) {
-          const config = await res.json();
-          
-          if (!hasCustomConfig) {
-            // Overwrite with server environment parameters permanently
-            setAppsScriptUrl(config.appsScriptUrl);
-            setV4SpreadsheetId(config.spreadsheetId);
-            setV4ApiKey(config.apiKey);
-            setSheetTitle(config.range.split('!')[0] || 'Sheet1');
-            setV4Range(config.range);
-          } else {
-            // Load custom local config with server values as fallback
-            setAppsScriptUrl(storedScriptUrl || config.appsScriptUrl);
-            setV4SpreadsheetId(storedSpreadsheetId || config.spreadsheetId);
-            setV4ApiKey(storedApiKey || config.apiKey);
-            setSheetTitle(storedTabName || config.range.split('!')[0] || 'Sheet1');
-            setV4Range(storedRange || config.range);
-          }
-        }
+        const config = await fetchSheetsConfig(true);
+        setAppsScriptUrl(config.appsScriptUrl);
+        setV4SpreadsheetId(config.spreadsheetId);
+        setV4ApiKey(config.apiKey);
+        setSheetTitle(config.sheetTitle);
+        setV4Range(config.range);
+        setIsReadOnlyMode(config.isReadOnlyMode);
+        setIsAutoSyncing(config.isAutoSyncing);
       } catch (err) {
         console.error('Failed to load server sheet configs:', err);
-        // Soft fallback to hardcoded defaults if backend call fails and no localStorage exists
-        const defaultUrl = 'https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec';
-        const defaultSheetId = '1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM';
-        const defaultApiKey = 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0';
-        const defaultTabName = 'Sheet1';
-        const defaultRange = 'Sheet1!A2:H';
-
-        if (!localStorage.getItem('greenzar_apps_script_url')) {
-          localStorage.setItem('greenzar_apps_script_url', defaultUrl);
-          setAppsScriptUrl(defaultUrl);
-        }
-        if (!localStorage.getItem('greenzar_v4_spreadsheet_id')) {
-          localStorage.setItem('greenzar_v4_spreadsheet_id', defaultSheetId);
-          setV4SpreadsheetId(defaultSheetId);
-        }
-        if (!localStorage.getItem('greenzar_v4_api_key')) {
-          localStorage.setItem('greenzar_v4_api_key', defaultApiKey);
-          setV4ApiKey(defaultApiKey);
-        }
-        if (!localStorage.getItem('greenzar_sheet_tab_name')) {
-          localStorage.setItem('greenzar_sheet_tab_name', defaultTabName);
-          setSheetTitle(defaultTabName);
-        }
-        if (!localStorage.getItem('greenzar_v4_range')) {
-          localStorage.setItem('greenzar_v4_range', defaultRange);
-          setV4Range(defaultRange);
-        }
       }
     };
 
@@ -907,63 +854,46 @@ export default function AccountsMail() {
     }
   };
 
-  // Save Config parameters to localStorage
-  const saveConfig = () => {
+  // Save Config parameters to Database
+  const saveConfig = async () => {
     const cleanSpreadsheetId = extractSpreadsheetId(v4SpreadsheetId);
     setV4SpreadsheetId(cleanSpreadsheetId);
 
-    localStorage.setItem('greenzar_v4_spreadsheet_id', cleanSpreadsheetId);
-    localStorage.setItem('greenzar_v4_api_key', v4ApiKey.trim());
-    localStorage.setItem('greenzar_v4_range', v4Range.trim());
-    localStorage.setItem('greenzar_apps_script_url', appsScriptUrl.trim());
-    localStorage.setItem('greenzar_sheet_tab_name', sheetTitle.trim());
-    localStorage.setItem('greenzar_sheet_read_only_mode', String(isReadOnlyMode));
-    localStorage.setItem('greenzar_has_custom_config', 'true');
+    const success = await saveSheetsConfig({
+      spreadsheetId: cleanSpreadsheetId,
+      apiKey: v4ApiKey.trim(),
+      range: v4Range.trim(),
+      appsScriptUrl: appsScriptUrl.trim(),
+      sheetTitle: sheetTitle.trim(),
+      isReadOnlyMode: isReadOnlyMode,
+      isAutoSyncing: isAutoSyncing
+    });
     
-    setIsConfigOpen(false);
-    setSuccessMsg('Settings saved successfully!');
-    setTimeout(() => setSuccessMsg(null), 2000);
-    fetchV4Data();
+    if (success) {
+      setIsConfigOpen(false);
+      setSuccessMsg('Settings saved successfully to database!');
+      setTimeout(() => setSuccessMsg(null), 2000);
+      fetchV4Data();
+    } else {
+      setErrorMsg('Failed to save settings to database.');
+      setTimeout(() => setErrorMsg(null), 4000);
+    }
   };
 
   // Reset parameters to official application defaults
   const resetToDefaults = async () => {
-    localStorage.removeItem('greenzar_has_custom_config');
-    localStorage.removeItem('greenzar_v4_spreadsheet_id');
-    localStorage.removeItem('greenzar_v4_api_key');
-    localStorage.removeItem('greenzar_v4_range');
-    localStorage.removeItem('greenzar_apps_script_url');
-    localStorage.removeItem('greenzar_sheet_tab_name');
-    localStorage.removeItem('greenzar_sheet_read_only_mode');
-
     try {
-      const res = await fetch('/api/sheets/config');
-      if (res.ok) {
-        const config = await res.json();
-        setAppsScriptUrl(config.appsScriptUrl);
-        setV4SpreadsheetId(config.spreadsheetId);
-        setV4ApiKey(config.apiKey);
-        setSheetTitle(config.range.split('!')[0] || 'Sheet1');
-        setV4Range(config.range);
-        setIsReadOnlyMode(true);
-        setSuccessMsg('Successfully restored all parameters to server environment defaults!');
-      } else {
-        throw new Error();
-      }
+      const config = await resetSheetsConfig();
+      setAppsScriptUrl(config.appsScriptUrl);
+      setV4SpreadsheetId(config.spreadsheetId);
+      setV4ApiKey(config.apiKey);
+      setSheetTitle(config.sheetTitle);
+      setV4Range(config.range);
+      setIsReadOnlyMode(config.isReadOnlyMode);
+      setIsAutoSyncing(config.isAutoSyncing);
+      setSuccessMsg('Successfully restored all parameters to default server configuration!');
     } catch (e) {
-      const defaultUrl = 'https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec';
-      const defaultSpreadsheetId = '1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM';
-      const defaultApiKey = 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0';
-      const defaultTabName = 'Sheet1';
-      const defaultRange = 'Sheet1!A2:H';
-
-      setAppsScriptUrl(defaultUrl);
-      setV4SpreadsheetId(defaultSpreadsheetId);
-      setV4ApiKey(defaultApiKey);
-      setSheetTitle(defaultTabName);
-      setV4Range(defaultRange);
-      setIsReadOnlyMode(true);
-      setSuccessMsg('Reset all connection parameters to hardcoded system defaults.');
+      setErrorMsg('Failed to reset configuration.');
     }
     setTimeout(() => setSuccessMsg(null), 4000);
   };
