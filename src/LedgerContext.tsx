@@ -21,6 +21,8 @@ export const LedgerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [errorValue, setErrorValue] = useState<string | null>(null);
 
   const activeLedgerIdRef = useRef<string | null>(activeLedgerId);
+  const autoCreatingRef = useRef<boolean>(false);
+
   useEffect(() => {
     activeLedgerIdRef.current = activeLedgerId;
   }, [activeLedgerId]);
@@ -33,15 +35,20 @@ export const LedgerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
       
       // Auto create a Main Ledger if none exists
-      if (dbLedgers.length === 0) {
+      if (dbLedgers.length === 0 && !autoCreatingRef.current) {
+        autoCreatingRef.current = true;
         const initialLedger: Ledger = {
-          id: uuidv4(),
+          id: 'main-sales-ledger',
           name: 'Main Sales Ledger',
           type: 'SALE',
           createdAt: Date.now()
         };
         setDoc(doc(db, 'ledgers', initialLedger.id), initialLedger)
+          .then(() => {
+            autoCreatingRef.current = false;
+          })
           .catch(e => {
+            autoCreatingRef.current = false;
             setErrorValue(e instanceof Error ? e.message : String(e));
             handleFirestoreError(e, OperationType.CREATE, `ledgers/${initialLedger.id}`);
           });
