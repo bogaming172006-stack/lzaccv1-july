@@ -422,21 +422,28 @@ export default function AccountsMail() {
         stored.includes('AKfycbzwA1bsYtS-x4p-EpYuupZrDvYNLqZmClZuYon4DS97duRthDEOr3XwDIIsMkPcONBA') ||
         stored.includes('AKfycbwO7VJlP-gHvS7KzUrtPrJRS39O7S6PLX81dRvL-e4TiBifyg47vNwnpq-RIGgX-MYB9g') ||
         stored.includes('AKfycbznmjyYhnHzS-bJfp0XfnOdgMBf8X5VqdVEw98q56yNjb-gP2cleEykcCZG6QD-SpwYOg')) {
-      localStorage.setItem('greenzar_apps_script_url', 'https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec');
+      const defaultUrl = 'https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec';
+      localStorage.setItem('greenzar_apps_script_url', defaultUrl);
+      setAppsScriptUrl(defaultUrl);
     }
     const storedSheet = localStorage.getItem('greenzar_v4_spreadsheet_id');
     if (!storedSheet || storedSheet === '1mWsUiIiJ-olbfiCvfMY3gnOBaAUkQBWWZqTMK-0MccY' || storedSheet === '1VvluNPAvviO-93-8FntfLc8lTpi-przr6S1OTKUW4gg' || storedSheet === '1sHj-A4tGwcDXVuMjAe5tHblN9qMy1rtjpPHfRDDTapw') {
-      localStorage.setItem('greenzar_v4_spreadsheet_id', '1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM');
+      const defaultSheetId = '1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM';
+      localStorage.setItem('greenzar_v4_spreadsheet_id', defaultSheetId);
+      setV4SpreadsheetId(defaultSheetId);
     }
     if (!localStorage.getItem('greenzar_v4_api_key')) {
       localStorage.setItem('greenzar_v4_api_key', 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0');
+      setV4ApiKey('AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0');
     }
     if (!localStorage.getItem('greenzar_sheet_tab_name')) {
       localStorage.setItem('greenzar_sheet_tab_name', 'Sheet1');
+      setSheetTitle('Sheet1');
     }
     const storedRange = localStorage.getItem('greenzar_v4_range');
     if (!storedRange || storedRange === 'Sheet1!A2:C' || storedRange === 'Sheet1!A2:D') {
       localStorage.setItem('greenzar_v4_range', 'Sheet1!A2:H');
+      setV4Range('Sheet1!A2:H');
     }
   }, []);
 
