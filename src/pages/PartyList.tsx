@@ -184,23 +184,21 @@ export default function PartyList() {
     };
 
     try {
-      // 1. Update local cache optimistically
+      // 1. Update local UI state optimistically & close modal immediately
       const newList = [...parties, newParty];
       setParties(newList);
-      await setCacheItem<Party>('parties', newParty);
-
-      // 2. Write to Firestore
-      await setDoc(doc(db, 'parties', id), newParty);
-
-      // 3. Increment O(1) parties count in dashboard summary & dirty cache
-      await updateDashboardPartiesCount(activeLedger.id, 1);
-
       setShowAddModal(false);
       setAddName('');
       setAddPhone('');
       setAddAddress('');
       setAddEmail('');
       setAddOpeningBalance('');
+      setIsSubmitting(false);
+
+      // 2. Save in local cache & Firestore in background
+      setCacheItem<Party>('parties', newParty);
+      setDoc(doc(db, 'parties', id), newParty);
+      updateDashboardPartiesCount(activeLedger.id, 1);
       window.dispatchEvent(new CustomEvent('database-synced'));
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, `parties/${id}`);

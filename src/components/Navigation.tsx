@@ -115,6 +115,7 @@ export default function Navigation() {
     ...(activeLedger?.type === 'SALE' ? [{ to: '/invoice-sheets', icon: <BookOpen size={20} />, label: 'Invoice Sheets' }] : []),
     { to: '/log', icon: <FileText size={20} />, label: 'Log' },
     { to: '/activities', icon: <Activity size={20} />, label: 'Activities' },
+    { to: '/backup-restore', icon: <Database size={20} />, label: 'Backup & Restore' },
     ...(currentUser.isAdmin ? [{ to: '/accounts-mail', icon: <FileSpreadsheet size={20} />, label: 'Google Sheets Sync' }] : []),
   ];
 
@@ -175,6 +176,15 @@ export default function Navigation() {
             >
               <Activity size={18} className="mr-3 text-emerald-500" />
               All Activities
+            </NavLink>
+
+            <NavLink 
+              to="/backup-restore" 
+              onClick={() => setShowMobileMore(false)} 
+              className={({ isActive }) => `flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-sky-50 text-sky-700' : 'text-gray-700 hover:bg-gray-50'}`}
+            >
+              <Database size={18} className="mr-3 text-sky-600" />
+              Backup & Restore
             </NavLink>
             
             {activeLedger?.type === 'SALE' && (

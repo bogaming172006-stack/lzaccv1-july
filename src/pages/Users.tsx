@@ -5,6 +5,7 @@ import { db, handleFirestoreError, OperationType, doc, setDoc, recreateDatabaseT
 import { format } from 'date-fns';
 import { Shield, UserPlus, X, Database, RefreshCw } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
+import DatabaseBackupRestore from '../components/DatabaseBackupRestore';
 
 interface AddUserModalProps {
   onClose: () => void;
@@ -39,8 +40,10 @@ function AddUserModal({ onClose }: AddUserModalProps) {
     };
 
     try {
-      await setDoc(doc(db, 'users', id), newUser);
       onClose();
+      setDoc(doc(db, 'users', id), newUser).catch(err => {
+        handleFirestoreError(err, OperationType.CREATE, `users/${id}`);
+      });
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `users/${id}`);
     }
@@ -193,6 +196,11 @@ export default function Users() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Database Backup & Restore Module */}
+      <div className="mt-8">
+        <DatabaseBackupRestore />
       </div>
 
       {/* Live Table Monitor list */}

@@ -14,6 +14,7 @@ import PartyDetail from './pages/PartyDetail';
 import Log from './pages/Log';
 import Activities from './pages/Activities';
 import Users from './pages/Users';
+import BackupRestorePage from './pages/BackupRestorePage';
 import MasterEntry from './pages/MasterEntry';
 import InvoiceSheets from './pages/InvoiceSheets';
 import ProductList from './pages/ProductList';
@@ -490,6 +491,14 @@ const AppContent: React.FC = () => {
             <RequireAuth>
               <AuthLayout>
                 <Users />
+              </AuthLayout>
+            </RequireAuth>
+          } />
+
+          <Route path="/backup-restore" element={
+            <RequireAuth>
+              <AuthLayout>
+                <BackupRestorePage />
               </AuthLayout>
             </RequireAuth>
           } />

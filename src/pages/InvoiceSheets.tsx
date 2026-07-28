@@ -118,14 +118,12 @@ export default function InvoiceSheets() {
       // 1. Update local state & Cache optimistically
       const updatedInvoices = [...invoices, newInvoice];
       setInvoices(updatedInvoices);
-      await setCacheItem<TrackedInvoice>('tracked_invoices', newInvoice);
 
-      // 2. Write to Firestore
-      await setDoc(doc(db, 'tracked_invoices', newInvoice.id), newInvoice);
-      
-      // 3. Increment remote cache meta version
+      // 2. Save in local cache & Firestore in background
+      setCacheItem<TrackedInvoice>('tracked_invoices', newInvoice);
+      setDoc(doc(db, 'tracked_invoices', newInvoice.id), newInvoice);
       const serverVerRef = doc(db, 'cache_versions', activeLedger.id);
-      await setDoc(serverVerRef, { tracked_invoices: Date.now() }, { merge: true });
+      setDoc(serverVerRef, { tracked_invoices: Date.now() }, { merge: true });
 
       if (isMatch) {
          setAlertInfo({ 

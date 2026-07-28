@@ -9,6 +9,64 @@ import { deleteTransaction } from '../lib/transactionService';
 
 const BATCH_SIZE = 20;
 
+const ledgerThemeMap: Record<Ledger['type'], {
+  badge: string;
+  topBorder: string;
+  glow: string;
+  textAccent: string;
+  bgLight: string;
+}> = {
+  SALE: {
+    badge: 'bg-sky-50 text-sky-700 border border-sky-100 dark:bg-sky-950/30 dark:text-sky-300 dark:border-sky-900/50',
+    topBorder: 'border-t-sky-500',
+    glow: 'bg-sky-500',
+    textAccent: 'text-sky-700 dark:text-sky-400',
+    bgLight: 'bg-sky-50/30'
+  },
+  PURCHASE: {
+    badge: 'bg-purple-50 text-purple-700 border border-purple-100 dark:bg-purple-950/30 dark:text-purple-300 dark:border-purple-900/50',
+    topBorder: 'border-t-purple-500',
+    glow: 'bg-purple-500',
+    textAccent: 'text-purple-700 dark:text-purple-400',
+    bgLight: 'bg-purple-50/30'
+  },
+  CASH_BANK: {
+    badge: 'bg-teal-50 text-teal-700 border border-teal-100 dark:bg-teal-950/30 dark:text-teal-300 dark:border-teal-900/50',
+    topBorder: 'border-t-teal-500',
+    glow: 'bg-teal-500',
+    textAccent: 'text-teal-700 dark:text-teal-400',
+    bgLight: 'bg-teal-50/30'
+  },
+  EXPENSE: {
+    badge: 'bg-rose-50 text-rose-700 border border-rose-100 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-900/50',
+    topBorder: 'border-t-rose-500',
+    glow: 'bg-rose-500',
+    textAccent: 'text-rose-700 dark:text-rose-400',
+    bgLight: 'bg-rose-50/30'
+  },
+  ASSET: {
+    badge: 'bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900/50',
+    topBorder: 'border-t-emerald-500',
+    glow: 'bg-emerald-500',
+    textAccent: 'text-emerald-700 dark:text-emerald-400',
+    bgLight: 'bg-emerald-50/30'
+  },
+  LIABILITY: {
+    badge: 'bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900/50',
+    topBorder: 'border-t-amber-500',
+    glow: 'bg-amber-500',
+    textAccent: 'text-amber-700 dark:text-amber-400',
+    bgLight: 'bg-amber-50/30'
+  },
+  CAPITAL: {
+    badge: 'bg-indigo-50 text-indigo-700 border border-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-300 dark:border-indigo-900/50',
+    topBorder: 'border-t-indigo-500',
+    glow: 'bg-indigo-500',
+    textAccent: 'text-indigo-700 dark:text-indigo-400',
+    bgLight: 'bg-indigo-50/30'
+  }
+};
+
 export default function Activities() {
   const { ledgers } = useLedger();
   const { currentUser } = useAuth();
@@ -178,42 +236,54 @@ export default function Activities() {
       <div className="mb-8">
         <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Ledger Overview</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {ledgerSummaries.map(({ ledger, debitSum, creditSum, netBalance, count }) => (
-            <div key={ledger.id} className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-5 hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="font-bold text-gray-900 truncate max-w-[180px]" title={ledger.name}>{ledger.name}</h3>
-                <span className="text-[10px] bg-gray-100 font-semibold px-2 py-0.5 rounded text-gray-600">
-                  {LEDGER_TYPE_LABELS[ledger.type] || ledger.type}
-                </span>
-              </div>
-              <p className="text-xs text-gray-400 mb-4">{count} total entries</p>
-              
-              <div className="grid grid-cols-2 gap-2 border-t pt-3 border-gray-100 text-xs">
-                <div>
-                  <span className="text-gray-400 font-medium">Total Dr:</span>
-                  <div className="font-bold text-red-600 mt-0.5">
-                    ₹{debitSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          {ledgerSummaries.map(({ ledger, debitSum, creditSum, netBalance, count }) => {
+            const theme = ledgerThemeMap[ledger.type] || {
+              badge: 'bg-gray-100 text-gray-600',
+              topBorder: 'border-t-gray-450',
+              glow: 'bg-gray-400',
+              textAccent: 'text-gray-750',
+              bgLight: 'bg-gray-50/50'
+            };
+            return (
+              <div key={ledger.id} className={`bg-white rounded-xl shadow-sm border border-gray-200/80 border-t-4 ${theme.topBorder} p-5 hover:shadow-md transition-shadow`}>
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-2 truncate max-w-[180px]">
+                    <span className={`w-2 h-2 rounded-full ${theme.glow} shrink-0`} />
+                    <h3 className="font-bold text-gray-900 truncate" title={ledger.name}>{ledger.name}</h3>
                   </div>
-                </div>
-                <div className="border-l pl-2 border-gray-100">
-                  <span className="text-gray-400 font-medium">Total Cr:</span>
-                  <div className="font-bold text-emerald-600 mt-0.5">
-                    ₹{creditSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center text-xs">
-                <span className="text-gray-500 font-medium">Ledger Balance:</span>
-                <span className={`font-bold ${netBalance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                  ₹{Math.abs(netBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  <span className="text-[10px] font-normal ml-0.5">
-                    {netBalance >= 0 ? '(Cr)' : '(Dr)'}
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${theme.badge}`}>
+                    {LEDGER_TYPE_LABELS[ledger.type] || ledger.type}
                   </span>
-                </span>
+                </div>
+                <p className="text-xs text-gray-400 mb-4">{count} total entries</p>
+                
+                <div className="grid grid-cols-2 gap-2 border-t pt-3 border-gray-100 text-xs">
+                  <div>
+                    <span className="text-gray-400 font-medium">Total Dr:</span>
+                    <div className="font-bold text-red-600 mt-0.5">
+                      ₹{debitSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                  <div className="border-l pl-2 border-gray-100">
+                    <span className="text-gray-400 font-medium">Total Cr:</span>
+                    <div className="font-bold text-emerald-600 mt-0.5">
+                      ₹{creditSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center text-xs">
+                  <span className="text-gray-500 font-medium">Ledger Balance:</span>
+                  <span className={`font-bold ${netBalance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                    ₹{Math.abs(netBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    <span className="text-[10px] font-normal ml-0.5">
+                      {netBalance >= 0 ? '(Cr)' : '(Dr)'}
+                    </span>
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

@@ -34,35 +34,16 @@ export const LedgerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         dbLedgers.push(d.data() as Ledger);
       });
       
-      // Auto create a Main Ledger if none exists
-      if (dbLedgers.length === 0 && !autoCreatingRef.current) {
-        autoCreatingRef.current = true;
-        const initialLedger: Ledger = {
-          id: 'main-sales-ledger',
-          name: 'Main Sales Ledger',
-          type: 'SALE',
-          createdAt: Date.now()
-        };
-        setDoc(doc(db, 'ledgers', initialLedger.id), initialLedger)
-          .then(() => {
-            autoCreatingRef.current = false;
-          })
-          .catch(e => {
-            autoCreatingRef.current = false;
-            setErrorValue(e instanceof Error ? e.message : String(e));
-            handleFirestoreError(e, OperationType.CREATE, `ledgers/${initialLedger.id}`);
-          });
-        dbLedgers.push(initialLedger);
-      }
-      
       setLedgers(dbLedgers);
       setErrorValue(null);
 
       // Set active ledger safely
       const currentActiveId = activeLedgerIdRef.current;
-      if (!currentActiveId && dbLedgers.length > 0) {
+      if (dbLedgers.length === 0) {
+        setActiveLedgerId(null);
+      } else if (!currentActiveId) {
         setActiveLedgerId(dbLedgers[0].id);
-      } else if (currentActiveId && !dbLedgers.find(l => l.id === currentActiveId) && dbLedgers.length > 0) {
+      } else if (currentActiveId && !dbLedgers.find(l => l.id === currentActiveId)) {
         setActiveLedgerId(dbLedgers[0].id);
       }
       setIsLoading(false);

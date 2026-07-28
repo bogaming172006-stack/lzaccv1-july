@@ -2,6 +2,15 @@ import express from "express";
 import path from "path";
 import dotenv from "dotenv";
 import { createClient } from "@libsql/client";
+import initSqlJs from "sql.js";
+
+let SQLInstance: any = null;
+async function getSqlEngine() {
+  if (!SQLInstance) {
+    SQLInstance = await initSqlJs();
+  }
+  return SQLInstance;
+}
 
 // Load environment variables
 dotenv.config({ override: true });
@@ -503,6 +512,197 @@ app.post("/api/db/restore", async (req, res) => {
     res.json({ success: true, message: "Database restore completed successfully!" });
   } catch (error: any) {
     res.json({ error: error.message || String(error) });
+  }
+});
+
+// Admin utilities - export full binary SQLite (.sqlite) database
+app.get("/api/db/export-sqlite", async (req, res) => {
+  try {
+    const client = safeClient;
+    const SQL = await getSqlEngine();
+    const memDb = new SQL.Database();
+
+    // 1. Create tables & indexes inside memory database
+    for (const col of TABLES) {
+      memDb.run(`CREATE TABLE IF NOT EXISTS ${col} (id TEXT PRIMARY KEY, data TEXT)`);
+    }
+    const indexStatements = [
+      "CREATE INDEX IF NOT EXISTS idx_parties_ledgerId ON parties(json_extract(data, '$.ledgerId'))",
+      "CREATE INDEX IF NOT EXISTS idx_transactions_ledgerId ON transactions(json_extract(data, '$.ledgerId'))",
+      "CREATE INDEX IF NOT EXISTS idx_transactions_partyId ON transactions(json_extract(data, '$.partyId'))",
+      "CREATE INDEX IF NOT EXISTS idx_transactions_invoiceNo ON transactions(json_extract(data, '$.invoiceNo'))",
+      "CREATE INDEX IF NOT EXISTS idx_balances_ledgerId ON balances(json_extract(data, '$.ledgerId'))",
+      "CREATE INDEX IF NOT EXISTS idx_balances_partyId ON balances(json_extract(data, '$.partyId'))",
+      "CREATE INDEX IF NOT EXISTS idx_tracked_invoices_ledgerId ON tracked_invoices(json_extract(data, '$.ledgerId'))",
+      "CREATE INDEX IF NOT EXISTS idx_tracked_invoices_invoiceNo ON tracked_invoices(json_extract(data, '$.invoiceNo'))",
+      "CREATE INDEX IF NOT EXISTS idx_products_ledgerId ON products(json_extract(data, '$.ledgerId'))"
+    ];
+    for (const stmt of indexStatements) {
+      try { memDb.run(stmt); } catch (e) {}
+    }
+
+    // 2. Fetch all records from Turso / local DB and insert into SQLite memDb
+    let totalRows = 0;
+    const tablesSummary: { [col: string]: number } = {};
+
+    for (const col of TABLES) {
+      try {
+        const result = await client.execute(`SELECT id, data FROM ${col}`);
+        let colCount = 0;
+        for (const row of result.rows) {
+          const id = row.id as string;
+          const dataStr = row.data as string;
+          memDb.run(`INSERT OR REPLACE INTO ${col} (id, data) VALUES (?, ?)`, [id, dataStr]);
+          colCount++;
+          totalRows++;
+        }
+        tablesSummary[col] = colCount;
+      } catch (colErr) {
+        tablesSummary[col] = 0;
+      }
+    }
+
+    // 3. Export binary array & convert to base64
+    const binaryUint8 = memDb.export();
+    const buffer = Buffer.from(binaryUint8);
+    memDb.close();
+
+    res.json({
+      success: true,
+      base64: buffer.toString("base64"),
+      sizeBytes: buffer.length,
+      totalRows,
+      tablesSummary
+    });
+  } catch (error: any) {
+    console.error("Failed to export SQLite database:", error);
+    res.status(500).json({ success: false, error: error.message || String(error) });
+  }
+});
+
+// Admin utilities - validate uploaded binary SQLite (.sqlite) backup file
+app.post("/api/db/validate-sqlite", async (req, res) => {
+  const { base64 } = req.body;
+  if (!base64 || typeof base64 !== "string") {
+    return res.status(400).json({ success: false, error: "Missing or invalid base64 SQLite data." });
+  }
+
+  try {
+    const buffer = Buffer.from(base64, "base64");
+    
+    // Check SQLite header magic bytes "SQLite format 3"
+    const headerStr = buffer.subarray(0, 16).toString("ascii");
+    if (!headerStr.startsWith("SQLite format 3")) {
+      return res.json({ success: false, isValid: false, error: "The selected file is not a valid SQLite 3 database file." });
+    }
+
+    const SQL = await getSqlEngine();
+    const memDb = new SQL.Database(buffer);
+
+    // Inspect tables
+    const tablesRes = memDb.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+    const existingTables: string[] = [];
+    if (tablesRes.length > 0 && tablesRes[0].values) {
+      tablesRes[0].values.forEach((val: any) => existingTables.push(String(val[0])));
+    }
+
+    let totalRows = 0;
+    const tablesSummary: { [tableName: string]: number } = {};
+
+    for (const col of TABLES) {
+      if (existingTables.includes(col)) {
+        try {
+          const countRes = memDb.exec(`SELECT count(*) FROM ${col}`);
+          const count = countRes[0]?.values[0]?.[0] ? Number(countRes[0].values[0][0]) : 0;
+          tablesSummary[col] = count;
+          totalRows += count;
+        } catch (e) {
+          tablesSummary[col] = 0;
+        }
+      } else {
+        tablesSummary[col] = 0;
+      }
+    }
+
+    memDb.close();
+
+    res.json({
+      success: true,
+      isValid: true,
+      sizeBytes: buffer.length,
+      totalRows,
+      tablesSummary,
+      foundTables: existingTables
+    });
+  } catch (error: any) {
+    res.json({ success: false, isValid: false, error: error.message || "Failed to parse SQLite file." });
+  }
+});
+
+// Admin utilities - restore from binary SQLite (.sqlite) backup file
+app.post("/api/db/restore-sqlite", async (req, res) => {
+  const { base64 } = req.body;
+  if (!base64 || typeof base64 !== "string") {
+    return res.status(400).json({ success: false, error: "Missing or invalid base64 SQLite data." });
+  }
+
+  try {
+    const buffer = Buffer.from(base64, "base64");
+    const SQL = await getSqlEngine();
+    const memDb = new SQL.Database(buffer);
+
+    const client = safeClient;
+    const transaction = await client.transaction("write");
+
+    let restoredCount = 0;
+    const restoredSummary: { [col: string]: number } = {};
+
+    try {
+      // 1. Wipe current tables
+      for (const col of TABLES) {
+        await transaction.execute(`DELETE FROM ${col}`);
+      }
+
+      // 2. Read from memDb and insert into transaction
+      for (const col of TABLES) {
+        let colRestored = 0;
+        try {
+          const rowsRes = memDb.exec(`SELECT id, data FROM ${col}`);
+          if (rowsRes.length > 0 && rowsRes[0].values) {
+            for (const val of rowsRes[0].values) {
+              const id = String(val[0]);
+              const dataStr = String(val[1]);
+              await transaction.execute({
+                sql: `INSERT OR REPLACE INTO ${col} (id, data) VALUES (?, ?)`,
+                args: [id, dataStr]
+              });
+              colRestored++;
+              restoredCount++;
+            }
+          }
+        } catch (e) {
+          // Table might not exist in backup file
+        }
+        restoredSummary[col] = colRestored;
+      }
+
+      await transaction.commit();
+    } catch (txErr) {
+      await transaction.rollback();
+      throw txErr;
+    } finally {
+      memDb.close();
+    }
+
+    res.json({
+      success: true,
+      message: "Database successfully restored from SQLite backup file!",
+      totalRestored: restoredCount,
+      restoredSummary
+    });
+  } catch (error: any) {
+    console.error("Failed to restore SQLite database:", error);
+    res.status(500).json({ success: false, error: error.message || String(error) });
   }
 });
 

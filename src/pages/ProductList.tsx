@@ -78,22 +78,19 @@ export default function ProductList() {
     };
 
     try {
-      // 1. Optimistic local cache update
+      // 1. Optimistic local state update and instant modal close
       const updatedList = editingProduct 
         ? products.map(p => p.id === id ? newProduct : p)
         : [...products, newProduct];
       setProducts(updatedList);
-      await setCacheItem<Product>('products', newProduct);
-
-      // 2. Write to Firestore
-      const docRef = doc(db, 'products', id);
-      await setDoc(docRef, newProduct);
-
-      // 3. Mark cache meta dirty on server
-      const serverVerRef = doc(db, 'cache_versions', activeLedger.id);
-      await setDoc(serverVerRef, { products: Date.now() }, { merge: true });
-
       setShowAddModal(false);
+
+      // 2. Save cache & Firestore write in background
+      setCacheItem<Product>('products', newProduct);
+      const docRef = doc(db, 'products', id);
+      setDoc(docRef, newProduct);
+      const serverVerRef = doc(db, 'cache_versions', activeLedger.id);
+      setDoc(serverVerRef, { products: Date.now() }, { merge: true });
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, `products/${id}`);
     }

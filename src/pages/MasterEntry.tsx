@@ -523,30 +523,35 @@ export default function MasterEntry() {
         notes: finalNotes
       };
 
-      const success = await createTransaction(newTx, selectedParty);
-      if (success) {
-        const balanceChange = newTx.type === 'DEBIT' ? newTx.amount : -newTx.amount;
-        setLastSavedTx({
-          transaction: {
-            ...newTx,
-            runningBalance: selectedParty.currentDue + balanceChange
-          },
-          partyName: selectedParty.name,
-          partyPhone: selectedParty.phone || ''
-        });
+      const balanceChange = newTx.type === 'DEBIT' ? newTx.amount : -newTx.amount;
+      const updatedPartyDue = selectedParty.currentDue + balanceChange;
+      
+      setLastSavedTx({
+        transaction: {
+          ...newTx,
+          runningBalance: updatedPartyDue
+        },
+        partyName: selectedParty.name,
+        partyPhone: selectedParty.phone || ''
+      });
 
-        // Reset form
-        setAmount('');
-        setCashAmount('');
-        setAcAmount('');
-        setNotes('');
-        setSelectedParty(null);
-        setPartySearch('');
-        setShowConfirmModal(false);
-        setInvoiceNo('');
+      // Optimistically reset form and close confirm modal instantly
+      setAmount('');
+      setCashAmount('');
+      setAcAmount('');
+      setNotes('');
+      setSelectedParty(null);
+      setPartySearch('');
+      setShowConfirmModal(false);
+      setInvoiceNo('');
+      setShowSuccess(true);
+      setIsSubmitting(false);
 
-        setShowSuccess(true);
-      }
+      // Save transaction in background
+      createTransaction(newTx, selectedParty).catch(e => {
+        handleFirestoreError(e, OperationType.CREATE, 'transactions');
+      });
+      return;
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, 'transactions');
     } finally {

@@ -1,9 +1,10 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
-import { X, Printer, Download, Receipt } from 'lucide-react';
+import { X, Printer, Download, Receipt, Lock, Eye, EyeOff, Key } from 'lucide-react';
 import { Transaction } from '../types';
 import CompanyLogo, { loadImage } from './CompanyLogo';
+import { exportEncryptedPdf, downloadPdfBlob } from '../lib/pdfEncrypt';
 
 interface ThermalReceiptModalProps {
   isOpen: boolean;
@@ -27,6 +28,9 @@ export default function ThermalReceiptModal({
   autoPrint = false
 }: ThermalReceiptModalProps) {
   const printRef = useRef<HTMLDivElement>(null);
+  const [pdfPassword, setPdfPassword] = useState('');
+  const [showPassInput, setShowPassInput] = useState(false);
+  const [showPassText, setShowPassText] = useState(false);
 
   const afterOutstanding = transaction.runningBalance ?? 0;
   const balanceChange = transaction.type === 'DEBIT' ? transaction.amount : -transaction.amount;
@@ -220,7 +224,9 @@ export default function ThermalReceiptModal({
     
     doc.text('--------------------------------------', 36.5, y + 2, { align: 'center' });
     
-    doc.save(`audit_receipt_${transaction.invoiceNo || transaction.id.substring(0, 8)}.pdf`);
+    const fileName = `audit_receipt_${transaction.invoiceNo || transaction.id.substring(0, 8)}.pdf`;
+    const { blob } = await exportEncryptedPdf(doc, pdfPassword);
+    downloadPdfBlob(blob, fileName);
   };
 
   return (
@@ -328,6 +334,61 @@ export default function ThermalReceiptModal({
             <div className="absolute bottom-0 left-0 right-0 h-1 bg-[linear-gradient(-45deg,transparent_33.333%,#18181b_33.333%,#18181b_66.667%,transparent_66.667%)] bg-[length:6px_6px]"></div>
           </div>
           
+        </div>
+
+        {/* Password Lock Section */}
+        <div className="px-4 py-2.5 bg-zinc-950/60 border-t border-zinc-800/80">
+          <div className="flex justify-between items-center mb-1.5">
+            <button
+              type="button"
+              onClick={() => setShowPassInput(!showPassInput)}
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-sky-400 font-medium transition-colors"
+            >
+              <Lock size={13} className={pdfPassword.trim() ? "text-amber-400" : "text-zinc-500"} />
+              <span>{pdfPassword.trim() ? "PDF Password Lock Active" : "Add Password Lock to PDF"}</span>
+              <span className="text-[10px] text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded ml-1">
+                {showPassInput ? "Hide" : "Setup"}
+              </span>
+            </button>
+            {partyPhone && !pdfPassword && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPdfPassword(partyPhone.replace(/\D/g, ''));
+                  setShowPassInput(true);
+                }}
+                className="text-[10px] text-sky-400 hover:underline flex items-center gap-1"
+              >
+                <Key size={10} />
+                Use Phone ({partyPhone.slice(-4)})
+              </button>
+            )}
+          </div>
+
+          {showPassInput && (
+            <div className="relative mt-2">
+              <input
+                type={showPassText ? "text" : "password"}
+                placeholder="Enter password to lock PDF..."
+                value={pdfPassword}
+                onChange={(e) => setPdfPassword(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-sky-500 pr-8"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassText(!showPassText)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+              >
+                {showPassText ? <EyeOff size={13} /> : <Eye size={13} />}
+              </button>
+            </div>
+          )}
+          {pdfPassword.trim() && (
+            <p className="text-[10px] text-amber-400/90 mt-1 flex items-center gap-1">
+              <Lock size={10} />
+              PDF will require password: <code className="bg-zinc-800 px-1 rounded text-zinc-200">{pdfPassword}</code> to open.
+            </p>
+          )}
         </div>
 
         {/* Modal Actions */}

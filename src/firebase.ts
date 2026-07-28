@@ -384,6 +384,44 @@ export async function restoreDatabase(backupData: { [tableName: string]: any[] }
   }
 }
 
+export async function exportSqliteBackup(): Promise<{ success: boolean; base64?: string; sizeBytes?: number; totalRows?: number; tablesSummary?: { [col: string]: number }; error?: string }> {
+  try {
+    const res = await fetch(getApiUrl('/api/db/export-sqlite'));
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    return await res.json();
+  } catch (err: any) {
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
+export async function validateSqliteBackup(base64: string): Promise<{ success: boolean; isValid?: boolean; sizeBytes?: number; totalRows?: number; tablesSummary?: { [col: string]: number }; foundTables?: string[]; error?: string }> {
+  try {
+    const res = await fetch(getApiUrl('/api/db/validate-sqlite'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64 })
+    });
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    return await res.json();
+  } catch (err: any) {
+    return { success: false, isValid: false, error: err.message || String(err) };
+  }
+}
+
+export async function restoreSqliteBackup(base64: string): Promise<{ success: boolean; message?: string; totalRestored?: number; restoredSummary?: { [col: string]: number }; error?: string }> {
+  try {
+    const res = await fetch(getApiUrl('/api/db/restore-sqlite'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64 })
+    });
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    return await res.json();
+  } catch (err: any) {
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
 runDiagnosticCheck();
 
 export async function getDoc(docRef: MockDocRef): Promise<MockDocumentSnapshot> {
@@ -605,6 +643,7 @@ export async function setDoc(docRef: MockDocRef, data: any, options?: { merge?: 
       collectionData.push(payload);
     }
     saveLocalCollection(docRef.collection, collectionData);
+    notifyLocalListeners(docRef.collection);
   } catch (localErr) {
     console.warn('Failed to save to local storage cache in setDoc:', localErr);
   }
@@ -656,6 +695,7 @@ export async function updateDoc(docRef: MockDocRef, data: any): Promise<void> {
     if (index >= 0) {
       collectionData[index] = { ...collectionData[index], ...data };
       saveLocalCollection(docRef.collection, collectionData);
+      notifyLocalListeners(docRef.collection);
     }
   } catch (localErr) {
     console.warn('Failed to update local storage cache in updateDoc:', localErr);
@@ -705,6 +745,7 @@ export async function deleteDoc(docRef: MockDocRef): Promise<void> {
     const collectionData = getLocalCollection(docRef.collection);
     const filtered = collectionData.filter(item => item.id !== docRef.id);
     saveLocalCollection(docRef.collection, filtered);
+    notifyLocalListeners(docRef.collection);
   } catch (localErr) {
     console.warn('Failed to delete from local storage cache in deleteDoc:', localErr);
   }
@@ -904,6 +945,8 @@ export async function runTransaction(dbInstance: any, callback: (tx: any) => Pro
         saveLocalCollection(op.collection, filtered);
       }
     }
+    const uniqueCollections = Array.from(new Set(operations.map(op => op.collection)));
+    uniqueCollections.forEach(notifyLocalListeners);
   } catch (localErr) {
     console.warn('Failed to commit transaction to local storage cache:', localErr);
   }

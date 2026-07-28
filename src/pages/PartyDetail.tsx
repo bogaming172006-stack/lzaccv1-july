@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType, doc, getDoc, collection, query, where, setDoc, updateDoc, orderBy, limit, getDocs } from '../firebase';
 import { Party, Transaction } from '../types';
-import { ArrowLeft, Download, Plus, Minus, FileText, Edit2, Check, Search, ChevronLeft, ChevronRight, Trash2, Printer, Share2, Send, MessageSquare, Copy } from 'lucide-react';
+import { ArrowLeft, Download, Plus, Minus, FileText, Edit2, Check, Search, ChevronLeft, ChevronRight, Trash2, Printer, Share2, Send, MessageSquare, Copy, Lock, Eye, EyeOff, Key } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -18,6 +18,7 @@ import ThermalReceiptModal from '../components/ThermalReceiptModal';
 import { loadImage } from '../components/CompanyLogo';
 import TransactionDetailModal from '../components/TransactionDetailModal';
 import { formatContactWith91 } from '../lib/phoneUtils';
+import { exportEncryptedPdf, downloadPdfBlob } from '../lib/pdfEncrypt';
 
 export default function PartyDetail() {
   const { id } = useParams<{ id: string }>();
@@ -56,6 +57,8 @@ export default function PartyDetail() {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [downloadStartDate, setDownloadStartDate] = useState(format(new Date(), 'yyyy-MM-01'));
   const [downloadEndDate, setDownloadEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [downloadPdfPassword, setDownloadPdfPassword] = useState('');
+  const [showDownloadPassText, setShowDownloadPassText] = useState(false);
 
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareStartDate, setShareStartDate] = useState(() => {
@@ -64,6 +67,8 @@ export default function PartyDetail() {
     return format(d, 'yyyy-MM-dd');
   });
   const [shareEndDate, setShareEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [sharePdfPassword, setSharePdfPassword] = useState('');
+  const [showSharePassText, setShowSharePassText] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
 
   // Edit Party details state
@@ -494,7 +499,9 @@ export default function PartyDetail() {
     if (!party) return;
     const doc = await buildPdf(downloadStartDate, downloadEndDate);
     if (doc) {
-      doc.save(`ledger_${party.name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+      const fileName = `ledger_${party.name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+      const { blob } = await exportEncryptedPdf(doc, downloadPdfPassword);
+      downloadPdfBlob(blob, fileName);
     }
     setShowDownloadModal(false);
   };
@@ -504,25 +511,27 @@ export default function PartyDetail() {
     try {
       const doc = await buildPdf(shareStartDate, shareEndDate);
       if (!doc) return;
-      const pdfBlob = doc.output('blob');
       const fileName = `ledger_${party.name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`;
-      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      const { blob } = await exportEncryptedPdf(doc, sharePdfPassword);
+      const file = new File([blob], fileName, { type: 'application/pdf' });
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
           title: `Ledger Statement: ${party.name}`,
-          text: `Please find attached the ledger statement for ${party.name} from ${format(new Date(shareStartDate), 'dd MMM yyyy')} to ${format(new Date(shareEndDate), 'dd MMM yyyy')}.`
+          text: `Please find attached the ledger statement for ${party.name} from ${format(new Date(shareStartDate), 'dd MMM yyyy')} to ${format(new Date(shareEndDate), 'dd MMM yyyy')}.${sharePdfPassword.trim() ? ' (Protected PDF - Password required to open)' : ''}`
         });
       } else {
-        doc.save(fileName);
+        downloadPdfBlob(blob, fileName);
         alert('File sharing is not fully supported on this device/browser. The PDF statement has been downloaded instead. You can now send it manually.');
       }
     } catch (error) {
       console.error('Error sharing PDF:', error);
       const doc = await buildPdf(shareStartDate, shareEndDate);
       if (doc) {
-        doc.save(`ledger_${party.name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+        const fileName = `ledger_${party.name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+        const { blob } = await exportEncryptedPdf(doc, sharePdfPassword);
+        downloadPdfBlob(blob, fileName);
       }
     }
   };
@@ -620,20 +629,34 @@ export default function PartyDetail() {
       timestamp: Date.now()
     };
 
-    try {
-      const success = await createTransaction(newTx, party);
-      if (success) {
-        setShowTxConfirmModal(false);
-        setShowTxModal(null);
-        setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 1500);
+    const newBalance = party.currentDue + (showTxModal === 'DEBIT' ? numAmount : -numAmount);
+    const newTxWithBalance: Transaction = {
+      ...newTx,
+      runningBalance: newBalance
+    };
 
-        await fetchPartyAndTransactions();
-      }
+    // Optimistically update local party balance and list immediately for 0ms lag
+    setParty(prev => prev ? {
+      ...prev,
+      currentDue: newBalance,
+      totalDebit: (prev.totalDebit || 0) + (showTxModal === 'DEBIT' ? numAmount : 0),
+      totalCredit: (prev.totalCredit || 0) + (showTxModal === 'CREDIT' ? numAmount : 0),
+      lastTransaction: newTx.timestamp
+    } : null);
+
+    setTransactions(prev => [newTxWithBalance, ...prev]);
+
+    setShowTxConfirmModal(false);
+    setShowTxModal(null);
+    setShowSuccess(true);
+    setTimeout(() => setShowSuccess(false), 1500);
+    setIsSubmitting(false);
+
+    try {
+      await createTransaction(newTx, party);
+      fetchPartyAndTransactions();
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `transactions/${txId}`);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -742,9 +765,12 @@ export default function PartyDetail() {
     const startStr = format(new Date(shareStartDate), 'dd MMM yyyy');
     const endStr = format(new Date(shareEndDate), 'dd MMM yyyy');
     
+    const formatAmount = (val: number) => `₹ ${Math.abs(val).toFixed(2)}`;
+    const formatTxAmount = (val: number) => `₹${Math.abs(val).toFixed(2)}`;
+
     const formatBalText = (val: number) => {
       if (val === 0) return '₹ 0.00';
-      return `₹ ${Math.abs(val).toFixed(2)} ${val > 0 ? 'Dr' : 'Cr'}`;
+      return `${formatAmount(val)} ${val >= 0 ? 'Dr' : 'Cr'}`;
     };
 
     let msg = `*GREENZAR FOOD & BEVERAGE*\n`;
@@ -757,8 +783,8 @@ export default function PartyDetail() {
     
     msg += `*SUMMARY:*\n`;
     msg += `• Opening Bal: ${formatBalText(startBal)}\n`;
-    msg += `• Total Debit (+): ₹ ${totalDr.toFixed(2)}\n`;
-    msg += `• Total Credit (-): ₹ ${totalCr.toFixed(2)}\n`;
+    msg += `• Total Debit (+): ${formatAmount(totalDr)}\n`;
+    msg += `• Total Credit (-): ${formatAmount(totalCr)}\n`;
     msg += `• Closing Bal: ${formatBalText(endBal)}\n\n`;
     
     if (rangeTxs.length > 0) {
@@ -768,7 +794,7 @@ export default function PartyDetail() {
         const txType = tx.type === 'DEBIT' ? 'Dr' : 'Cr';
         const notes = tx.notes ? ` (${tx.notes.toUpperCase()})` : '';
         const invoice = tx.invoiceNo ? ` [Inv: ${tx.invoiceNo.toUpperCase()}]` : '';
-        msg += `• ${txDate} | ₹${tx.amount.toFixed(2)} ${txType}${notes}${invoice}\n`;
+        msg += `• ${txDate} | ${formatTxAmount(tx.amount)} ${txType}${notes}${invoice}\n`;
       });
       msg += `\n`;
     } else {
@@ -1072,15 +1098,76 @@ export default function PartyDetail() {
             <form onSubmit={generatePdf} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                <input required type="date" value={downloadStartDate} onChange={e => setDownloadStartDate(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+                <input required type="date" value={downloadStartDate} onChange={e => setDownloadStartDate(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                <input required type="date" value={downloadEndDate} onChange={e => setDownloadEndDate(e.target.value)} min={downloadStartDate} className="w-full px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+                <input required type="date" value={downloadEndDate} onChange={e => setDownloadEndDate(e.target.value)} min={downloadStartDate} className="w-full px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm" />
               </div>
-              <div className="pt-4 flex justify-end">
-                <button type="button" onClick={() => setShowDownloadModal(false)} className="px-4 py-2 text-gray-600 mr-2 hover:bg-gray-50 rounded-md">Cancel</button>
-                <button type="submit" className="px-4 py-2 text-white bg-sky-600 hover:bg-sky-700 rounded-md">Download</button>
+
+              {/* PDF Lock Password Option */}
+              <div className="pt-2 border-t border-gray-150">
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                    <Lock size={13} className={downloadPdfPassword.trim() ? "text-amber-600" : "text-gray-400"} />
+                    <span>PDF Password Protection</span>
+                  </label>
+                  {party?.phone && !downloadPdfPassword && (
+                    <button
+                      type="button"
+                      onClick={() => setDownloadPdfPassword(party.phone.replace(/\D/g, ''))}
+                      className="text-[10px] text-sky-600 font-medium hover:underline flex items-center gap-1"
+                    >
+                      <Key size={10} />
+                      Use Phone No
+                    </button>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showDownloadPassText ? "text" : "password"}
+                    placeholder="Set password to lock PDF (Optional)..."
+                    value={downloadPdfPassword}
+                    onChange={e => setDownloadPdfPassword(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border rounded-lg focus:border-sky-500 focus:ring-1 focus:ring-sky-500 pr-9 bg-gray-50/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowDownloadPassText(!showDownloadPassText)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showDownloadPassText ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+
+                {downloadPdfPassword.trim() ? (
+                  <div className="mt-1.5 flex items-center justify-between text-[11px] text-amber-700 bg-amber-50 p-2 rounded-md border border-amber-200">
+                    <span className="flex items-center gap-1 font-medium">
+                      <Lock size={11} className="shrink-0" />
+                      Locked with: <code className="font-mono bg-amber-100 px-1 rounded">{downloadPdfPassword}</code>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDownloadPdfPassword('')}
+                      className="text-amber-800 hover:underline font-bold text-[10px] ml-2"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Leave empty for standard unlocked PDF statement.
+                  </p>
+                )}
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button type="button" onClick={() => setShowDownloadModal(false)} className="px-4 py-2 text-gray-600 mr-2 hover:bg-gray-50 rounded-md text-sm">Cancel</button>
+                <button type="submit" className="px-4 py-2 text-white bg-sky-600 hover:bg-sky-700 rounded-md text-sm font-semibold flex items-center gap-1.5">
+                  <Download size={14} />
+                  {downloadPdfPassword.trim() ? "Download Locked PDF" : "Download PDF"}
+                </button>
               </div>
             </form>
           </div>
@@ -1640,6 +1727,63 @@ export default function PartyDetail() {
                       </div>
                     </div>
 
+                    {/* Password Lock Section in Share Modal */}
+                    <div className="pt-3 pb-1 border-t border-slate-200">
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                          <Lock size={13} className={sharePdfPassword.trim() ? "text-amber-600" : "text-slate-400"} />
+                          <span>PDF Lock Password</span>
+                        </label>
+                        {party?.phone && !sharePdfPassword && (
+                          <button
+                            type="button"
+                            onClick={() => setSharePdfPassword(party.phone.replace(/\D/g, ''))}
+                            className="text-[10px] text-sky-600 font-medium hover:underline flex items-center gap-1"
+                          >
+                            <Key size={10} />
+                            Use Phone ({party.phone.slice(-4)})
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="relative">
+                        <input
+                          type={showSharePassText ? "text" : "password"}
+                          placeholder="Password to lock shared PDF (Optional)..."
+                          value={sharePdfPassword}
+                          onChange={e => setSharePdfPassword(e.target.value)}
+                          className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:border-sky-500 focus:ring-1 focus:ring-sky-500 pr-9 bg-slate-50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSharePassText(!showSharePassText)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showSharePassText ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+
+                      {sharePdfPassword.trim() ? (
+                        <div className="mt-1.5 flex items-center justify-between text-[11px] text-amber-800 bg-amber-50 p-2 rounded-md border border-amber-200">
+                          <span className="flex items-center gap-1 font-medium">
+                            <Lock size={11} className="shrink-0" />
+                            Locked with: <code className="font-mono bg-amber-100 px-1 rounded">{sharePdfPassword}</code>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSharePdfPassword('')}
+                            className="text-amber-900 hover:underline font-bold text-[10px] ml-2"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Lock PDF statement with password before sending to client.
+                        </p>
+                      )}
+                    </div>
+
                     {/* Direct Sharing Actions */}
                     <div className="space-y-3 pt-2">
                       <button
@@ -1648,7 +1792,7 @@ export default function PartyDetail() {
                         className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold active:scale-98 transition-all shadow-md shadow-emerald-900/10 cursor-pointer"
                       >
                         <Share2 size={16} />
-                        Share PDF Statement
+                        {sharePdfPassword.trim() ? "Share Password-Locked PDF" : "Share PDF Statement"}
                       </button>
 
                       <button
@@ -1656,13 +1800,15 @@ export default function PartyDetail() {
                         onClick={async () => {
                           const doc = await buildPdf(shareStartDate, shareEndDate);
                           if (doc) {
-                            doc.save(`ledger_${party.name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+                            const fileName = `ledger_${party.name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+                            const { blob } = await exportEncryptedPdf(doc, sharePdfPassword);
+                            downloadPdfBlob(blob, fileName);
                           }
                         }}
                         className="w-full flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold active:scale-98 transition-all border border-sky-100 cursor-pointer"
                       >
                         <Download size={14} />
-                        Download PDF Document
+                        {sharePdfPassword.trim() ? "Download Password-Locked PDF" : "Download PDF Document"}
                       </button>
 
                       <div className="relative flex py-2 items-center">
