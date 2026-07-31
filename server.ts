@@ -51,6 +51,9 @@ const TABLES = [
 let tursoClientInstance: any = null;
 let useLocalFallback = false;
 
+const DEFAULT_TURSO_URL = "libsql://greenzardbv2-greenzaraccountdpv2.aws-ap-south-1.turso.io";
+const DEFAULT_TURSO_TOKEN = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODI5ODgwOTQsImlkIjoiMDE5ZjIyNWUtMzYwMS03MjViLWFmZDUtMGU0MTQ0OTI4MmMxIiwia2lkIjoicGhNRTdpT0xCWDFMMnI2blJmVDJHanJjN1ZWNzRldURLSjNXTWdwYVFfYyIsInJpZCI6IjI5MGZjODJiLWZmOWUtNGFkZi1iM2U2LTA0MGZjYWIyM2Y1ZiJ9.jxqQcPtg-DF6rFxzkK8P7qtjd5pSl3lKiNHSWRRnKzjcLHexOpqOKTnYSC_1q4zkt2GPZKwSCv5sG6SMyz41BA";
+
 function getTurso() {
   if (useLocalFallback) {
     if (!tursoClientInstance || tursoClientInstance._isRemote) {
@@ -67,10 +70,12 @@ function getTurso() {
     let url = (process.env.TURSO_DB_URL || "").trim().replace(/[\r\n]/g, "");
     let authToken = (process.env.TURSO_DB_AUTH_TOKEN || "").trim().replace(/[\r\n]/g, "");
 
-    // Default fallback Turso database credentials if process.env is not configured
+    // Permanent default Turso database credentials if process.env is missing or placeholder
     if (!url || url === "libsql://placeholder.turso.io" || url.includes("placeholder")) {
-      url = "libsql://greenzardbv2-greenzaraccountdpv2.aws-ap-south-1.turso.io";
-      authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODI5ODgwOTQsImlkIjoiMDE5ZjIyNWUtMzYwMS03MjViLWFmZDUtMGU0MTQ0OTI4MmMxIiwia2lkIjoicGhNRTdpT0xCWDFMMnI2blJmVDJHanJjN1ZWNzRldURLSjNXTWdwYVFfYyIsInJpZCI6IjI5MGZjODJiLWZmOWUtNGFkZi1iM2U2LTA0MGZjYWIyM2Y1ZiJ9.jxqQcPtg-DF6rFxzkK8P7qtjd5pSl3lKiNHSWRRnKzjcLHexOpqOKTnYSC_1q4zkt2GPZKwSCv5sG6SMyz41BA";
+      url = DEFAULT_TURSO_URL;
+    }
+    if (!authToken) {
+      authToken = DEFAULT_TURSO_TOKEN;
     }
 
     if (!url || url === "libsql://placeholder.turso.io" || url.includes("placeholder")) {
@@ -299,7 +304,7 @@ app.use("/api/db", async (req, res, next) => {
 
 // Connection check / diagnosis
 app.get("/api/db/connection-status", async (req, res) => {
-  const url = process.env.TURSO_DB_URL || "";
+  const url = process.env.TURSO_DB_URL || DEFAULT_TURSO_URL;
 
   try {
     if (useLocalFallback) {
