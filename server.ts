@@ -18,13 +18,30 @@ dotenv.config({ override: true });
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-// Enable CORS for external frontends like Vercel
+// Enable CORS for external frontends like Vercel & Netlify
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
+  }
+
+  // Normalize serverless URL paths (Netlify, Vercel, AWS Lambda, local)
+  if (req.url.startsWith("/.netlify/functions/api")) {
+    req.url = req.url.replace("/.netlify/functions/api", "");
+  }
+  if (req.url.startsWith("/api/api")) {
+    req.url = req.url.replace("/api/api", "/api");
+  }
+  if (req.url.startsWith("/db/")) {
+    req.url = "/api" + req.url;
+  }
+  if (req.url === "/db") {
+    req.url = "/api/db";
+  }
+  if (!req.url.startsWith("/")) {
+    req.url = "/" + req.url;
   }
   next();
 });
@@ -151,14 +168,11 @@ class SafeLibsqlClient {
   }
 
   private async triggerFallback() {
-    if (!useLocalFallback) {
-      console.warn("[Database Fallback] Remote Turso connection failed with authentication or server error. Switching to local SQLite fallback database (file:local.db)...");
-      useLocalFallback = true;
-      tursoClientInstance = null; // force recreation of getTurso() with file:local.db
-      tablesInitialized = false; // force re-initialization of tables
-      const client = getTurso();
-      await ensureTablesExist(client);
-    }
+    console.warn("[Database] Re-initializing Turso client connection...");
+    tursoClientInstance = null; // force recreation of getTurso() with remote credentials
+    tablesInitialized = false;
+    const client = getTurso();
+    await ensureTablesExist(client);
   }
 
   private wrapTransaction(tx: any) {
