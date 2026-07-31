@@ -18,15 +18,7 @@ dotenv.config({ override: true });
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-// Rewrite Netlify Functions path prefix to standard API routes before any routing
-app.use((req, res, next) => {
-  if (req.url.startsWith("/.netlify/functions/api")) {
-    req.url = req.url.replace("/.netlify/functions/api", "/api");
-  }
-  next();
-});
-
-// Enable CORS for external frontends like Netlify
+// Enable CORS for external frontends like Vercel
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -74,15 +66,15 @@ function getTurso() {
   if (!tursoClientInstance) {
     let url = (process.env.TURSO_DB_URL || "").trim().replace(/[\r\n]/g, "");
     let authToken = (process.env.TURSO_DB_AUTH_TOKEN || "").trim().replace(/[\r\n]/g, "");
-    
-    // Hardcode fallback Turso credentials to permanently connect the database even if .env is missing/deleted
+
+    // Default fallback Turso database credentials if process.env is not configured
     if (!url || url === "libsql://placeholder.turso.io" || url.includes("placeholder")) {
       url = "libsql://greenzardbv2-greenzaraccountdpv2.aws-ap-south-1.turso.io";
       authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODI5ODgwOTQsImlkIjoiMDE5ZjIyNWUtMzYwMS03MjViLWFmZDUtMGU0MTQ0OTI4MmMxIiwia2lkIjoicGhNRTdpT0xCWDFMMnI2blJmVDJHanJjN1ZWNzRldURLSjNXTWdwYVFfYyIsInJpZCI6IjI5MGZjODJiLWZmOWUtNGFkZi1iM2U2LTA0MGZjYWIyM2Y1ZiJ9.jxqQcPtg-DF6rFxzkK8P7qtjd5pSl3lKiNHSWRRnKzjcLHexOpqOKTnYSC_1q4zkt2GPZKwSCv5sG6SMyz41BA";
     }
 
     if (!url || url === "libsql://placeholder.turso.io" || url.includes("placeholder")) {
-      console.log("[Database] No valid TURSO_DB_URL configured. Falling back to local SQLite file:local.db");
+      console.log("[Database] No valid TURSO_DB_URL configured in environment variables. Falling back to local SQLite file:local.db");
       useLocalFallback = true;
       tursoClientInstance = createClient({
         url: "file:local.db"
@@ -307,10 +299,7 @@ app.use("/api/db", async (req, res, next) => {
 
 // Connection check / diagnosis
 app.get("/api/db/connection-status", async (req, res) => {
-  let url = process.env.TURSO_DB_URL;
-  if (!url || url.trim() === "" || url === "libsql://placeholder.turso.io") {
-    url = "libsql://greenzardbv2-greenzaraccountdpv2.aws-ap-south-1.turso.io";
-  }
+  const url = process.env.TURSO_DB_URL || "";
 
   try {
     if (useLocalFallback) {
@@ -318,12 +307,12 @@ app.get("/api/db/connection-status", async (req, res) => {
     }
     const client = getTurso();
     await client.execute("SELECT 1");
-    res.json({ status: "connected", url });
+    res.json({ status: "connected", url: url || "Turso" });
   } catch (err: any) {
     console.warn("[Diagnostic] Connection fail:", err.message || String(err));
     res.json({ 
       status: "connection_error", 
-      url: "Turso", 
+      url: url || "Turso", 
       error: err.message || String(err) 
     });
   }
@@ -1023,7 +1012,7 @@ async function startServer() {
   });
 }
 
-if (!process.env.NETLIFY) {
+if (!process.env.VERCEL) {
   startServer();
 }
 
