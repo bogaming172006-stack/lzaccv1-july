@@ -1,7 +1,8 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { X, Calendar, User, Hash, BookOpen, FileText, ArrowDownRight, ArrowUpRight, CreditCard, DollarSign } from 'lucide-react';
+import { X, Calendar, User, Hash, BookOpen, FileText, ArrowDownRight, ArrowUpRight, CreditCard, DollarSign, ShieldCheck } from 'lucide-react';
 import { Transaction } from '../types';
+import { useAuth } from '../AuthContext';
 
 interface TransactionDetailModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export default function TransactionDetailModal({
   partyName,
   ledgerName
 }: TransactionDetailModalProps) {
+  const { currentUser } = useAuth();
   if (!isOpen || !transaction) return null;
 
   // Format running balance nicely if available
@@ -129,6 +131,19 @@ export default function TransactionDetailModal({
                 </span>
               </div>
             </div>
+
+            {/* Entry By (Admin/Boss only) */}
+            {currentUser?.isAdmin && (
+              <div className="flex items-start gap-3">
+                <ShieldCheck size={16} className="text-sky-500 mt-1 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block leading-none mb-0.5">Entry By</span>
+                  <span className="font-bold text-slate-800 text-sm bg-slate-100 px-2 py-0.5 rounded border border-slate-200 inline-block">
+                    {transaction.createdBy || 'Admin'}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Running Balance (if available) */}
             {runningBalance !== undefined && (

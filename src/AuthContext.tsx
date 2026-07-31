@@ -60,31 +60,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
       const dbUsers: User[] = [];
       snapshot.forEach(doc => {
-        dbUsers.push(doc.data() as User);
+        const u = doc.data() as User;
+        if (u && u.id) {
+          dbUsers.push(u);
+        }
       });
-      
-      // Auto create admin if none exists
-      if (dbUsers.length === 0) {
-        const initialAdmin: User = {
-          id: 'admin-1',
-          name: 'Admin',
-          pin: '1234',
-          deviceId: '',
-          lastActivity: Date.now(),
-          isAdmin: true
-        };
-        setDoc(doc(db, 'users', 'admin-1'), initialAdmin)
-          .catch(e => {
-            setErrorValue(e instanceof Error ? e.message : String(e));
-            handleFirestoreError(e, OperationType.CREATE, 'users/admin-1');
-          });
-        dbUsers.push(initialAdmin);
-      }
       
       setUsers(dbUsers);
       setErrorValue(null);
 
-      // We no longer rely on localStorage. If currentUser is set in memory, verify it still exists
+      // Verify currently logged in user still exists in database
       if (currentUserRef.current) {
         const user = dbUsers.find(u => u.id === currentUserRef.current!.id);
         if (user) {
@@ -92,7 +77,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (isAnotherDevice) {
             setCurrentUser(null);
           } else {
-            // Check if properties actually changed to avoid unnecessary re-renders
             if (user.name !== currentUserRef.current.name || 
                 user.pin !== currentUserRef.current.pin || 
                 user.deviceId !== currentUserRef.current.deviceId ||
@@ -115,15 +99,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsub();
   }, []);
 
-  const login = (userId: string, pin: string) => {
-    const user = users.find(u => u.id === userId && u.pin === pin);
+  const login = (usernameOrId: string, pin: string) => {
+    const searchStr = usernameOrId.trim();
+    const user = users.find(u => 
+      (((u?.name || '').trim() === searchStr) ||
+       ((u?.id || '').trim() === searchStr)) &&
+      String(u?.pin || '').trim() === pin.trim()
+    );
     if (user) {
       const deviceId = getDeviceId();
       setCurrentUser(user);
-      updateDoc(doc(db, 'users', userId), {
+      updateDoc(doc(db, 'users', user.id), {
         lastActivity: Date.now(),
         deviceId: deviceId
-      }).catch(e => handleFirestoreError(e, OperationType.UPDATE, `users/${userId}`));
+      }).catch(e => handleFirestoreError(e, OperationType.UPDATE, `users/${user.id}`));
       return true;
     }
     return false;

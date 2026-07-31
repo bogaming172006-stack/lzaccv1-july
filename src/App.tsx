@@ -106,6 +106,14 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>;
 };
 
+const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { currentUser } = useAuth();
+  if (!currentUser?.isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+};
+
 const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { activeLedger } = useLedger();
   
@@ -489,17 +497,21 @@ const AppContent: React.FC = () => {
           
           <Route path="/admin" element={
             <RequireAuth>
-              <AuthLayout>
-                <Users />
-              </AuthLayout>
+              <RequireAdmin>
+                <AuthLayout>
+                  <Users />
+                </AuthLayout>
+              </RequireAdmin>
             </RequireAuth>
           } />
 
           <Route path="/backup-restore" element={
             <RequireAuth>
-              <AuthLayout>
-                <BackupRestorePage />
-              </AuthLayout>
+              <RequireAdmin>
+                <AuthLayout>
+                  <BackupRestorePage />
+                </AuthLayout>
+              </RequireAdmin>
             </RequireAuth>
           } />
           

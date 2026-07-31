@@ -364,13 +364,6 @@ export default function DatabaseBackupRestore() {
             </div>
             <p className="text-[10px] text-gray-500">{usbStatusMessage}</p>
           </div>
-          <button
-            onClick={() => setIsUsbConnected(!isUsbConnected)}
-            className="ml-2 text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 px-2 py-1 rounded-md transition-colors"
-            title="Toggle USB Connection state for testing"
-          >
-            {isUsbConnected ? 'USB Connected' : 'Connect USB'}
-          </button>
         </div>
       </div>
 

@@ -84,6 +84,7 @@ export interface Transaction {
   notes: string;
   timestamp: number;
   runningBalance?: number;
+  createdBy?: string;
 }
 
 export interface DailySummary {

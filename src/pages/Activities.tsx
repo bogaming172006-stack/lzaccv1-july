@@ -4,7 +4,7 @@ import { Transaction, Party, Ledger, LEDGER_TYPE_LABELS } from '../types';
 import { useLedger } from '../LedgerContext';
 import { useAuth } from '../AuthContext';
 import { format } from 'date-fns';
-import { Activity, Search, Loader2, ArrowRight, Trash2, Calendar, FileText } from 'lucide-react';
+import { Activity, Search, Loader2, ArrowRight, Trash2, Calendar, FileText, User } from 'lucide-react';
 import { deleteTransaction } from '../lib/transactionService';
 
 const BATCH_SIZE = 20;
@@ -406,6 +406,7 @@ export default function Activities() {
                 <th className="p-4 font-medium">Party</th>
                 <th className="p-4 font-medium">Details</th>
                 <th className="p-4 font-medium text-right">Amount</th>
+                {currentUser?.isAdmin && <th className="p-4 font-medium">Entry By</th>}
                 {currentUser?.isAdmin && <th className="p-4 font-medium text-center">Actions</th>}
               </tr>
             </thead>
@@ -437,6 +438,14 @@ export default function Activities() {
                       </span>
                     </td>
                     {currentUser?.isAdmin && (
+                      <td className="p-4 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                          <User size={12} className="text-slate-400" />
+                          {tx.createdBy || 'Admin'}
+                        </span>
+                      </td>
+                    )}
+                    {currentUser?.isAdmin && (
                       <td className="p-4 text-center whitespace-nowrap">
                         <button
                           onClick={() => {
@@ -455,7 +464,7 @@ export default function Activities() {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={currentUser?.isAdmin ? 6 : 5} className="p-12 text-center text-sm text-gray-500">
+                  <td colSpan={currentUser?.isAdmin ? 7 : 5} className="p-12 text-center text-sm text-gray-500">
                     <FileText size={32} className="mx-auto mb-3 text-gray-300" />
                     No transactions found matching the specified filters across ledgers.
                   </td>
@@ -491,6 +500,14 @@ export default function Activities() {
                       <span className="truncate">{tx.notes || 'No notes'}</span>
                       {tx.invoiceNo && <span className="font-mono text-gray-400">({tx.invoiceNo})</span>}
                     </p>
+                    {currentUser?.isAdmin && (
+                      <div className="mt-1">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                          <User size={10} className="text-slate-400" />
+                          By: {tx.createdBy || 'Admin'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

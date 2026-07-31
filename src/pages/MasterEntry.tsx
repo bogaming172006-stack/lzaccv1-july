@@ -386,13 +386,53 @@ export default function MasterEntry() {
          setPartyLockedByInvoice(false);
          setLockedInvoiceDetails(null);
          setAlertInfo({ 
+           title: "Invoice Fully Completed",
            message: `This invoice ID is already in both sheets.\nBoth are listed. You cannot use this invoice number again.\n\n-- DEBIT ENTRY --\n${formatTxDetails(debitTx, debitTracked)}\n\n-- CREDIT ENTRY --\n${formatTxDetails(creditTx, creditTracked)}`, 
            isError: true 
          });
          return false;
       }
 
-      const expectedType = hasDebit ? 'CREDIT' : 'DEBIT';
+      // Auto switch transaction type to opposite if one side is already listed
+      let effectiveType = type;
+      if (hasDebit && !hasCredit) {
+         effectiveType = 'CREDIT';
+         if (type !== 'CREDIT') {
+           setType('CREDIT');
+         }
+      } else if (hasCredit && !hasDebit) {
+         effectiveType = 'DEBIT';
+         if (type !== 'DEBIT') {
+           setType('DEBIT');
+         }
+      }
+
+      // Check if user is attempting to create a duplicate entry of the same type
+      if (effectiveType === 'DEBIT' && hasDebit) {
+         const foundPartyId = debitTx?.partyId || debitTracked?.partyId;
+         const pt = parties.find(p => p.id === foundPartyId);
+         const pName = pt ? pt.name : 'Unknown Party';
+         setAlertInfo({ 
+           title: "Duplicate Invoice Entry Not Allowed",
+           message: `Invoice #${invoiceNo.toUpperCase()} is ALREADY listed as a DEBIT entry for ${pName}.\n\n-- EXISTING ENTRY --\n${formatTxDetails(debitTx, debitTracked)}\n\nDuplicate DEBIT entries for the same invoice are not valid.`, 
+           isError: true 
+         });
+         return false;
+      }
+
+      if (effectiveType === 'CREDIT' && hasCredit) {
+         const foundPartyId = creditTx?.partyId || creditTracked?.partyId;
+         const pt = parties.find(p => p.id === foundPartyId);
+         const pName = pt ? pt.name : 'Unknown Party';
+         setAlertInfo({ 
+           title: "Duplicate Invoice Entry Not Allowed",
+           message: `Invoice #${invoiceNo.toUpperCase()} is ALREADY listed as a CREDIT entry for ${pName}.\n\n-- EXISTING ENTRY --\n${formatTxDetails(creditTx, creditTracked)}\n\nDuplicate CREDIT entries for the same invoice are not valid.`, 
+           isError: true 
+         });
+         return false;
+      }
+
+      // Matching invoice of opposite type found
       const foundPartyId = hasDebit ? (debitTx?.partyId || debitTracked?.partyId) : (creditTx?.partyId || creditTracked?.partyId);
       
       const lockedData: any = {};
@@ -406,10 +446,6 @@ export default function MasterEntry() {
         lockedData.type = 'CREDIT';
       }
 
-      if (type !== expectedType) {
-          setType(expectedType as any);
-      }
-
       if (foundPartyId) {
           const party = parties.find(p => p.id === foundPartyId);
           if (party) {
@@ -417,6 +453,10 @@ export default function MasterEntry() {
               setPartyLockedByInvoice(true);
               if (lockedData.type) {
                 setLockedInvoiceDetails(lockedData);
+              }
+              // Auto-fill amount if currently empty
+              if (lockedData.amount && !amount && !cashAmount && !acAmount) {
+                setAmount(lockedData.amount.toString());
               }
               return party.id;
           }
@@ -520,7 +560,8 @@ export default function MasterEntry() {
         type,
         amount: numAmount,
         timestamp: Date.now(),
-        notes: finalNotes
+        notes: finalNotes,
+        createdBy: currentUser?.name || 'Admin'
       };
 
       const balanceChange = newTx.type === 'DEBIT' ? newTx.amount : -newTx.amount;
