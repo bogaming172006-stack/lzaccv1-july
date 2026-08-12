@@ -85,6 +85,13 @@ export interface Transaction {
   timestamp: number;
   runningBalance?: number;
   createdBy?: string;
+  attachmentUrl?: string;
+  items?: Array<{
+    description: string;
+    quantity?: number;
+    price?: number;
+    total: number;
+  }>;
 }
 
 export interface DailySummary {

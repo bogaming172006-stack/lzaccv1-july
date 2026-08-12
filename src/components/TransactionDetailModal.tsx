@@ -188,6 +188,28 @@ export default function TransactionDetailModal({
             </div>
           )}
 
+          {/* Scanned Items Breakdown */}
+          {transaction.items && transaction.items.length > 0 && (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block leading-none">Scanned Line Items</span>
+              <div className="divide-y divide-slate-100 max-h-40 overflow-y-auto pr-1">
+                {transaction.items.map((it, idx) => (
+                  <div key={idx} className="py-1.5 flex justify-between items-center text-xs">
+                    <div>
+                      <div className="font-bold text-slate-800">{it.description}</div>
+                      {it.quantity ? (
+                        <div className="text-[10px] text-slate-400 font-semibold">
+                          {it.quantity} x ₹{it.price ? it.price.toFixed(2) : '-'}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="font-bold text-slate-900">₹{it.total ? it.total.toFixed(2) : '0.00'}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Notes Card */}
           <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100/60">
             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block leading-none mb-1.5">Particulars / Notes</span>

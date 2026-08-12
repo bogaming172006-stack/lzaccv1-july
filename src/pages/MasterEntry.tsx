@@ -3,13 +3,14 @@ import { db, handleFirestoreError, OperationType, collection, doc, setDoc, updat
 import { Party, Transaction } from '../types';
 import { useLedger } from '../LedgerContext';
 import { v4 as uuidv4 } from 'uuid';
-import { Search, Check, Printer } from 'lucide-react';
+import { Search, Check, Printer, Camera, Sparkles, FileText, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { createTransaction } from '../lib/transactionService';
 import { getFilteredCacheItems } from '../lib/idbCache';
 import { syncCollection } from '../lib/syncCache';
 import ThermalReceiptModal from '../components/ThermalReceiptModal';
+import ScanBillModal, { ScannedBillResult } from '../components/ScanBillModal';
 
 export default function MasterEntry() {
   const { activeLedger } = useLedger();
@@ -38,6 +39,53 @@ export default function MasterEntry() {
   const [autoPrintReceipt, setAutoPrintReceipt] = useState(false);
   const [partyLockedByInvoice, setPartyLockedByInvoice] = useState(false);
   const [lockedInvoiceDetails, setLockedInvoiceDetails] = useState<{amount?: number, date?: number, type: 'DEBIT'|'CREDIT'} | null>(null);
+
+  const [showScanBillModal, setShowScanBillModal] = useState(false);
+  const [attachmentUrl, setAttachmentUrl] = useState<string | undefined>(undefined);
+  const [scannedItems, setScannedItems] = useState<Array<{ description: string; quantity?: number; price?: number; total: number }> | undefined>(undefined);
+
+  const handleApplyScannedBill = (scannedBill: ScannedBillResult, matchedParty: Party | null) => {
+    if (scannedBill.totalAmount > 0) {
+      setAmount(scannedBill.totalAmount.toString());
+    }
+    if (scannedBill.invoiceNo) {
+      setInvoiceNo(scannedBill.invoiceNo.toLowerCase().trim());
+    }
+    
+    setAttachmentUrl(undefined);
+    setScannedItems(scannedBill.items);
+
+    const noteLines: string[] = [];
+    if (scannedBill.invoiceNo) {
+      noteLines.push(`Bill No: ${scannedBill.invoiceNo}`);
+    }
+    if (scannedBill.items && scannedBill.items.length > 0) {
+      scannedBill.items.forEach(i => {
+        if (i.quantity && i.price) {
+          noteLines.push(`${i.description} - ${i.quantity} x ₹${i.price}`);
+        } else if (i.quantity) {
+          noteLines.push(`${i.description} - ${i.quantity} x ₹${i.total}`);
+        } else {
+          noteLines.push(`${i.description} - ₹${i.total}`);
+        }
+      });
+    } else if (scannedBill.summaryNotes) {
+      noteLines.push(scannedBill.summaryNotes);
+    }
+    setNotes(noteLines.join('\n'));
+
+    if (matchedParty) {
+      setSelectedParty(matchedParty);
+    } else if (scannedBill.supplierName) {
+      setPartySearch(scannedBill.supplierName);
+    }
+
+    setAlertInfo({
+      title: "Bill Scanned & Details Auto-filled!",
+      message: `Successfully extracted all bill details for ${scannedBill.supplierName} (Total: ₹${scannedBill.totalAmount.toFixed(2)}).`,
+      isError: false
+    });
+  };
 
   const isSaleLedger = activeLedger?.type === 'SALE';
 
@@ -561,7 +609,9 @@ export default function MasterEntry() {
         amount: numAmount,
         timestamp: Date.now(),
         notes: finalNotes,
-        createdBy: currentUser?.name || 'Admin'
+        createdBy: currentUser?.name || 'Admin',
+        attachmentUrl: attachmentUrl,
+        items: scannedItems
       };
 
       const balanceChange = newTx.type === 'DEBIT' ? newTx.amount : -newTx.amount;
@@ -581,6 +631,8 @@ export default function MasterEntry() {
       setCashAmount('');
       setAcAmount('');
       setNotes('');
+      setAttachmentUrl(undefined);
+      setScannedItems(undefined);
       setSelectedParty(null);
       setPartySearch('');
       setShowConfirmModal(false);
@@ -611,7 +663,28 @@ export default function MasterEntry() {
         <p className="text-xs sm:text-sm text-gray-500 mt-0.5 font-medium">Log a transaction to {activeLedger.name}</p>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xs border border-gray-100 dark:border-gray-800 overflow-hidden p-4 sm:p-6 text-sm">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xs border border-gray-100 dark:border-gray-800 overflow-hidden p-4 sm:p-6 text-sm space-y-4">
+        {/* Attached Scanned Bill Preview Indicator */}
+        {attachmentUrl && (
+          <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <img src={attachmentUrl} alt="Attached Bill" className="w-11 h-11 object-cover rounded-lg border border-amber-300 dark:border-amber-800 shrink-0" />
+              <div>
+                <span className="font-bold text-amber-900 dark:text-amber-200 text-xs block">1 Physical Purchase Bill Attached</span>
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 block font-medium">Original bill image will be saved with this entry</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setAttachmentUrl(undefined); setScannedItems(undefined); }}
+              className="p-1.5 text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer"
+              title="Remove Attachment"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handlePreSubmit} className="space-y-4 sm:space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -752,13 +825,15 @@ export default function MasterEntry() {
                     Balance: <span className={selectedParty.currentDue > 0 ? "text-rose-600" : "text-emerald-600"}>{selectedParty.currentDue > 0 ? `-₹${selectedParty.currentDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : `₹${Math.abs(selectedParty.currentDue).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}</span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { setSelectedParty(null); setTimeout(() => partySearchRef.current?.focus(), 10); }}
-                  className="text-xs font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 bg-sky-50 dark:bg-sky-950/50 px-2.5 py-1.5 rounded-lg border border-sky-100 dark:border-sky-900/50 transition-colors cursor-pointer"
-                >
-                  Change
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedParty(null); setTimeout(() => partySearchRef.current?.focus(), 10); }}
+                    className="text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-gray-800 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors cursor-pointer"
+                  >
+                    Change
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -848,19 +923,23 @@ export default function MasterEntry() {
             </div>
           )}
 
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">Notes (Optional)</label>
-            <textarea
-              ref={notesRef}
-              onKeyDown={handleNotesKeyDown}
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              disabled={isSaleLedger && !invoiceNo.trim()}
-              className="w-full px-3 py-1.5 sm:py-2 bg-gray-50 dark:bg-gray-950 border border-gray-150 dark:border-gray-800 rounded-xl focus:bg-white dark:focus:bg-gray-950 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm font-semibold text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-950/40 disabled:cursor-not-allowed"
-              rows={2}
-              placeholder="Add internal transaction notes here..."
-            />
-          </div>
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                  Notes (Optional)
+                </label>
+              </div>
+              <textarea
+                ref={notesRef}
+                onKeyDown={handleNotesKeyDown}
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                disabled={isSaleLedger && !invoiceNo.trim()}
+                className="w-full px-3 py-1.5 sm:py-2 bg-gray-50 dark:bg-gray-950 border border-gray-150 dark:border-gray-800 rounded-xl focus:bg-white dark:focus:bg-gray-950 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm font-semibold text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-950/40 disabled:cursor-not-allowed"
+                rows={2}
+                placeholder="Add internal transaction notes here..."
+              />
+            </div>
 
           <div className="pt-3 border-t border-gray-100 dark:border-gray-800 flex justify-end">
             <button
@@ -875,67 +954,111 @@ export default function MasterEntry() {
       </div>
 
       {showConfirmModal && selectedParty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden text-sm">
-            <div className="p-4 border-b">
-              <h3 className="font-semibold text-lg text-gray-900">Confirm Entry</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg w-full max-w-md overflow-hidden text-xs border border-gray-100 dark:border-gray-800 animate-scale-in">
+            <div className="p-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-950/50 flex justify-between items-center">
+              <div>
+                <h3 className="font-normal text-sm text-gray-800 dark:text-gray-100">Confirm Transaction Entry</h3>
+                <p className="text-xs text-gray-500 font-normal mt-0.5">Review party outstanding & entry details</p>
+              </div>
+              <span className="text-xs font-normal px-2 py-0.5 rounded bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300 border border-sky-100 dark:border-sky-900">
+                {activeLedger?.name}
+              </span>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Party</span>
-                <span className="font-semibold text-gray-900">{selectedParty.name}</span>
-              </div>
-              {(isSaleLedger || invoiceNo) && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">{isSaleLedger ? 'Invoice No' : 'Reference'}</span>
-                  <span className="font-medium text-gray-900">{invoiceNo || '-'}</span>
+            
+            <div className="p-4 space-y-3 font-normal">
+              {/* Party Information */}
+              <div className="flex justify-between items-center bg-gray-50/60 dark:bg-gray-950/40 p-3 rounded-lg border border-gray-100 dark:border-gray-800">
+                <div>
+                  <div className="text-xs text-gray-500 font-normal">Selected Party</div>
+                  <div className="font-normal text-gray-900 dark:text-gray-100 text-xs mt-0.5">{selectedParty.name}</div>
+                  {selectedParty.phone && <div className="text-xs text-gray-500 font-normal">{selectedParty.phone}</div>}
                 </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-gray-500">Type</span>
-                <span className={`font-bold ${type === 'DEBIT' ? 'text-red-600' : 'text-emerald-600'}`}>{type}</span>
-              </div>
-              {type === 'CREDIT' ? (
-                <div className="pt-2 border-t space-y-1">
-                  <div className="flex justify-between font-medium">
-                    <span className="text-gray-500">Total Credit</span>
-                    <span className="font-bold text-lg text-emerald-600">₹{((parseFloat(cashAmount) || 0) + (parseFloat(acAmount) || 0)).toFixed(2)}</span>
+                {(isSaleLedger || invoiceNo) && (
+                  <div className="text-right">
+                    <div className="text-xs text-gray-500 font-normal">{isSaleLedger ? 'Invoice No' : 'Reference'}</div>
+                    <div className="font-mono font-normal text-sky-600 dark:text-sky-400 text-xs mt-0.5">{invoiceNo || '-'}</div>
                   </div>
+                )}
+              </div>
+
+              {/* Outstanding Summary Box */}
+              {(() => {
+                let numAmt = 0;
+                if (type === 'CREDIT' && separateCredit) {
+                  numAmt = (parseFloat(cashAmount) || 0) + (parseFloat(acAmount) || 0);
+                } else {
+                  numAmt = parseFloat(amount) || 0;
+                }
+                const currDue = selectedParty.currentDue || 0;
+                const newDue = currDue + (type === 'DEBIT' ? numAmt : -numAmt);
+                return (
+                  <div className="bg-amber-50/40 dark:bg-amber-950/10 p-3 rounded-lg border border-amber-200/50 dark:border-amber-900/30 space-y-2 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600 dark:text-gray-400 font-normal">Party Current Outstanding:</span>
+                      <span className={`font-normal ${currDue > 0 ? 'text-rose-600 dark:text-rose-400' : currDue < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                        ₹{Math.abs(currDue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currDue > 0 ? '(Due)' : currDue < 0 ? '(Advance)' : ''}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600 dark:text-gray-400 font-normal">Entry Amount ({type}):</span>
+                      <span className={`font-normal ${type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        {type === 'DEBIT' ? '+' : '-'}₹{numAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-2 border-t border-amber-200/60 dark:border-amber-900/40">
+                      <span className="text-gray-700 dark:text-gray-300 font-normal">New Outstanding Balance:</span>
+                      <span className={`font-normal ${newDue > 0 ? 'text-rose-600 dark:text-rose-400' : newDue < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-emerald-600'}`}>
+                        ₹{Math.abs(newDue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {newDue > 0 ? '(Due)' : newDue < 0 ? '(Advance)' : ''}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Breakdown if separate credit */}
+              {type === 'CREDIT' && separateCredit && (
+                <div className="bg-gray-50 dark:bg-gray-950 p-2.5 rounded-lg border border-gray-100 dark:border-gray-800 text-xs space-y-1">
+                  <div className="text-xs text-gray-500 font-normal mb-1">Credit Breakdown</div>
                   {parseFloat(cashAmount || '0') > 0 && (
-                    <div className="flex justify-between text-xs text-emerald-600 pl-4 font-medium">
-                      <span>• Cash Portion</span>
+                    <div className="flex justify-between text-emerald-600 font-normal">
+                      <span>Cash Portion</span>
                       <span>₹{parseFloat(cashAmount).toFixed(2)}</span>
                     </div>
                   )}
                   {parseFloat(acAmount || '0') > 0 && (
-                    <div className="flex justify-between text-xs text-sky-600 pl-4 font-medium">
-                      <span>• A/C Portion</span>
+                    <div className="flex justify-between text-sky-600 font-normal">
+                      <span>A/C Portion</span>
                       <span>₹{parseFloat(acAmount).toFixed(2)}</span>
                     </div>
                   )}
                 </div>
-              ) : (
-                <div className="flex justify-between pt-2 border-t">
-                  <span className="text-gray-500 font-medium">Amount</span>
-                  <span className="font-bold text-lg text-gray-900">₹{parseFloat(amount).toFixed(2)}</span>
+              )}
+
+              {notes.trim() && (
+                <div className="text-xs text-gray-500 bg-gray-50 dark:bg-gray-950 p-2.5 rounded-lg border border-gray-100 dark:border-gray-800">
+                  <span className="font-normal text-gray-600 dark:text-gray-400">Notes:</span> {notes.trim()}
                 </div>
               )}
             </div>
-            <div className="p-4 border-t bg-gray-50 flex justify-end space-x-2">
+
+            <div className="p-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-950/50 flex justify-end space-x-2">
               <button 
                 onClick={() => setShowConfirmModal(false)}
                 disabled={isSubmitting}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md font-medium"
+                className="px-4 py-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg font-normal text-xs transition-all cursor-pointer"
               >
-                Cancel
+                Cancel (Esc)
               </button>
               <button 
                 ref={confirmBtnRef}
                 onClick={handleConfirmSubmit}
                 disabled={isSubmitting}
-                className={`px-4 py-2 text-white rounded-md font-medium ${type === 'DEBIT' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'} ${isSubmitting ? 'opacity-50' : ''}`}
+                className={`px-4 py-1.5 text-white rounded-lg font-normal text-xs transition-all cursor-pointer ${type === 'DEBIT' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'} ${isSubmitting ? 'opacity-50 cursor-wait' : 'active:scale-95'}`}
               >
-                {isSubmitting ? 'Saving...' : 'Confirm & Save'}
+                {isSubmitting ? 'Saving Entry...' : 'Confirm & Submit'}
               </button>
             </div>
           </div>
@@ -1002,17 +1125,58 @@ export default function MasterEntry() {
       )}
 
       {showSuccess && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm transition-opacity">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col items-center p-6 transform transition-all duration-300">
-            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4 shadow-inner animate-[bounce_0.5s_ease-out]">
-              <Check className="text-emerald-500" size={32} strokeWidth={3} />
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs transition-opacity">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg w-full max-w-sm overflow-hidden flex flex-col items-center p-5 transform transition-all duration-300 border border-gray-100 dark:border-gray-800">
+            <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950/60 rounded-full flex items-center justify-center mb-3">
+              <Check className="text-emerald-600 dark:text-emerald-400" size={24} strokeWidth={2} />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-1">Entry Saved Successfully!</h3>
-            <p className="text-xs text-gray-500 text-center mb-6 font-medium">
-              Recorded in <span className="font-semibold text-gray-700">{activeLedger?.name}</span>
+            <h3 className="text-sm font-normal text-gray-800 dark:text-gray-100 mb-0.5">Entry Saved Successfully!</h3>
+            <p className="text-xs text-gray-500 text-center mb-4 font-normal">
+              Recorded in <span className="font-normal text-gray-700 dark:text-gray-300">{activeLedger?.name}</span>
             </p>
+
+            {lastSavedTx && (
+              <div className="w-full bg-gray-50 dark:bg-gray-950 p-3 rounded-lg border border-gray-100 dark:border-gray-800 mb-4 space-y-2 text-xs font-normal">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500 font-normal">Party</span>
+                  <span className="font-normal text-gray-800 dark:text-gray-200">{lastSavedTx.partyName}</span>
+                </div>
+                {lastSavedTx.transaction.invoiceNo && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 font-normal">Invoice / Ref</span>
+                    <span className="font-mono font-normal text-sky-600">{lastSavedTx.transaction.invoiceNo}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500 font-normal">Entry Amount</span>
+                  <span className={`font-normal ${lastSavedTx.transaction.type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    ₹{lastSavedTx.transaction.amount.toFixed(2)} ({lastSavedTx.transaction.type})
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-gray-800">
+                  <span className="text-gray-600 dark:text-gray-400 font-normal">Party Current Outstanding:</span>
+                  <span className={`font-normal text-xs ${(lastSavedTx.transaction.runningBalance || 0) > 0 ? 'text-rose-600' : (lastSavedTx.transaction.runningBalance || 0) < 0 ? 'text-emerald-600' : 'text-gray-600'}`}>
+                    ₹{Math.abs(lastSavedTx.transaction.runningBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {(lastSavedTx.transaction.runningBalance || 0) > 0 ? '(Due)' : (lastSavedTx.transaction.runningBalance || 0) < 0 ? '(Advance)' : ''}
+                  </span>
+                </div>
+              </div>
+            )}
             
-            <div className="w-full">
+            <div className="w-full space-y-2">
+              {lastSavedTx && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReceiptTx(lastSavedTx.transaction);
+                    setReceiptPartyName(lastSavedTx.partyName);
+                    setReceiptPartyPhone(lastSavedTx.partyPhone);
+                    setAutoPrintReceipt(false);
+                  }}
+                  className="w-full py-2 px-3 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-950/80 text-sky-700 dark:text-sky-300 border border-sky-100 dark:border-sky-900 rounded-lg font-normal text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Printer size={14} /> Print Thermal Receipt
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -1021,14 +1185,21 @@ export default function MasterEntry() {
                     invoiceRef.current.focus();
                   }
                 }}
-                className="w-full py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold text-xs active:scale-95 transition-all text-center cursor-pointer"
+                className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-normal text-xs active:scale-95 transition-all text-center cursor-pointer"
               >
-                Okay, Next
+                Okay, Next Entry
               </button>
             </div>
           </div>
         </div>
       )}
+
+      <ScanBillModal
+        isOpen={showScanBillModal}
+        onClose={() => setShowScanBillModal(false)}
+        parties={parties}
+        onApplyBill={handleApplyScannedBill}
+      />
     </div>
   );
 }

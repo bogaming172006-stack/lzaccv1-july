@@ -3,6 +3,7 @@ import path from "path";
 import dotenv from "dotenv";
 import { createClient } from "@libsql/client";
 import initSqlJs from "sql.js";
+import { GoogleGenAI, Type } from "@google/genai";
 
 let SQLInstance: any = null;
 async function getSqlEngine() {
@@ -68,9 +69,6 @@ const TABLES = [
 let tursoClientInstance: any = null;
 let useLocalFallback = false;
 
-const DEFAULT_TURSO_URL = "libsql://greenzardbv2-greenzaraccountdpv2.aws-ap-south-1.turso.io";
-const DEFAULT_TURSO_TOKEN = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODI5ODgwOTQsImlkIjoiMDE5ZjIyNWUtMzYwMS03MjViLWFmZDUtMGU0MTQ0OTI4MmMxIiwia2lkIjoicGhNRTdpT0xCWDFMMnI2blJmVDJHanJjN1ZWNzRldURLSjNXTWdwYVFfYyIsInJpZCI6IjI5MGZjODJiLWZmOWUtNGFkZi1iM2U2LTA0MGZjYWIyM2Y1ZiJ9.jxqQcPtg-DF6rFxzkK8P7qtjd5pSl3lKiNHSWRRnKzjcLHexOpqOKTnYSC_1q4zkt2GPZKwSCv5sG6SMyz41BA";
-
 function getTurso() {
   if (useLocalFallback) {
     if (!tursoClientInstance || tursoClientInstance._isRemote) {
@@ -84,16 +82,8 @@ function getTurso() {
   }
 
   if (!tursoClientInstance) {
-    let url = (process.env.TURSO_DB_URL || "").trim().replace(/[\r\n]/g, "");
-    let authToken = (process.env.TURSO_DB_AUTH_TOKEN || "").trim().replace(/[\r\n]/g, "");
-
-    // Permanent default Turso database credentials if process.env is missing or placeholder
-    if (!url || url === "libsql://placeholder.turso.io" || url.includes("placeholder")) {
-      url = DEFAULT_TURSO_URL;
-    }
-    if (!authToken) {
-      authToken = DEFAULT_TURSO_TOKEN;
-    }
+    const url = (process.env.TURSO_DB_URL || "").trim().replace(/[\r\n]/g, "");
+    const authToken = (process.env.TURSO_DB_AUTH_TOKEN || "").trim().replace(/[\r\n]/g, "");
 
     if (!url || url === "libsql://placeholder.turso.io" || url.includes("placeholder")) {
       console.log("[Database] No valid TURSO_DB_URL configured in environment variables. Falling back to local SQLite file:local.db");
@@ -318,7 +308,7 @@ app.use("/api/db", async (req, res, next) => {
 
 // Connection check / diagnosis
 app.get("/api/db/connection-status", async (req, res) => {
-  const url = process.env.TURSO_DB_URL || DEFAULT_TURSO_URL;
+  const url = (process.env.TURSO_DB_URL || "").trim();
 
   try {
     if (useLocalFallback) {
@@ -719,9 +709,13 @@ app.post("/api/db/restore-sqlite", async (req, res) => {
 // ---------------------------------------------------------
 app.get("/api/parties/export", async (req, res) => {
   const apiKey = (req.query.apiKey as string || req.headers["x-api-key"] as string || "").trim();
-  const expectedKey = (process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0").trim();
+  const expectedKey = (process.env.GOOGLE_SHEETS_API_KEY || "").trim();
   
-  if (expectedKey && apiKey !== expectedKey) {
+  if (!expectedKey) {
+    return res.status(500).json({ error: "GOOGLE_SHEETS_API_KEY is not configured on the server." });
+  }
+
+  if (apiKey !== expectedKey) {
     return res.status(401).json({ error: "Unauthorized: Invalid API Key" });
   }
 
@@ -855,10 +849,10 @@ app.get("/api/sheets/config", async (req, res) => {
 
   // Fallback to environment variables
   res.json({
-    spreadsheetId: (process.env.GOOGLE_SPREADSHEET_ID || "1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM").trim(),
-    apiKey: (process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0").trim(),
+    spreadsheetId: (process.env.GOOGLE_SPREADSHEET_ID || "").trim(),
+    apiKey: (process.env.GOOGLE_SHEETS_API_KEY || "").trim(),
     range: "Sheet1!A2:H",
-    appsScriptUrl: (process.env.GOOGLE_APPS_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec").trim(),
+    appsScriptUrl: (process.env.GOOGLE_APPS_SCRIPT_URL || "").trim(),
     sheetTitle: "Sheet1",
     isReadOnlyMode: true,
     isAutoSyncing: true,
@@ -908,19 +902,15 @@ app.post("/api/sheets/config", async (req, res) => {
 // GOOGLE SHEETS LIVE PARTY LOOKUP (READ-ONLY PROXY API)
 // ---------------------------------------------------------
 app.get("/api/parties/live", async (req, res) => {
-  let rawSpreadsheetId = (req.query.spreadsheetId as string || process.env.GOOGLE_SPREADSHEET_ID || "1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM").trim();
-  if (!rawSpreadsheetId) {
-    rawSpreadsheetId = "1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM";
-  }
-  const spreadsheetId = rawSpreadsheetId;
-  const apiKey = (req.query.apiKey as string || process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0").trim();
+  const spreadsheetId = (req.query.spreadsheetId as string || process.env.GOOGLE_SPREADSHEET_ID || "").trim();
+  const apiKey = (req.query.apiKey as string || process.env.GOOGLE_SHEETS_API_KEY || "").trim();
   const range = (req.query.range as string || "Sheet1!A2:H").trim();
 
   if (!spreadsheetId) {
-    return res.status(400).json({ error: "Missing Google Spreadsheet ID. Please configure it in Settings or the configuration block." });
+    return res.status(400).json({ error: "Missing Google Spreadsheet ID. Please configure GOOGLE_SPREADSHEET_ID in environment variables or Settings." });
   }
   if (!apiKey) {
-    return res.status(400).json({ error: "Missing Google Sheets API Key. Please configure it in Settings or the configuration block." });
+    return res.status(400).json({ error: "Missing Google Sheets API Key. Please configure GOOGLE_SHEETS_API_KEY in environment variables or Settings." });
   }
 
   try {
@@ -982,6 +972,103 @@ app.get("/api/parties/live", async (req, res) => {
   } catch (err: any) {
     console.error("Error proxying Google Sheets API v4 request:", err);
     res.status(500).json({ error: err.message || "An unexpected error occurred while communicating with Google Sheets." });
+  }
+});
+
+// ---------------------------------------------------------
+// AI BILL OCR SCANNER (GEMINI API)
+// ---------------------------------------------------------
+app.post("/api/scan-bill", async (req, res) => {
+  try {
+    const { imageBase64, mimeType } = req.body;
+    if (!imageBase64) {
+      return res.status(400).json({ error: "Missing imageBase64 payload" });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ 
+        error: "GEMINI_API_KEY is not configured on the server. Please check Settings or Environment Secrets." 
+      });
+    }
+
+    const ai = new GoogleGenAI({
+      apiKey: apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+
+    // Clean up base64 prefix if present (e.g. data:image/png;base64,...)
+    const cleanData = imageBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.6-flash",
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: mimeType || "image/jpeg",
+              data: cleanData
+            }
+          },
+          {
+            text: "You are an expert accounting AI. Analyze this physical purchase bill / invoice image and extract all details with maximum accuracy. Return supplier name, supplier contact number if available, invoice/bill number, date, line items (with description, quantity, price, and total for each item), subtotal, tax amount, grand total bill amount, and a brief summary."
+          }
+        ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            supplierName: { type: Type.STRING, description: "Supplier, Vendor, or Business Name on the bill" },
+            supplierPhone: { type: Type.STRING, description: "Phone number or contact number of supplier if visible" },
+            invoiceNo: { type: Type.STRING, description: "Invoice Number, Bill Number, or Cash Memo Number" },
+            date: { type: Type.STRING, description: "Date on the invoice (e.g. YYYY-MM-DD or DD/MM/YYYY)" },
+            items: {
+              type: Type.ARRAY,
+              description: "Detailed items or products purchased in the bill",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  description: { type: Type.STRING, description: "Item description or product name" },
+                  quantity: { type: Type.NUMBER, description: "Quantity purchased" },
+                  price: { type: Type.NUMBER, description: "Price or rate per unit" },
+                  total: { type: Type.NUMBER, description: "Subtotal or total amount for this item line" }
+                },
+                required: ["description", "total"]
+              }
+            },
+            subtotal: { type: Type.NUMBER, description: "Subtotal amount before tax or discount" },
+            tax: { type: Type.NUMBER, description: "GST, Tax, or VAT amount" },
+            totalAmount: { type: Type.NUMBER, description: "Final total bill amount to pay" },
+            summaryNotes: { type: Type.STRING, description: "Brief text summary of the bill details" }
+          },
+          required: ["supplierName", "totalAmount"]
+        }
+      }
+    });
+
+    let jsonResult: any = {};
+    if (response.text) {
+      try {
+        jsonResult = JSON.parse(response.text.trim());
+      } catch (e) {
+        console.error("Failed to parse Gemini OCR JSON response:", e);
+        return res.status(500).json({ error: "Failed to parse OCR response from Gemini AI." });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: jsonResult
+    });
+  } catch (err: any) {
+    console.error("Error in /api/scan-bill OCR processing:", err);
+    res.status(500).json({ error: err.message || "An error occurred during AI OCR scan." });
   }
 });
 
