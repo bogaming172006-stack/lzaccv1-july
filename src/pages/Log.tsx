@@ -4,7 +4,7 @@ import { Transaction, Party } from '../types';
 import { useLedger } from '../LedgerContext';
 import { useAuth } from '../AuthContext';
 import { format, startOfDay, endOfDay } from 'date-fns';
-import { Search, Loader2, ArrowRight, Trash2, Printer, User } from 'lucide-react';
+import { Search, Loader2, ArrowRight, Trash2, Printer } from 'lucide-react';
 import { getFilteredCacheItems } from '../lib/idbCache';
 import { syncCollection } from '../lib/syncCache';
 import { deleteTransaction } from '../lib/transactionService';
@@ -292,7 +292,6 @@ export default function Log() {
                 <th className="p-4 font-medium">Party</th>
                 <th className="p-4 font-medium">Details</th>
                 <th className="p-4 font-medium text-right">Amount</th>
-                {currentUser?.isAdmin && <th className="p-4 font-medium">Entry By</th>}
                 {currentUser?.isAdmin && <th className="p-4 font-medium text-center">Actions</th>}
               </tr>
             </thead>
@@ -323,14 +322,6 @@ export default function Log() {
                        </span>
                      </td>
                      {currentUser?.isAdmin && (
-                       <td className="p-4 whitespace-nowrap">
-                         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
-                           <User size={12} className="text-slate-400" />
-                           {tx.createdBy || 'Admin'}
-                         </span>
-                       </td>
-                     )}
-                     {currentUser?.isAdmin && (
                        <td className="p-4 text-center whitespace-nowrap">
                          <button
                            onClick={(e) => {
@@ -350,7 +341,7 @@ export default function Log() {
                })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={currentUser?.isAdmin ? 6 : 4} className="p-8 text-center text-sm text-gray-500">
+                  <td colSpan={currentUser?.isAdmin ? 5 : 4} className="p-8 text-center text-sm text-gray-500">
                     No transactions loaded matching current filters.
                   </td>
                 </tr>
@@ -383,14 +374,6 @@ export default function Log() {
                       <span className="truncate">{tx.notes || 'No notes'}</span>
                       {tx.invoiceNo && <span className="font-mono text-gray-400">({tx.invoiceNo})</span>}
                     </p>
-                    {currentUser?.isAdmin && (
-                      <div className="mt-1">
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                          <User size={10} className="text-slate-400" />
-                          By: {tx.createdBy || 'Admin'}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 </div>
 

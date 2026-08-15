@@ -745,8 +745,7 @@ export default function PartyDetail() {
       type: showTxModal,
       amount: numAmount,
       notes: finalNotes,
-      timestamp: Date.now(),
-      createdBy: currentUser?.name || 'Admin'
+      timestamp: Date.now()
     };
 
     const newBalance = party.currentDue + (showTxModal === 'DEBIT' ? numAmount : -numAmount);

@@ -560,8 +560,7 @@ export default function MasterEntry() {
         type,
         amount: numAmount,
         timestamp: Date.now(),
-        notes: finalNotes,
-        createdBy: currentUser?.name || 'Admin'
+        notes: finalNotes
       };
 
       const balanceChange = newTx.type === 'DEBIT' ? newTx.amount : -newTx.amount;

@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { db, handleFirestoreError, OperationType, collection, doc, setDoc, query, where, deleteDoc, getDocs, limit } from '../firebase';
 import { useLedger } from '../LedgerContext';
 import { TrackedInvoice, Transaction, Party } from '../types';
-import { Trash2, CheckCircle2, Loader2, User, Calendar, Clock } from 'lucide-react';
+import { Trash2, CheckCircle2, Loader2, User, Calendar, X } from 'lucide-react';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { syncCollection } from '../lib/syncCache';
-import { getFilteredCacheItems, setCacheItem } from '../lib/idbCache';
+import { getFilteredCacheItems, setCacheItem, getCacheItem } from '../lib/idbCache';
 
 const START_INVOICE = 6000;
 const END_INVOICE = 100000;
@@ -43,21 +43,14 @@ export default function InvoiceSheets() {
       const cachedInvoices = await getFilteredCacheItems<TrackedInvoice>('tracked_invoices', i => i.ledgerId === activeLedger.id);
       setInvoices(cachedInvoices);
 
-      // 3. Fast load transactions from local cache
-      const cachedTxs = await getFilteredCacheItems<Transaction>('transactions', t => t.ledgerId === activeLedger.id);
-      if (cachedTxs.length > 0) {
-        setActualTransactions(cachedTxs);
-      }
-
-      // 4. Query fresh transactions from Firestore
+      // 3. For references: query recent transactions instead of the whole history
       const qTx = query(
         collection(db, 'transactions'), 
         where('ledgerId', '==', activeLedger.id),
-        limit(300)
+        limit(200) // load only the 200 most recent items to avoid full scans
       );
       const txSnap = await getDocs(qTx);
-      const freshTxs = txSnap.docs.map(d => d.data() as Transaction);
-      setActualTransactions(freshTxs);
+      setActualTransactions(txSnap.docs.map(d => d.data() as Transaction));
     } catch (e) {
       console.error("Error loading invoice sheets dataset:", e);
     } finally {
@@ -77,25 +70,19 @@ export default function InvoiceSheets() {
     };
   }, [activeLedger?.id]);
 
-  const scrollToInvoice = (invoiceNoStr: string, targetType: 'DEBIT' | 'CREDIT') => {
-    const numVal = parseInt(invoiceNoStr, 10);
-    if (!isNaN(numVal) && numVal >= START_INVOICE && numVal <= END_INVOICE) {
-      const idx = numVal - START_INVOICE;
-      if (targetType === 'DEBIT') {
-        debitListRef.current?.scrollToIndex({ index: idx, align: 'center', behavior: 'smooth' });
-        setDebitInput(invoiceNoStr);
-      } else {
-        creditListRef.current?.scrollToIndex({ index: idx, align: 'center', behavior: 'smooth' });
-        setCreditInput(invoiceNoStr);
-      }
-    }
-  };
-
   const handleSearch = (e: React.FormEvent, type: 'DEBIT' | 'CREDIT') => {
     e.preventDefault();
     const inputVal = type === 'DEBIT' ? debitInput : creditInput;
     const trimmed = inputVal.trim();
-    scrollToInvoice(trimmed, type);
+    const numVal = parseInt(trimmed, 10);
+    
+    if (!isNaN(numVal) && numVal >= START_INVOICE && numVal <= END_INVOICE) {
+      if (type === 'DEBIT') {
+        debitListRef.current?.scrollToIndex({ index: numVal - START_INVOICE, align: 'center', behavior: 'smooth' });
+      } else {
+        creditListRef.current?.scrollToIndex({ index: numVal - START_INVOICE, align: 'center', behavior: 'smooth' });
+      }
+    }
   };
 
   const handleMark = async (invoiceNo: string, type: 'DEBIT' | 'CREDIT') => {
@@ -202,131 +189,30 @@ export default function InvoiceSheets() {
     return { debitMap: dMap, creditMap: cMap, visibleInvoices: list, debitCount: dMap.size, creditCount: cMap.size };
   }, [invoices, actualTransactions]);
 
-  const recentDealtInvoices = useMemo(() => {
-    const map = new Map<string, {
-      id: string;
-      invoiceNo: string;
-      type: 'DEBIT' | 'CREDIT';
-      timestamp: number;
-      partyName: string;
-      amount?: number;
-      source: 'tx' | 'tracked';
-    }>();
-
-    actualTransactions.forEach(t => {
-      if (t.invoiceNo) {
-        const match = t.invoiceNo.match(/\d+$/);
-        const num = match ? match[0] : t.invoiceNo;
-        const party = parties[t.partyId];
-        const key = `${t.type}_${num}`;
-        map.set(key, {
-          id: t.id,
-          invoiceNo: num,
-          type: t.type,
-          timestamp: t.timestamp,
-          partyName: party ? party.name : 'Unknown Party',
-          amount: t.amount,
-          source: 'tx'
-        });
-      }
-    });
-
-    invoices.forEach(inv => {
-      const key = `${inv.type}_${inv.invoiceNo}`;
-      if (!map.has(key)) {
-        const matchingTx = actualTransactions.find(t => {
-          const match = t.invoiceNo?.match(/\d+$/);
-          const num = match ? match[0] : t.invoiceNo;
-          return num === inv.invoiceNo;
-        });
-        const party = matchingTx ? parties[matchingTx.partyId] : null;
-
-        map.set(key, {
-          id: inv.id,
-          invoiceNo: inv.invoiceNo,
-          type: inv.type,
-          timestamp: inv.timestamp,
-          partyName: party ? party.name : (matchingTx ? 'Unknown Party' : 'Direct Entry'),
-          amount: matchingTx?.amount,
-          source: 'tracked'
-        });
-      }
-    });
-
-    const list = Array.from(map.values());
-    list.sort((a, b) => b.timestamp - a.timestamp);
-    return list;
-  }, [actualTransactions, invoices, parties]);
-
-  const hasAutoScrolledRef = useRef(false);
-
-  useEffect(() => {
-    if (!isLoading && recentDealtInvoices.length > 0 && !hasAutoScrolledRef.current) {
-      const mostRecent = recentDealtInvoices[0];
-      if (mostRecent?.invoiceNo) {
-        const num = parseInt(mostRecent.invoiceNo, 10);
-        if (!isNaN(num) && num >= START_INVOICE && num <= END_INVOICE) {
-          hasAutoScrolledRef.current = true;
-          const targetIdx = num - START_INVOICE;
-          setTimeout(() => {
-            debitListRef.current?.scrollToIndex({ index: targetIdx, align: 'center', behavior: 'smooth' });
-            creditListRef.current?.scrollToIndex({ index: targetIdx, align: 'center', behavior: 'smooth' });
-          }, 200);
-        }
-      }
-    }
-  }, [isLoading, recentDealtInvoices]);
-
-  const jumpToMostRecent = () => {
-    if (recentDealtInvoices.length > 0) {
-      const mostRecent = recentDealtInvoices[0];
-      const num = parseInt(mostRecent.invoiceNo, 10);
-      if (!isNaN(num) && num >= START_INVOICE && num <= END_INVOICE) {
-        const targetIdx = num - START_INVOICE;
-        debitListRef.current?.scrollToIndex({ index: targetIdx, align: 'center', behavior: 'smooth' });
-        creditListRef.current?.scrollToIndex({ index: targetIdx, align: 'center', behavior: 'smooth' });
-      }
-    }
-  };
-
   const renderRow = (index: number, invoiceNum: string, map: Map<string, CombinedEntry>, type: 'DEBIT' | 'CREDIT') => {
     const entry = map.get(invoiceNum);
     const isTracked = !!entry;
     const isTx = entry?.source === 'tx';
-    let tx = entry?.transaction;
-
-    if (!tx && entry) {
-      tx = actualTransactions.find(t => {
-        const match = t.invoiceNo?.match(/\d+$/);
-        const num = match ? match[0] : t.invoiceNo;
-        return num === invoiceNum;
-      });
-    }
-
+    const tx = entry?.transaction;
     const party = tx ? parties[tx.partyId] : null;
 
     return (
       <div className={`flex items-center justify-between p-3 border-b border-gray-100 ${isTracked ? (type === 'DEBIT' ? 'bg-red-50' : 'bg-emerald-50') : 'bg-white'} hover:bg-gray-50 transition-colors`}>
-        <div className="flex items-center space-x-2 sm:space-x-4 flex-1 select-none flex-wrap gap-y-1">
-          <span className={`font-mono font-medium text-sm sm:text-base ${isTracked ? 'text-gray-900 font-bold' : 'text-gray-400'}`}>
-            #{invoiceNum}
+        <div className="flex items-center space-x-4 flex-1 select-none">
+          <span className={`font-mono font-medium ${isTracked ? 'text-gray-900' : 'text-gray-400'}`}>
+            {invoiceNum}
           </span>
           {isTracked && !isTx && (
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 ${type === 'DEBIT' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
                Entered
             </span>
           )}
-          {party && (
-            <span className="flex items-center gap-1 text-xs font-semibold text-gray-800 bg-white/90 px-2 py-0.5 rounded border border-gray-200 shadow-2xs">
-              <User size={12} className="text-gray-500" />
-              <span className="truncate max-w-[130px] sm:max-w-[180px]">{party.name}</span>
-            </span>
-          )}
-          {tx && (
-            <div className="flex items-center gap-2 sm:gap-3 text-[11px] font-medium text-gray-600">
-              <span className="flex items-center gap-1 text-gray-500"><Calendar size={11} /> {new Date(tx.timestamp).toLocaleDateString()}</span>
-              <span className="flex items-center gap-0.5 font-bold text-gray-900"><span className="text-gray-500">₹</span>{tx.amount.toFixed(2)}</span>
-            </div>
+          {isTx && tx && party && (
+             <div className="hidden sm:flex ml-4 items-center gap-4 text-[10px] font-medium text-gray-600">
+               <span className="flex items-center gap-1 text-gray-800"><User size={12} className="text-gray-500"/> <span className="truncate max-w-[120px]">{party.name}</span></span>
+               <span className="flex items-center gap-1"><Calendar size={12} className="text-gray-500"/> {new Date(tx.timestamp).toLocaleDateString()}</span>
+               <span className="flex items-center gap-1 text-gray-900"><span className="text-gray-500 font-medium">₹</span> {tx.amount.toFixed(2)}</span>
+             </div>
           )}
         </div>
         {isTracked ? (
@@ -344,7 +230,7 @@ export default function InvoiceSheets() {
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 sm:pb-8">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 tracking-tight flex items-center gap-2">
             Invoice Sheets
@@ -352,16 +238,6 @@ export default function InvoiceSheets() {
           </h1>
           <p className="text-sm text-gray-500 mt-1">Rapid entry and tracking for Invoice Numbers ({START_INVOICE} to {END_INVOICE})</p>
         </div>
-
-        {recentDealtInvoices.length > 0 && (
-          <button
-            onClick={jumpToMostRecent}
-            className="flex items-center gap-2 px-3.5 py-2 bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-semibold transition-all shadow-2xs self-start sm:self-auto"
-          >
-            <Clock size={14} className="text-sky-600" />
-            <span>Jump to Recent: <strong className="font-mono text-sky-900">#{recentDealtInvoices[0].invoiceNo}</strong> ({recentDealtInvoices[0].partyName})</span>
-          </button>
-        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
