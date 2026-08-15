@@ -151,7 +151,7 @@ export default function Dashboard() {
     };
   }, [activeLedger?.id, filterStartDate, filterEndDate]);
 
-  // Generate 7-day trend chart from the queried transactions scope with safe numeric validation
+  // Generate 7-day trend chart from the queried transactions scope
   const chartData = useMemo(() => {
     const data = [];
     for (let i = 6; i >= 0; i--) {
@@ -159,12 +159,9 @@ export default function Dashboard() {
       const start = startOfDay(date).getTime();
       const end = endOfDay(date).getTime();
       
-      const dayTxs = transactions.filter(t => {
-        const amt = Number(t.amount);
-        return t.timestamp >= start && t.timestamp <= end && isFinite(amt) && amt < 1e11;
-      });
-      const debit = dayTxs.filter(t => t.type === 'DEBIT').reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
-      const credit = dayTxs.filter(t => t.type === 'CREDIT').reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+      const dayTxs = transactions.filter(t => t.timestamp >= start && t.timestamp <= end);
+      const debit = dayTxs.filter(t => t.type === 'DEBIT').reduce((acc, t) => acc + t.amount, 0);
+      const credit = dayTxs.filter(t => t.type === 'CREDIT').reduce((acc, t) => acc + t.amount, 0);
       
       data.push({
         name: format(date, 'MMM dd'),
@@ -309,29 +306,11 @@ export default function Dashboard() {
     );
   }
 
-  // Calculate totals safely from parties & filtered transactions
-  const totalReceivable = summary?.totalReceivable ?? parties.filter(p => p.currentDue > 0).reduce((a, b) => a + (Number(b.currentDue) || 0), 0);
-  const totalPayable = summary?.totalPayable ?? parties.filter(p => p.currentDue < 0).reduce((a, b) => a + Math.abs(Number(b.currentDue) || 0), 0);
-  const netBalance = totalReceivable - totalPayable;
+  // Calculate totals from the smart precalculated summary plus period transactions
+  const totalOutstanding = summary?.totalReceivable || 0;
   
-  const periodDebit = transactions.filter(t => t.type === 'DEBIT').reduce((acc, t) => {
-    const amt = Number(t.amount);
-    return acc + (isFinite(amt) && amt < 1e11 ? amt : 0);
-  }, 0);
-
-  const periodCredit = transactions.filter(t => t.type === 'CREDIT').reduce((acc, t) => {
-    const amt = Number(t.amount);
-    return acc + (isFinite(amt) && amt < 1e11 ? amt : 0);
-  }, 0);
-
-  const formatCompactCurrency = (val: number) => {
-    if (!isFinite(val) || isNaN(val)) return '₹0';
-    const absVal = Math.abs(val);
-    if (absVal >= 1e7) return `₹${(val / 1e7).toFixed(2)} Cr`;
-    if (absVal >= 1e5) return `₹${(val / 1e5).toFixed(2)} L`;
-    if (absVal >= 1e3) return `₹${(val / 1e3).toFixed(1)}k`;
-    return `₹${val.toFixed(2)}`;
-  };
+  const periodDebit = transactions.filter(t => t.type === 'DEBIT').reduce((acc, t) => acc + t.amount, 0);
+  const periodCredit = transactions.filter(t => t.type === 'CREDIT').reduce((acc, t) => acc + t.amount, 0);
 
   const isToday = filterStartDate === format(new Date(), 'yyyy-MM-dd') && filterEndDate === format(new Date(), 'yyyy-MM-dd');
   const isPurchaseStyle = activeLedger?.type === 'PURCHASE' || activeLedger?.type === 'LIABILITY' || activeLedger?.type === 'CAPITAL';
@@ -449,32 +428,18 @@ export default function Dashboard() {
           <div className={`absolute -right-8 -top-8 w-36 h-36 rounded-full blur-3xl opacity-30 pointer-events-none ${currentTheme.glow}`}></div>
           
           <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex justify-between items-start">
               <div>
                 <p className="text-[10px] sm:text-xs uppercase font-extrabold tracking-widest text-slate-400 mb-1 flex items-center gap-1.5">
                   <Wallet size={12} className="text-slate-300" />
-                  Net Ledger Outstanding Balance
+                  Total Outstanding Balance
                 </p>
-                <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight select-all flex items-center gap-2">
-                  <span className={netBalance >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                    {netBalance >= 0 ? "₹" : "-₹"}{Math.abs(netBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-white/10 border border-white/10 uppercase tracking-wider text-slate-300">
-                    {netBalance >= 0 ? "Net Dues (Receivable)" : "Net Payable"}
-                  </span>
+                <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight select-all">
+                  -₹{totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </h2>
               </div>
-
-              <div className="flex items-center gap-3 self-stretch sm:self-auto bg-white/5 p-2.5 rounded-xl border border-white/10 backdrop-blur-xs text-xs">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Dues</span>
-                  <span className="font-extrabold text-rose-300">₹{totalReceivable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
-                <div className="w-px h-8 bg-white/10"></div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Advances</span>
-                  <span className="font-extrabold text-emerald-300">₹{totalPayable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
+              <div className="bg-white/10 p-2.5 rounded-xl border border-white/10 shrink-0 backdrop-blur-xs">
+                <TrendingDown className="text-red-400" size={18} />
               </div>
             </div>
 
@@ -482,11 +447,11 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-4 pt-5 border-t border-white/10">
               <div className="space-y-1">
                 <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
-                  {isToday ? "Today's" : "Period"} Sales / Debit (Dr)
+                  {isToday ? "Today's" : "Period"} Debit (Dr)
                 </span>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-sky-400"></span>
-                  <span className="text-sm sm:text-xl font-black text-white">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                  <span className="text-sm sm:text-lg font-extrabold text-white">
                     ₹{periodDebit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -494,11 +459,11 @@ export default function Dashboard() {
 
               <div className="space-y-1 border-l border-white/10 pl-4 sm:pl-6">
                 <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
-                  {isToday ? "Today's" : "Period"} Collections / Credit (Cr)
+                  {isToday ? "Today's" : "Period"} Credit (Cr)
                 </span>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                  <span className="text-sm sm:text-xl font-black text-white">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  <span className="text-sm sm:text-lg font-extrabold text-white">
                     ₹{periodCredit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -531,7 +496,7 @@ export default function Dashboard() {
 
           <div className="h-[200px] sm:h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorDebit" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={debitColor} stopOpacity={0.15}/>
@@ -543,10 +508,10 @@ export default function Dashboard() {
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} dy={8} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} tickFormatter={formatCompactCurrency} width={60} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} tickFormatter={(value) => `₹${value}`} />
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <Tooltip 
-                  formatter={(value: number) => [`₹${(Number(value) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]}
+                  formatter={(value: number) => [`₹${value.toFixed(2)}`]}
                   contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', fontFamily: 'sans-serif', fontSize: '11px' }}
                 />
                 <Area type="monotone" dataKey="debit" stroke={debitColor} strokeWidth={2.5} fillOpacity={1} fill="url(#colorDebit)" />
@@ -591,7 +556,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className={`text-xs font-extrabold text-right shrink-0 ${tx.type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
-                      {tx.type === 'DEBIT' ? '-' : '+'}₹{(Number(tx.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {tx.type === 'DEBIT' ? '-' : '+'}₹{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </div>
                   </div>
                 )

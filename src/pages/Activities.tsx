@@ -3,13 +3,11 @@ import { db, handleFirestoreError, OperationType, collection, getDocs } from '..
 import { Transaction, Party, Ledger, LEDGER_TYPE_LABELS } from '../types';
 import { useLedger } from '../LedgerContext';
 import { useAuth } from '../AuthContext';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { Activity, Search, Loader2, ArrowRight, Trash2, Calendar, FileText, User } from 'lucide-react';
 import { deleteTransaction } from '../lib/transactionService';
 
 const BATCH_SIZE = 20;
-
-const todayStr = format(new Date(), 'yyyy-MM-dd');
 
 const ledgerThemeMap: Record<Ledger['type'], {
   badge: string;
@@ -81,8 +79,8 @@ export default function Activities() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'ALL' | 'DEBIT' | 'CREDIT'>('ALL');
   const [selectedLedgerId, setSelectedLedgerId] = useState<string>('ALL');
-  const [startDate, setStartDate] = useState(todayStr);
-  const [endDate, setEndDate] = useState(todayStr);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // Deletion States
   const [deletingTx, setDeletingTx] = useState<Transaction | null>(null);
@@ -337,86 +335,33 @@ export default function Activities() {
             </div>
 
             {/* Date range filters */}
-            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-100">
-              <div className="flex bg-gray-100 p-1 rounded-md shrink-0 gap-1 text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStartDate(todayStr);
-                    setEndDate(todayStr);
-                  }}
-                  className={`px-2.5 py-1 rounded transition-all cursor-pointer ${
-                    startDate === todayStr && endDate === todayStr
-                      ? 'bg-sky-600 text-white shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
-                  }`}
-                >
-                  Today
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStartDate(format(subDays(new Date(), 6), 'yyyy-MM-dd'));
-                    setEndDate(todayStr);
-                  }}
-                  className={`px-2.5 py-1 rounded transition-all cursor-pointer ${
-                    startDate === format(subDays(new Date(), 6), 'yyyy-MM-dd') && endDate === todayStr
-                      ? 'bg-sky-600 text-white shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
-                  }`}
-                >
-                  7 Days
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStartDate(format(subDays(new Date(), 29), 'yyyy-MM-dd'));
-                    setEndDate(todayStr);
-                  }}
-                  className={`px-2.5 py-1 rounded transition-all cursor-pointer ${
-                    startDate === format(subDays(new Date(), 29), 'yyyy-MM-dd') && endDate === todayStr
-                      ? 'bg-sky-600 text-white shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
-                  }`}
-                >
-                  30 Days
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStartDate('');
-                    setEndDate('');
-                  }}
-                  className={`px-2.5 py-1 rounded transition-all cursor-pointer ${
-                    !startDate && !endDate
-                      ? 'bg-sky-600 text-white shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
-                  }`}
-                >
-                  All Time
-                </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center bg-white border border-gray-200 rounded-md px-2.5 py-1 shadow-xs shrink-0">
+                <span className="text-[10px] sm:text-xs text-gray-400 font-semibold mr-1.5">From:</span>
+                <input 
+                  type="date" 
+                  className="bg-transparent focus:outline-none text-xs sm:text-sm text-gray-700 w-28"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                />
               </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex items-center bg-white border border-gray-200 rounded-md px-2.5 py-1 shadow-xs shrink-0">
-                  <span className="text-[10px] sm:text-xs text-gray-400 font-semibold mr-1.5">From:</span>
-                  <input 
-                    type="date" 
-                    className="bg-transparent focus:outline-none text-xs sm:text-sm text-gray-700 w-28"
-                    value={startDate}
-                    onChange={e => setStartDate(e.target.value)}
-                  />
-                </div>
-                <div className="flex items-center bg-white border border-gray-200 rounded-md px-2.5 py-1 shadow-xs shrink-0">
-                  <span className="text-[10px] sm:text-xs text-gray-400 font-semibold mr-1.5">To:</span>
-                  <input 
-                    type="date" 
-                    className="bg-transparent focus:outline-none text-xs sm:text-sm text-gray-700 w-28"
-                    value={endDate}
-                    onChange={e => setEndDate(e.target.value)}
-                  />
-                </div>
+              <div className="flex items-center bg-white border border-gray-200 rounded-md px-2.5 py-1 shadow-xs shrink-0">
+                <span className="text-[10px] sm:text-xs text-gray-400 font-semibold mr-1.5">To:</span>
+                <input 
+                  type="date" 
+                  className="bg-transparent focus:outline-none text-xs sm:text-sm text-gray-700 w-28"
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                />
               </div>
+              {(startDate || endDate) && (
+                <button 
+                  onClick={() => { setStartDate(''); setEndDate(''); }}
+                  className="text-xs text-sky-650 hover:text-sky-800 font-bold px-2 py-1 bg-sky-50 rounded-md"
+                >
+                  Clear Dates
+                </button>
+              )}
             </div>
           </div>
 

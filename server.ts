@@ -3,7 +3,6 @@ import path from "path";
 import dotenv from "dotenv";
 import { createClient } from "@libsql/client";
 import initSqlJs from "sql.js";
-import { GoogleGenAI, Type } from "@google/genai";
 
 let SQLInstance: any = null;
 async function getSqlEngine() {
@@ -19,32 +18,21 @@ dotenv.config({ override: true });
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-// Enable CORS for external frontends like Vercel & Netlify
+// Rewrite Netlify Functions path prefix to standard API routes before any routing
+app.use((req, res, next) => {
+  if (req.url.startsWith("/.netlify/functions/api")) {
+    req.url = req.url.replace("/.netlify/functions/api", "/api");
+  }
+  next();
+});
+
+// Enable CORS for external frontends like Netlify
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
-  }
-
-  // Normalize serverless URL paths (Netlify, Vercel, AWS Lambda, local)
-  if (req.url.startsWith("/.netlify/functions/api")) {
-    req.url = req.url.replace("/.netlify/functions/api", "");
-  }
-  if (req.url.startsWith("/api/api")) {
-    req.url = req.url.replace("/api/api", "/api");
-  }
-  // If request route lacks /api prefix in serverless rewrite
-  const apiPrefixes = ["/db", "/parties", "/sheets", "/ai"];
-  for (const prefix of apiPrefixes) {
-    if (req.url.startsWith(prefix) && !req.url.startsWith("/api")) {
-      req.url = "/api" + req.url;
-      break;
-    }
-  }
-  if (!req.url.startsWith("/")) {
-    req.url = "/" + req.url;
   }
   next();
 });
@@ -71,45 +59,12 @@ const TABLES = [
 let tursoClientInstance: any = null;
 let useLocalFallback = false;
 
-function getSanitizedTursoConfig() {
-  const rawUrl = (
-    process.env.TURSO_DB_URL ||
-    process.env.TURSO_DATABASE_URL ||
-    process.env.TURSO_URL ||
-    process.env.LIBSQL_URL ||
-    process.env.DATABASE_URL ||
-    ""
-  ).trim();
-
-  const rawToken = (
-    process.env.TURSO_DB_AUTH_TOKEN ||
-    process.env.TURSO_AUTH_TOKEN ||
-    process.env.TURSO_TOKEN ||
-    process.env.LIBSQL_AUTH_TOKEN ||
-    process.env.DATABASE_AUTH_TOKEN ||
-    ""
-  ).trim();
-
-  let url = rawUrl.replace(/^["']|["']$/g, "").replace(/[\r\n\t]/g, "").trim();
-  let authToken = rawToken.replace(/^["']|["']$/g, "").replace(/[\r\n\t]/g, "").trim();
-
-  // If user provided a host without protocol (e.g. greenzardbv2-xxx.turso.io)
-  if (url && !url.startsWith("libsql://") && !url.startsWith("https://") && !url.startsWith("http://") && !url.startsWith("file:")) {
-    url = `libsql://${url}`;
-  }
-
-  return { url, authToken };
-}
-
 function getTurso() {
-  const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY);
-  const fallbackDbUrl = isServerless ? "file:/tmp/local.db" : "file:local.db";
-
   if (useLocalFallback) {
     if (!tursoClientInstance || tursoClientInstance._isRemote) {
-      console.log(`[Database] Using local SQLite fallback database (${fallbackDbUrl})`);
+      console.log("[Database] Using local SQLite file-based fallback database (file:local.db)");
       tursoClientInstance = createClient({
-        url: fallbackDbUrl
+        url: "file:local.db"
       });
       tursoClientInstance._isRemote = false;
     }
@@ -117,31 +72,29 @@ function getTurso() {
   }
 
   if (!tursoClientInstance) {
-    const { url, authToken } = getSanitizedTursoConfig();
+    let url = (process.env.TURSO_DB_URL || "").trim().replace(/[\r\n]/g, "");
+    let authToken = (process.env.TURSO_DB_AUTH_TOKEN || "").trim().replace(/[\r\n]/g, "");
+    
+    // Hardcode fallback Turso credentials to permanently connect the database even if .env is missing/deleted
+    if (!url || url === "libsql://placeholder.turso.io" || url.includes("placeholder")) {
+      url = "libsql://greenzardbv2-greenzaraccountdpv2.aws-ap-south-1.turso.io";
+      authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODI5ODgwOTQsImlkIjoiMDE5ZjIyNWUtMzYwMS03MjViLWFmZDUtMGU0MTQ0OTI4MmMxIiwia2lkIjoicGhNRTdpT0xCWDFMMnI2blJmVDJHanJjN1ZWNzRldURLSjNXTWdwYVFfYyIsInJpZCI6IjI5MGZjODJiLWZmOWUtNGFkZi1iM2U2LTA0MGZjYWIyM2Y1ZiJ9.jxqQcPtg-DF6rFxzkK8P7qtjd5pSl3lKiNHSWRRnKzjcLHexOpqOKTnYSC_1q4zkt2GPZKwSCv5sG6SMyz41BA";
+    }
 
     if (!url || url === "libsql://placeholder.turso.io" || url.includes("placeholder")) {
-      console.log(`[Database] No valid TURSO_DB_URL configured in environment variables. Falling back to local SQLite (${fallbackDbUrl})`);
+      console.log("[Database] No valid TURSO_DB_URL configured. Falling back to local SQLite file:local.db");
       useLocalFallback = true;
       tursoClientInstance = createClient({
-        url: fallbackDbUrl
+        url: "file:local.db"
       });
       tursoClientInstance._isRemote = false;
     } else {
       console.log("[Database] Initializing Turso connection to:", url);
-      try {
-        tursoClientInstance = createClient({ 
-          url, 
-          authToken: authToken || undefined 
-        });
-        tursoClientInstance._isRemote = true;
-      } catch (err: any) {
-        console.error("[Database] Failed to create Turso client:", err.message);
-        useLocalFallback = true;
-        tursoClientInstance = createClient({
-          url: fallbackDbUrl
-        });
-        tursoClientInstance._isRemote = false;
-      }
+      tursoClientInstance = createClient({ 
+        url, 
+        authToken: authToken || undefined 
+      });
+      tursoClientInstance._isRemote = true;
     }
   }
   return tursoClientInstance;
@@ -201,12 +154,14 @@ class SafeLibsqlClient {
   }
 
   private async triggerFallback() {
-    console.warn("[Database] Remote Turso connection encountered auth/network error, switching to fallback...");
-    useLocalFallback = true;
-    tursoClientInstance = null;
-    tablesInitialized = false;
-    const client = getTurso();
-    await ensureTablesExist(client);
+    if (!useLocalFallback) {
+      console.warn("[Database Fallback] Remote Turso connection failed with authentication or server error. Switching to local SQLite fallback database (file:local.db)...");
+      useLocalFallback = true;
+      tursoClientInstance = null; // force recreation of getTurso() with file:local.db
+      tablesInitialized = false; // force re-initialization of tables
+      const client = getTurso();
+      await ensureTablesExist(client);
+    }
   }
 
   private wrapTransaction(tx: any) {
@@ -352,21 +307,23 @@ app.use("/api/db", async (req, res, next) => {
 
 // Connection check / diagnosis
 app.get("/api/db/connection-status", async (req, res) => {
-  const { url } = getSanitizedTursoConfig();
+  let url = process.env.TURSO_DB_URL;
+  if (!url || url.trim() === "" || url === "libsql://placeholder.turso.io") {
+    url = "libsql://greenzardbv2-greenzaraccountdpv2.aws-ap-south-1.turso.io";
+  }
 
   try {
     if (useLocalFallback) {
-      return res.json({ status: "connected", url: "Local SQLite Fallback", isFallback: true });
+      return res.json({ status: "connected", url: "Local SQLite Fallback (file:local.db)", isFallback: true });
     }
     const client = getTurso();
     await client.execute("SELECT 1");
-    await ensureTablesExist(client);
-    res.json({ status: "connected", url: url || "Turso Cloud Database" });
+    res.json({ status: "connected", url });
   } catch (err: any) {
     console.warn("[Diagnostic] Connection fail:", err.message || String(err));
     res.json({ 
       status: "connection_error", 
-      url: url || "Turso", 
+      url: "Turso", 
       error: err.message || String(err) 
     });
   }
@@ -754,13 +711,9 @@ app.post("/api/db/restore-sqlite", async (req, res) => {
 // ---------------------------------------------------------
 app.get("/api/parties/export", async (req, res) => {
   const apiKey = (req.query.apiKey as string || req.headers["x-api-key"] as string || "").trim();
-  const expectedKey = (process.env.GOOGLE_SHEETS_API_KEY || "").trim();
+  const expectedKey = (process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0").trim();
   
-  if (!expectedKey) {
-    return res.status(500).json({ error: "GOOGLE_SHEETS_API_KEY is not configured on the server." });
-  }
-
-  if (apiKey !== expectedKey) {
+  if (expectedKey && apiKey !== expectedKey) {
     return res.status(401).json({ error: "Unauthorized: Invalid API Key" });
   }
 
@@ -894,10 +847,10 @@ app.get("/api/sheets/config", async (req, res) => {
 
   // Fallback to environment variables
   res.json({
-    spreadsheetId: (process.env.GOOGLE_SPREADSHEET_ID || "").trim(),
-    apiKey: (process.env.GOOGLE_SHEETS_API_KEY || "").trim(),
+    spreadsheetId: (process.env.GOOGLE_SPREADSHEET_ID || "1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM").trim(),
+    apiKey: (process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0").trim(),
     range: "Sheet1!A2:H",
-    appsScriptUrl: (process.env.GOOGLE_APPS_SCRIPT_URL || "").trim(),
+    appsScriptUrl: (process.env.GOOGLE_APPS_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec").trim(),
     sheetTitle: "Sheet1",
     isReadOnlyMode: true,
     isAutoSyncing: true,
@@ -947,15 +900,19 @@ app.post("/api/sheets/config", async (req, res) => {
 // GOOGLE SHEETS LIVE PARTY LOOKUP (READ-ONLY PROXY API)
 // ---------------------------------------------------------
 app.get("/api/parties/live", async (req, res) => {
-  const spreadsheetId = (req.query.spreadsheetId as string || process.env.GOOGLE_SPREADSHEET_ID || "").trim();
-  const apiKey = (req.query.apiKey as string || process.env.GOOGLE_SHEETS_API_KEY || "").trim();
+  let rawSpreadsheetId = (req.query.spreadsheetId as string || process.env.GOOGLE_SPREADSHEET_ID || "1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM").trim();
+  if (!rawSpreadsheetId) {
+    rawSpreadsheetId = "1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM";
+  }
+  const spreadsheetId = rawSpreadsheetId;
+  const apiKey = (req.query.apiKey as string || process.env.GOOGLE_SHEETS_API_KEY || "AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0").trim();
   const range = (req.query.range as string || "Sheet1!A2:H").trim();
 
   if (!spreadsheetId) {
-    return res.status(400).json({ error: "Missing Google Spreadsheet ID. Please configure GOOGLE_SPREADSHEET_ID in environment variables or Settings." });
+    return res.status(400).json({ error: "Missing Google Spreadsheet ID. Please configure it in Settings or the configuration block." });
   }
   if (!apiKey) {
-    return res.status(400).json({ error: "Missing Google Sheets API Key. Please configure GOOGLE_SHEETS_API_KEY in environment variables or Settings." });
+    return res.status(400).json({ error: "Missing Google Sheets API Key. Please configure it in Settings or the configuration block." });
   }
 
   try {
@@ -1021,103 +978,6 @@ app.get("/api/parties/live", async (req, res) => {
 });
 
 // ---------------------------------------------------------
-// AI BILL OCR SCANNER (GEMINI API)
-// ---------------------------------------------------------
-app.post("/api/scan-bill", async (req, res) => {
-  try {
-    const { imageBase64, mimeType } = req.body;
-    if (!imageBase64) {
-      return res.status(400).json({ error: "Missing imageBase64 payload" });
-    }
-
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not configured on the server. Please check Settings or Environment Secrets." 
-      });
-    }
-
-    const ai = new GoogleGenAI({
-      apiKey: apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
-
-    // Clean up base64 prefix if present (e.g. data:image/png;base64,...)
-    const cleanData = imageBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType || "image/jpeg",
-              data: cleanData
-            }
-          },
-          {
-            text: "You are an expert accounting AI. Analyze this physical purchase bill / invoice image and extract all details with maximum accuracy. Return supplier name, supplier contact number if available, invoice/bill number, date, line items (with description, quantity, price, and total for each item), subtotal, tax amount, grand total bill amount, and a brief summary."
-          }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            supplierName: { type: Type.STRING, description: "Supplier, Vendor, or Business Name on the bill" },
-            supplierPhone: { type: Type.STRING, description: "Phone number or contact number of supplier if visible" },
-            invoiceNo: { type: Type.STRING, description: "Invoice Number, Bill Number, or Cash Memo Number" },
-            date: { type: Type.STRING, description: "Date on the invoice (e.g. YYYY-MM-DD or DD/MM/YYYY)" },
-            items: {
-              type: Type.ARRAY,
-              description: "Detailed items or products purchased in the bill",
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  description: { type: Type.STRING, description: "Item description or product name" },
-                  quantity: { type: Type.NUMBER, description: "Quantity purchased" },
-                  price: { type: Type.NUMBER, description: "Price or rate per unit" },
-                  total: { type: Type.NUMBER, description: "Subtotal or total amount for this item line" }
-                },
-                required: ["description", "total"]
-              }
-            },
-            subtotal: { type: Type.NUMBER, description: "Subtotal amount before tax or discount" },
-            tax: { type: Type.NUMBER, description: "GST, Tax, or VAT amount" },
-            totalAmount: { type: Type.NUMBER, description: "Final total bill amount to pay" },
-            summaryNotes: { type: Type.STRING, description: "Brief text summary of the bill details" }
-          },
-          required: ["supplierName", "totalAmount"]
-        }
-      }
-    });
-
-    let jsonResult: any = {};
-    if (response.text) {
-      try {
-        jsonResult = JSON.parse(response.text.trim());
-      } catch (e) {
-        console.error("Failed to parse Gemini OCR JSON response:", e);
-        return res.status(500).json({ error: "Failed to parse OCR response from Gemini AI." });
-      }
-    }
-
-    res.json({
-      success: true,
-      data: jsonResult
-    });
-  } catch (err: any) {
-    console.error("Error in /api/scan-bill OCR processing:", err);
-    res.status(500).json({ error: err.message || "An error occurred during AI OCR scan." });
-  }
-});
-
-// ---------------------------------------------------------
 // STARTUP AND VITE SERVING
 // ---------------------------------------------------------
 
@@ -1163,7 +1023,7 @@ async function startServer() {
   });
 }
 
-if (!process.env.VERCEL) {
+if (!process.env.NETLIFY) {
   startServer();
 }
 

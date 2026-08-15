@@ -17,6 +17,7 @@ import Users from './pages/Users';
 import BackupRestorePage from './pages/BackupRestorePage';
 import MasterEntry from './pages/MasterEntry';
 import InvoiceSheets from './pages/InvoiceSheets';
+import ProductList from './pages/ProductList';
 import AccountsMail from './pages/AccountsMail';
 import SplashLoader from './components/SplashLoader';
 
@@ -434,6 +435,14 @@ const AppContent: React.FC = () => {
             <RequireAuth>
               <AuthLayout>
                 <PartyList />
+              </AuthLayout>
+            </RequireAuth>
+          } />
+
+          <Route path="/products" element={
+            <RequireAuth>
+              <AuthLayout>
+                <ProductList />
               </AuthLayout>
             </RequireAuth>
           } />

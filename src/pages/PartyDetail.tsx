@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType, doc, getDoc, collection, query, where, setDoc, updateDoc, orderBy, limit, getDocs } from '../firebase';
 import { Party, Transaction } from '../types';
-import { ArrowLeft, Download, Plus, Minus, FileText, Edit2, Check, Search, ChevronLeft, ChevronRight, Trash2, Printer, Share2, Send, MessageSquare, Copy, Lock, Eye, EyeOff, Key, Paperclip } from 'lucide-react';
+import { ArrowLeft, Download, Plus, Minus, FileText, Edit2, Check, Search, ChevronLeft, ChevronRight, Trash2, Printer, Share2, Send, MessageSquare, Copy, Lock, Eye, EyeOff, Key } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -241,20 +241,20 @@ export default function PartyDetail() {
     currentPage * ITEMS_PER_PAGE
   );
 
-  const txWithBalance = [...pageTxs].sort((a, b) => b.timestamp - a.timestamp);
+  const txWithBalance = [...pageTxs].sort((a, b) => a.timestamp - b.timestamp);
 
   const sortedFilteredTxs = [...filteredTxs].sort((a, b) => a.timestamp - b.timestamp);
 
   let pageOpeningBalance = party?.openingBalance ?? 0;
-  if (pageTxs.length > 0 && sortedFilteredTxs.length > 0) {
-    const earliestTxOnPage = pageTxs[pageTxs.length - 1];
-    const idx = sortedFilteredTxs.findIndex(tx => tx.id === earliestTxOnPage.id);
+  if (txWithBalance.length > 0 && sortedFilteredTxs.length > 0) {
+    const firstTxOnPage = txWithBalance[0];
+    const idx = sortedFilteredTxs.findIndex(tx => tx.id === firstTxOnPage.id);
     if (idx > 0) {
       pageOpeningBalance = sortedFilteredTxs[idx - 1].runningBalance ?? party?.openingBalance ?? 0;
     }
   }
 
-  const isFirstPageOfTransactions = sortedFilteredTxs.length === 0 || (pageTxs.length > 0 && pageTxs.some(tx => tx.id === sortedFilteredTxs[0].id));
+  const isFirstPageOfTransactions = sortedFilteredTxs.length === 0 || (txWithBalance.length > 0 && txWithBalance[0].id === sortedFilteredTxs[0].id);
 
   const buildPdf = async (startDate: string, endDate: string) => {
     if (!party) return null;
@@ -1425,238 +1425,202 @@ export default function PartyDetail() {
         </div>
       )}
       
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <button 
-            type="button"
-            onClick={() => navigate('/parties')} 
-            className="flex items-center text-xs font-normal text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            <ArrowLeft size={14} className="mr-1" /> Dashboard &gt; Accounts &gt; {party.name}
-          </button>
-        </div>
-
-        {/* Quick Add Action Buttons */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setTxAmount('');
-              setTxCashAmount('');
-              setTxAcAmount('');
-              setSeparateCredit(false);
-              setTxInvoiceNo('');
-              setTxNotes('');
-              setTxError('');
-              setShowTxModal('DEBIT');
-            }}
-            className="inline-flex items-center justify-center px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-normal transition-all cursor-pointer shadow-2xs"
-          >
-            <Plus size={14} className="mr-1" />
-            <span>{isPurchaseStyle ? 'Make Payment (Debit)' : 'Add Sale (Debit)'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setTxAmount('');
-              setTxCashAmount('');
-              setTxAcAmount('');
-              setSeparateCredit(false);
-              setTxInvoiceNo('');
-              setTxNotes('');
-              setTxError('');
-              setShowTxModal('CREDIT');
-            }}
-            className="inline-flex items-center justify-center px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-normal transition-all cursor-pointer shadow-2xs"
-          >
-            <Plus size={14} className="mr-1" />
-            <span>{isPurchaseStyle ? 'Add Purchase (Credit)' : 'Receive Payment (Credit)'}</span>
-          </button>
-        </div>
+      <div className="mb-4 sm:mb-6">
+        <button onClick={() => navigate('/parties')} className="flex items-center text-xs sm:text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">
+          <ArrowLeft size={15} className="mr-1.5" /> Back to Parties
+        </button>
       </div>
 
-      {/* Party Summary Info Card */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-5 text-xs font-normal shadow-2xs">
+      <div className="bg-white rounded-xl shadow-xs border border-gray-150 p-4 sm:p-5 mb-4 sm:mb-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl font-normal text-gray-900 tracking-tight">{party.name}</h1>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-normal ${party.status === 'Inactive' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'} border`}>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-950 tracking-tight">{party.name}</h1>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold ${party.status === 'Inactive' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-green-50 text-green-800 border-green-200'} border uppercase tracking-wider`}>
                 {party.status || 'Active'}
               </span>
               {currentUser?.isAdmin && (
                 <>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-gray-100 text-gray-600 border border-gray-200 select-all" title="Database Party ID">
+                    ID: {party.id}
+                  </span>
                   <button
                     type="button"
                     onClick={handleOpenEditParty}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-white hover:bg-gray-50 text-gray-700 rounded text-[11px] font-normal border border-gray-300 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-md text-[10px] font-extrabold border border-sky-100 transition-colors shadow-2xs"
                   >
-                    <Edit2 size={11} /> Edit Account
+                    <Edit2 size={10} /> Edit Party
                   </button>
                 </>
               )}
             </div>
             {party.phone || party.address || party.email ? (
-              <p className="text-xs text-gray-500 font-normal mt-1 flex flex-wrap items-center gap-2">
-                {party.phone && <span>Ph: {party.phone}</span>}
-                {party.email && <span>Email: {party.email}</span>}
-                {party.address && <span>Addr: {party.address}</span>}
+              <p className="text-xs sm:text-sm text-gray-500 mt-1 flex flex-wrap items-center gap-1.5">
+                {party.phone && <span className="font-semibold text-gray-700">{party.phone}</span>}
+                {(party.phone && (party.address || party.email)) && <span className="text-gray-300">•</span>}
+                {party.email && <span className="text-sky-700 font-mono text-xs">{party.email}</span>}
+                {(party.email && party.address) && <span className="text-gray-300">•</span>}
+                {party.address && <span className="truncate">{party.address}</span>}
               </p>
             ) : (
-              <p className="text-xs text-gray-400 italic font-normal mt-1">No contact info provided</p>
+              <p className="text-xs text-gray-400 italic mt-1">No contact info provided</p>
             )}
           </div>
-
           <div className="w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-gray-100 flex flex-col items-start sm:items-end">
-            <p className="text-xs text-gray-500 font-normal mb-0.5">Closing / Net Balance</p>
-            <div className={`text-xl font-normal tracking-tight ${party.currentDue > 0 ? 'text-rose-600' : party.currentDue < 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
-              {party.currentDue > 0 ? (
-                <>-₹{Math.abs(party.currentDue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Due)</>
-              ) : party.currentDue < 0 ? (
-                <>₹{Math.abs(party.currentDue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Advance)</>
-              ) : (
-                <>₹0.00</>
-              )}
+            <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-widest font-extrabold mb-0.5">Net Balance</p>
+            <div className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${party.currentDue > 0 ? 'text-red-600' : party.currentDue < 0 ? 'text-emerald-600' : 'text-gray-950'}`}>
+              {party.currentDue > 0 ? '-₹' : '₹ '}
+              {Math.abs(party.currentDue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Ledger Table Container */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-2xs text-xs font-normal">
-        <div className="p-3 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-center bg-white gap-3">
+      <div className="grid grid-cols-2 gap-3 mb-4 sm:mb-6">
+        <button 
+          onClick={() => { setShowTxModal('DEBIT'); setTxAmount(''); setTxInvoiceNo(''); setTxNotes(''); }} 
+          className="cursor-pointer flex items-center justify-center gap-2 py-3 px-3 bg-rose-50/70 hover:bg-rose-100/80 active:bg-rose-200/55 text-rose-700 rounded-lg sm:rounded-xl transition-all border border-rose-150 shadow-xs"
+        >
+          <Minus size={15} className="shrink-0 stroke-[2.5px]" />
+          <span className="font-extrabold text-xs sm:text-sm tracking-tight">{isPurchaseStyle ? "Make Payment (Dr)" : "Add Sale (Dr)"}</span>
+        </button>
+        <button 
+          onClick={() => { setShowTxModal('CREDIT'); setTxAmount(''); setTxInvoiceNo(''); setTxNotes(''); }} 
+          className="cursor-pointer flex items-center justify-center gap-2 py-3 px-3 bg-emerald-50/70 hover:bg-emerald-100/80 active:bg-emerald-200/55 text-emerald-700 rounded-lg sm:rounded-xl transition-all border border-emerald-150 shadow-xs"
+        >
+          <Plus size={15} className="shrink-0 stroke-[2.5px]" />
+          <span className="font-extrabold text-xs sm:text-sm tracking-tight">{isPurchaseStyle ? "Add Purchase (Cr)" : "Receive Payment (Cr)"}</span>
+        </button>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-4 border-b border-gray-100 flex flex-col lg:flex-row justify-between lg:items-center bg-gray-50/50 gap-4">
           <div>
-            <h2 className="font-normal text-gray-900 text-xs">Full Account Statement</h2>
-            <p className="text-[11px] text-gray-500 font-normal mt-0.5">
-              {filteredTxs.length} transaction(s) found
+            <h2 className="font-extrabold text-gray-900 text-sm sm:text-base">Ledger Statement</h2>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {totalPages > 1 
+                ? `Showing page ${currentPage} of ${totalPages} (${filteredTxs.length} transactions)` 
+                : `${filteredTxs.length} transaction(s). Full history available via PDF download.`}
             </p>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2.5 top-2 text-gray-400" size={13} />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 lg:justify-end w-full lg:w-auto">
+            <div className="relative w-full sm:w-64 lg:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
               <input
                 type="text"
-                placeholder="Search notes or ref..."
+                placeholder="Search notes or reference..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-sky-500 text-gray-800 placeholder-gray-400 font-normal"
+                className="w-full pl-9 pr-3 py-1.5 text-xs sm:text-sm border border-gray-200 bg-white rounded-md focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 placeholder:text-gray-400 shadow-xs"
               />
             </div>
-            <button 
-              onClick={() => setShowDownloadModal(true)} 
-              className="px-2.5 py-1 bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 rounded text-xs font-normal flex items-center gap-1 cursor-pointer"
-            >
-              <Download size={13} /> PDF
-            </button>
-            <button 
-              onClick={() => setShowShareModal(true)} 
-              className="px-2.5 py-1 bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 rounded text-xs font-normal flex items-center gap-1 cursor-pointer"
-            >
-              <Share2 size={13} /> Share
-            </button>
+            <div className="flex gap-2 w-full sm:w-auto shrink-0">
+              <button 
+                onClick={() => setShowDownloadModal(true)} 
+                className="flex-1 sm:flex-none flex items-center justify-center text-xs sm:text-sm font-bold text-sky-750 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-100 px-3 py-1.5 rounded-md transition-all whitespace-nowrap shadow-xs"
+              >
+                <Download size={14} className="mr-1.5 shrink-0" /> PDF
+              </button>
+              <button 
+                onClick={() => setShowShareModal(true)} 
+                className="flex-1 sm:flex-none flex items-center justify-center text-xs sm:text-sm font-bold text-emerald-750 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 px-3 py-1.5 rounded-md transition-all whitespace-nowrap cursor-pointer shadow-xs"
+              >
+                <Share2 size={14} className="mr-1.5 shrink-0" /> Share
+              </button>
+            </div>
           </div>
         </div>
         
         {/* Desktop View Table */}
         <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs font-normal">
+          <table className="w-full text-left border-collapse min-w-[700px]">
             <thead>
-              <tr className="bg-white border-b border-gray-200 text-gray-900 font-normal">
-                <th className="p-2.5 border-r border-gray-200 font-normal w-40">Date</th>
-                <th className="p-2.5 border-r border-gray-200 font-normal">Particulars</th>
-                <th className="p-2.5 border-r border-gray-200 font-normal text-right min-w-[120px]">Debit (Dr)</th>
-                <th className="p-2.5 border-r border-gray-200 font-normal text-right min-w-[120px]">Credit (Cr)</th>
-                <th className="p-2.5 font-normal text-right min-w-[130px]">Balance</th>
+              <tr className="bg-white border-b text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                <th className="p-4 w-48">Date</th>
+                <th className="p-4">Particulars</th>
+                <th className="p-4 text-right min-w-[150px] whitespace-nowrap">Debit (Dr)</th>
+                <th className="p-4 text-right min-w-[150px] whitespace-nowrap">Credit (Cr)</th>
+                <th className="p-4 text-right min-w-[160px] bg-gray-50/50 whitespace-nowrap">Balance</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
+            <tbody>
+              <tr className="border-b border-gray-50 bg-white text-sm">
+                <td className="p-4 text-gray-400">-</td>
+                <td className="p-4 font-medium text-gray-600">
+                  {isFirstPageOfTransactions ? 'Opening Balance' : 'Balance Brought Forward'}
+                </td>
+                <td className="p-4 text-right text-gray-400 whitespace-nowrap">
+                  {pageOpeningBalance > 0 ? pageOpeningBalance.toLocaleString(undefined, {minimumFractionDigits: 2}) : '-'}
+                </td>
+                <td className="p-4 text-right text-gray-400 whitespace-nowrap">
+                  {pageOpeningBalance < 0 ? Math.abs(pageOpeningBalance).toLocaleString(undefined, {minimumFractionDigits: 2}) : '-'}
+                </td>
+                <td className="p-4 text-right font-medium text-gray-900 bg-gray-50/50 whitespace-nowrap">
+                  {pageOpeningBalance === 0 
+                    ? '0.00' 
+                    : pageOpeningBalance > 0 
+                      ? `-₹${Math.abs(pageOpeningBalance).toLocaleString(undefined, {minimumFractionDigits: 2})}`
+                      : `₹${Math.abs(pageOpeningBalance).toLocaleString(undefined, {minimumFractionDigits: 2})}`}
+                </td>
+              </tr>
               {txWithBalance.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-gray-400 font-normal text-xs">
-                    No transactions recorded yet.
+                  <td colSpan={5} className="p-12 text-center text-gray-500">
+                    <FileText size={32} className="mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm">No transactions recorded yet.</p>
                   </td>
                 </tr>
               ) : (
-                <>
-                  {txWithBalance.map((tx) => (
-                    <tr 
-                      key={tx.id} 
-                      onClick={() => setSelectedDetailTx(tx)}
-                      className="hover:bg-gray-50/80 cursor-pointer transition-colors text-xs font-normal"
-                    >
-                      <td className="p-2.5 border-r border-gray-200 text-gray-600 font-normal whitespace-nowrap">
-                        {format(new Date(tx.timestamp), 'dd MMM yyyy, HH:mm')}
-                      </td>
-                      <td className="p-2.5 border-r border-gray-200">
-                        <div className="flex items-center justify-between group">
-                          <div>
-                            <div className="font-normal text-gray-900 flex items-center gap-1.5">
-                              <span>{tx.notes || '-'}</span>
-                              {tx.attachmentUrl && (
-                                <span className="inline-flex items-center gap-1 text-[10px] bg-amber-100 text-amber-800 font-extrabold px-1.5 py-0.5 rounded border border-amber-200" title="Scanned Bill Attachment Available">
-                                  <Paperclip size={10} /> Bill Attached
-                                </span>
-                              )}
-                            </div>
-                            {tx.invoiceNo && <div className="text-[11px] text-gray-400 font-normal">Inv: {tx.invoiceNo}</div>}
-                          </div>
-                          <div className="flex items-center space-x-1.5 ml-2 md:opacity-0 md:group-hover:opacity-100 flex-shrink-0">
-                            {currentUser?.isAdmin && (
-                              <>
-                                <button type="button" onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingTx(tx);
-                                  setEditTxAmount(tx.amount.toString());
-                                  setEditTxInvoiceNo(tx.invoiceNo || '');
-                                  setEditTxNotes(tx.notes || '');
-                                }} className="p-1 text-gray-500 hover:text-sky-600 rounded transition-colors" title="Edit Transaction">
-                                  <Edit2 size={13} />
-                                </button>
-                                <button type="button" onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeletingTx(tx);
-                                  setShowDeleteConfirmModal(true);
-                                }} className="p-1 text-gray-500 hover:text-rose-600 rounded transition-colors" title="Delete Transaction">
-                                  <Trash2 size={13} />
-                                </button>
-                              </>
-                            )}
-                          </div>
+                txWithBalance.map((tx) => (
+                  <tr 
+                    key={tx.id} 
+                    onClick={() => setSelectedDetailTx(tx)}
+                    className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 text-sm bg-white transition-colors cursor-pointer"
+                  >
+                    <td className="p-4 whitespace-nowrap text-gray-500">
+                      {format(new Date(tx.timestamp), 'dd MMM yyyy, HH:mm')}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center justify-between group">
+                        <div>
+                          <div className="font-medium text-gray-600">{tx.notes || '-'}</div>
+                          {tx.invoiceNo && <div className="text-xs text-gray-400 font-mono mt-0.5">Inv: {tx.invoiceNo}</div>}
                         </div>
-                      </td>
-                      <td className="p-2.5 border-r border-gray-200 text-right text-rose-600 font-normal whitespace-nowrap">
-                        {tx.type === 'DEBIT' ? tx.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : <span className="text-gray-300">-</span>}
-                      </td>
-                      <td className="p-2.5 border-r border-gray-200 text-right text-emerald-600 font-normal whitespace-nowrap">
-                        {tx.type === 'CREDIT' ? tx.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : <span className="text-gray-300">-</span>}
-                      </td>
-                      <td className={`p-2.5 text-right font-normal whitespace-nowrap ${(tx.runningBalance ?? 0) > 0 ? 'text-rose-600' : (tx.runningBalance ?? 0) < 0 ? 'text-emerald-600' : 'text-gray-800'}`}>
-                        {(tx.runningBalance ?? 0) === 0 ? '0.00' : (tx.runningBalance ?? 0) > 0 ? `-₹${Math.abs(tx.runningBalance ?? 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : `₹${Math.abs(tx.runningBalance ?? 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
-                      </td>
-                    </tr>
-                  ))}
-
-                  <tr className="bg-gray-50/50 text-xs font-normal">
-                    <td className="p-2.5 border-r border-gray-200 text-gray-400 font-normal">-</td>
-                    <td className="p-2.5 border-r border-gray-200 font-normal text-gray-700">
-                      {isFirstPageOfTransactions ? 'Opening Balance' : 'Balance Brought Forward'}
+                        <div className="flex items-center space-x-2 ml-2 md:opacity-0 md:group-hover:opacity-100 flex-shrink-0">
+                          {currentUser?.isAdmin && (
+                            <>
+                              <button type="button" onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingTx(tx);
+                                setEditTxAmount(tx.amount.toString());
+                                setEditTxInvoiceNo(tx.invoiceNo || '');
+                                setEditTxNotes(tx.notes || '');
+                              }} className="text-gray-300 hover:text-sky-600 transition-colors" title="Edit Transaction">
+                                <Edit2 size={14} />
+                              </button>
+                              <button type="button" onClick={(e) => {
+                                e.stopPropagation();
+                                setDeletingTx(tx);
+                                setShowDeleteConfirmModal(true);
+                              }} className="text-gray-300 hover:text-red-600 transition-colors" title="Delete Transaction">
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </td>
-                    <td className="p-2.5 border-r border-gray-200 text-right text-gray-500 font-normal">
-                      {pageOpeningBalance > 0 ? pageOpeningBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}
+                    <td className="p-4 text-right text-red-600 font-medium whitespace-nowrap">
+                      {tx.type === 'DEBIT' ? tx.amount.toLocaleString(undefined, {minimumFractionDigits: 2}) : <span className="text-gray-400">-</span>}
                     </td>
-                    <td className="p-2.5 border-r border-gray-200 text-right text-gray-500 font-normal">
-                      {pageOpeningBalance < 0 ? Math.abs(pageOpeningBalance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}
+                    <td className="p-4 text-right text-emerald-600 font-medium whitespace-nowrap">
+                      {tx.type === 'CREDIT' ? tx.amount.toLocaleString(undefined, {minimumFractionDigits: 2}) : <span className="text-gray-400">-</span>}
                     </td>
-                    <td className="p-2.5 text-right font-normal text-gray-800">
-                      {pageOpeningBalance === 0 
-                        ? '0.00' 
-                        : pageOpeningBalance > 0 
-                          ? `-₹${Math.abs(pageOpeningBalance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
-                          : `₹${Math.abs(pageOpeningBalance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+                    <td className={`p-4 text-right font-semibold bg-gray-50/50 whitespace-nowrap ${(tx.runningBalance ?? 0) > 0 ? 'text-red-700' : (tx.runningBalance ?? 0) < 0 ? 'text-emerald-700' : 'text-gray-700'}`}>
+                      {(tx.runningBalance ?? 0) === 0 ? '0.00' : (tx.runningBalance ?? 0) > 0 ? `-₹${Math.abs(tx.runningBalance ?? 0).toLocaleString(undefined, {minimumFractionDigits: 2})}` : `₹${Math.abs(tx.runningBalance ?? 0).toLocaleString(undefined, {minimumFractionDigits: 2})}`}
                     </td>
                   </tr>
-                </>
+                ))
               )}
             </tbody>
           </table>
@@ -1664,6 +1628,33 @@ export default function PartyDetail() {
 
         {/* Mobile View Card List */}
         <div className="block md:hidden divide-y divide-gray-100 bg-white">
+          {/* Opening Balance Card on Mobile */}
+          <div className="p-3 bg-gray-50/50 flex items-center justify-between gap-3 text-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center bg-gray-150 text-gray-400 rounded w-[38px] h-[38px] border border-gray-200 text-center shrink-0">
+                <span className="text-[9px] font-bold uppercase leading-none">START</span>
+              </div>
+              <div>
+                <h4 className="font-semibold text-gray-800 text-xs sm:text-sm">
+                  {isFirstPageOfTransactions ? 'Opening Balance' : 'Balance Brought Forward'}
+                </h4>
+                <p className="text-[10px] text-gray-400 mt-0.5">Prior period balance</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-[8px] uppercase font-bold tracking-wider leading-none block mb-0.5 text-gray-400">
+                Balance
+              </span>
+              <div className={`font-extrabold text-xs sm:text-sm ${pageOpeningBalance > 0 ? 'text-red-600' : pageOpeningBalance < 0 ? 'text-emerald-600' : 'text-gray-500'}`}>
+                {pageOpeningBalance === 0 
+                  ? '₹ 0.00' 
+                  : pageOpeningBalance > 0 
+                    ? `-₹${Math.abs(pageOpeningBalance).toLocaleString(undefined, {minimumFractionDigits: 2})}`
+                    : `₹${Math.abs(pageOpeningBalance).toLocaleString(undefined, {minimumFractionDigits: 2})}`}
+              </div>
+            </div>
+          </div>
+
           {/* Transaction Cards on Mobile */}
           {txWithBalance.length === 0 ? (
             <div className="p-12 text-center text-gray-500">
@@ -1671,111 +1662,75 @@ export default function PartyDetail() {
               <p className="text-sm">No transactions recorded yet.</p>
             </div>
           ) : (
-            <>
-              {txWithBalance.map((tx) => (
-                <div 
-                  key={tx.id} 
-                  onClick={() => setSelectedDetailTx(tx)}
-                  className="p-3 hover:bg-gray-50/40 transition-colors flex items-center justify-between gap-3 text-sm bg-white cursor-pointer"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    {/* Compact Date Badge */}
-                    <div className="flex flex-col items-center justify-center bg-gray-50 text-gray-500 rounded p-1 min-w-[38px] h-[38px] text-center border border-gray-100 shrink-0">
-                      <span className="text-[8px] font-bold uppercase leading-none">{format(new Date(tx.timestamp), 'MMM')}</span>
-                      <span className="text-xs font-extrabold text-gray-800 leading-tight mt-0.5">{format(new Date(tx.timestamp), 'dd')}</span>
-                    </div>
-                    
-                    {/* Notes & Balance Info */}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="font-semibold text-gray-950 text-xs sm:text-sm truncate">{tx.notes || 'No notes'}</h4>
-                        {tx.attachmentUrl && (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] bg-amber-100 text-amber-800 font-extrabold px-1 py-0.2 rounded border border-amber-200 shrink-0">
-                            <Paperclip size={9} /> Bill
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[10px] text-gray-500 truncate mt-0.5 flex items-center gap-1.5 flex-wrap">
-                        {tx.invoiceNo && <span className="font-mono text-gray-400">Inv: {tx.invoiceNo}</span>}
-                        <span className={`font-bold px-1 py-0.2 text-[9px] rounded uppercase tracking-wider ${(tx.runningBalance ?? 0) > 0 ? 'bg-red-50 text-red-700 border border-red-100' : (tx.runningBalance ?? 0) < 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>
-                          Bal: {(tx.runningBalance ?? 0) === 0 ? '0.00' : (tx.runningBalance ?? 0) > 0 ? `-₹${Math.abs(tx.runningBalance ?? 0).toLocaleString(undefined, {maximumFractionDigits: 0})}` : `₹${Math.abs(tx.runningBalance ?? 0).toLocaleString(undefined, {maximumFractionDigits: 0})}`}
-                        </span>
-                      </div>
-                    </div>
+            txWithBalance.map((tx) => (
+              <div 
+                key={tx.id} 
+                onClick={() => setSelectedDetailTx(tx)}
+                className="p-3 hover:bg-gray-50/40 transition-colors flex items-center justify-between gap-3 text-sm bg-white cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  {/* Compact Date Badge */}
+                  <div className="flex flex-col items-center justify-center bg-gray-50 text-gray-500 rounded p-1 min-w-[38px] h-[38px] text-center border border-gray-100 shrink-0">
+                    <span className="text-[8px] font-bold uppercase leading-none">{format(new Date(tx.timestamp), 'MMM')}</span>
+                    <span className="text-xs font-extrabold text-gray-800 leading-tight mt-0.5">{format(new Date(tx.timestamp), 'dd')}</span>
                   </div>
-
-                  {/* Amount & Actions */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="text-right">
-                      <span className={`text-[8px] sm:text-[9px] uppercase font-bold tracking-wider leading-none block mb-0.5 ${tx.type === 'DEBIT' ? 'text-red-500' : 'text-emerald-500'}`}>
-                        {tx.type === 'DEBIT' ? 'Debit (Dr)' : 'Credit (Cr)'}
+                  
+                  {/* Notes & Balance Info */}
+                  <div className="min-w-0">
+                    <h4 className="font-semibold text-gray-950 text-xs sm:text-sm truncate">{tx.notes || 'No notes'}</h4>
+                    <div className="text-[10px] text-gray-500 truncate mt-0.5 flex items-center gap-1.5 flex-wrap">
+                      {tx.invoiceNo && <span className="font-mono text-gray-400">Inv: {tx.invoiceNo}</span>}
+                      <span className={`font-bold px-1 py-0.2 text-[9px] rounded uppercase tracking-wider ${(tx.runningBalance ?? 0) > 0 ? 'bg-red-50 text-red-700 border border-red-100' : (tx.runningBalance ?? 0) < 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>
+                        Bal: {(tx.runningBalance ?? 0) === 0 ? '0.00' : (tx.runningBalance ?? 0) > 0 ? `-₹${Math.abs(tx.runningBalance ?? 0).toLocaleString(undefined, {maximumFractionDigits: 0})}` : `₹${Math.abs(tx.runningBalance ?? 0).toLocaleString(undefined, {maximumFractionDigits: 0})}`}
                       </span>
-                      <div className={`font-extrabold text-xs sm:text-sm ${tx.type === 'DEBIT' ? 'text-red-600' : 'text-emerald-600'}`}>
-                        {tx.type === 'DEBIT' ? '-' : '+'}₹{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </div>
                     </div>
-
-                    {currentUser?.isAdmin && (
-                      <div className="flex items-center gap-0.5 border-l pl-2 border-gray-150">
-                        <button 
-                          type="button" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingTx(tx);
-                            setEditTxAmount(tx.amount.toString());
-                            setEditTxInvoiceNo(tx.invoiceNo || '');
-                            setEditTxNotes(tx.notes || '');
-                          }} 
-                          className="text-gray-400 hover:text-sky-600 p-2 rounded-md hover:bg-sky-50 active:bg-sky-100 transition-colors" 
-                          title="Edit Transaction"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeletingTx(tx);
-                            setShowDeleteConfirmModal(true);
-                          }} 
-                          className="text-gray-400 hover:text-red-600 p-2 rounded-md hover:bg-red-50 active:bg-red-100 transition-colors" 
-                          title="Delete Transaction"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
-              ))}
 
-              {/* Opening Balance Card on Mobile */}
-              <div className="p-3 bg-gray-50/50 flex items-center justify-between gap-3 text-sm">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center bg-gray-150 text-gray-400 rounded w-[38px] h-[38px] border border-gray-200 text-center shrink-0">
-                    <span className="text-[9px] font-bold uppercase leading-none">START</span>
+                {/* Amount & Actions */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-right">
+                    <span className={`text-[8px] sm:text-[9px] uppercase font-bold tracking-wider leading-none block mb-0.5 ${tx.type === 'DEBIT' ? 'text-red-500' : 'text-emerald-500'}`}>
+                      {tx.type === 'DEBIT' ? 'Debit (Dr)' : 'Credit (Cr)'}
+                    </span>
+                    <div className={`font-extrabold text-xs sm:text-sm ${tx.type === 'DEBIT' ? 'text-red-600' : 'text-emerald-600'}`}>
+                      {tx.type === 'DEBIT' ? '-' : '+'}₹{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-800 text-xs sm:text-sm">
-                      {isFirstPageOfTransactions ? 'Opening Balance' : 'Balance Brought Forward'}
-                    </h4>
-                    <p className="text-[10px] text-gray-400 mt-0.5">Prior period balance</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-[8px] uppercase font-bold tracking-wider leading-none block mb-0.5 text-gray-400">
-                    Balance
-                  </span>
-                  <div className={`font-extrabold text-xs sm:text-sm ${pageOpeningBalance > 0 ? 'text-red-600' : pageOpeningBalance < 0 ? 'text-emerald-600' : 'text-gray-500'}`}>
-                    {pageOpeningBalance === 0 
-                      ? '₹ 0.00' 
-                      : pageOpeningBalance > 0 
-                        ? `-₹${Math.abs(pageOpeningBalance).toLocaleString(undefined, {minimumFractionDigits: 2})}`
-                        : `₹${Math.abs(pageOpeningBalance).toLocaleString(undefined, {minimumFractionDigits: 2})}`}
-                  </div>
+
+                  {currentUser?.isAdmin && (
+                    <div className="flex items-center gap-0.5 border-l pl-2 border-gray-150">
+                      <button 
+                        type="button" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingTx(tx);
+                          setEditTxAmount(tx.amount.toString());
+                          setEditTxInvoiceNo(tx.invoiceNo || '');
+                          setEditTxNotes(tx.notes || '');
+                        }} 
+                        className="text-gray-400 hover:text-sky-600 p-2 rounded-md hover:bg-sky-50 active:bg-sky-100 transition-colors" 
+                        title="Edit Transaction"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingTx(tx);
+                          setShowDeleteConfirmModal(true);
+                        }} 
+                        className="text-gray-400 hover:text-red-600 p-2 rounded-md hover:bg-red-50 active:bg-red-100 transition-colors" 
+                        title="Delete Transaction"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-            </>
+            ))
           )}
         </div>
 

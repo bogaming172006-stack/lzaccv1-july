@@ -38,11 +38,6 @@ export async function setCacheItem<T>(storeName: string, item: T): Promise<void>
   }
 }
 
-export async function deleteCacheItem(storeName: string, id: string): Promise<void> {
-  const store = getStore(storeName);
-  store.delete(id);
-}
-
 export async function bulkSetCacheItems<T>(storeName: string, items: T[]): Promise<void> {
   const store = getStore(storeName);
   items.forEach(item => {

@@ -41,12 +41,12 @@ export async function fetchSheetsConfig(forceRefresh = false): Promise<SheetsCon
     if (cachedConfig) {
       return cachedConfig;
     }
-    // Fallback if backend call fails completely
+    // Hard fallback if backend call fails completely
     return {
-      spreadsheetId: '',
-      apiKey: '',
+      spreadsheetId: '1hIbrec_nTB3Q6BmPiunFZeWYC133v_uPbsLK8eROnVM',
+      apiKey: 'AIzaSyCknGPyQu5Je8GEeneBeSmUjLHdzLQY1U0',
       range: 'Sheet1!A2:H',
-      appsScriptUrl: '',
+      appsScriptUrl: 'https://script.google.com/macros/s/AKfycbxeZS3qlxhBpTFGsKQCjPqC5tNOgG9RgvZ6pB3QragZDNIbygXf6Dy7EEpE5pJkQLUM/exec',
       sheetTitle: 'Sheet1',
       isReadOnlyMode: true,
       isAutoSyncing: true,

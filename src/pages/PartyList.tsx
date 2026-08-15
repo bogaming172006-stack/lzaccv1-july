@@ -1,15 +1,77 @@
 import React, { useState, useEffect } from 'react';
-import { db, handleFirestoreError, OperationType, doc, setDoc, deleteDoc } from '../firebase';
+import { db, handleFirestoreError, OperationType, doc, setDoc } from '../firebase';
 import { Party } from '../types';
-import { Search, Plus, Upload, X, Loader2, BookOpen, Edit2, Trash2 } from 'lucide-react';
+import { Search, Plus, Upload, UserPlus, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { useLedger } from '../LedgerContext';
 import { v4 as uuidv4 } from 'uuid';
 import { useNavigate } from 'react-router-dom';
 import { syncCollection } from '../lib/syncCache';
-import { getFilteredCacheItems, setCacheItem, deleteCacheItem } from '../lib/idbCache';
+import { getFilteredCacheItems, setCacheItem } from '../lib/idbCache';
 import { updateDashboardPartiesCount } from '../lib/transactionService';
 import { formatContactWith91 } from '../lib/phoneUtils';
+
+const getInitials = (name: string) => {
+  return name ? name.charAt(0).toUpperCase() : '?';
+};
+
+const formatRelativeTime = (timestamp: number) => {
+  if (!timestamp) return 'No updates';
+  const now = Date.now();
+  const diffMs = now - timestamp;
+  
+  if (diffMs < 0) return 'Just now';
+  
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  const diffWeeks = Math.floor(diffDays / 7);
+  const diffMonths = Math.floor(diffDays / 30.44);
+  const diffYears = Math.floor(diffDays / 365.25);
+
+  if (diffSecs < 60) {
+    return 'Just now';
+  } else if (diffMins < 60) {
+    return `${diffMins}m ago`;
+  } else if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  } else if (diffDays === 1) {
+    return '1 day ago';
+  } else if (diffDays < 7) {
+    return `${diffDays} days ago`;
+  } else if (diffWeeks === 1) {
+    return '1 week ago';
+  } else if (diffWeeks < 4) {
+    return `${diffWeeks} weeks ago`;
+  } else if (diffMonths === 1) {
+    return '1 month ago';
+  } else if (diffMonths < 12) {
+    return `${diffMonths} months ago`;
+  } else if (diffYears === 1) {
+    return '1 yr ago';
+  } else {
+    return `${diffYears} yrs ago`;
+  }
+};
+
+const getRandomBgColor = (name: string) => {
+  const colors = [
+    'bg-blue-50 text-blue-700 border-blue-100',
+    'bg-emerald-50 text-emerald-700 border-emerald-100',
+    'bg-amber-50 text-amber-700 border-amber-100',
+    'bg-purple-50 text-purple-700 border-purple-100',
+    'bg-rose-50 text-rose-700 border-rose-100',
+    'bg-sky-50 text-sky-700 border-sky-100',
+    'bg-indigo-50 text-indigo-700 border-indigo-100'
+  ];
+  let sum = 0;
+  const safeName = name || '';
+  for (let i = 0; i < safeName.length; i++) {
+    sum += safeName.charCodeAt(i);
+  }
+  return colors[sum % colors.length];
+};
 
 export default function PartyList() {
   const { currentUser } = useAuth();
@@ -17,24 +79,20 @@ export default function PartyList() {
   const navigate = useNavigate();
   const [parties, setParties] = useState<Party[]>([]);
   const [search, setSearch] = useState('');
-  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [sortBy, setSortBy] = useState<'recent' | 'balance_high' | 'balance_low' | 'name_asc' | 'name_desc'>('recent');
+  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
+  const [showAddModal, setShowAddModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+  
+  const [addName, setAddName] = useState('');
+  const [addPhone, setAddPhone] = useState('');
+  const [addAddress, setAddAddress] = useState('');
+  const [addEmail, setAddEmail] = useState('');
+  const [addOpeningBalance, setAddOpeningBalance] = useState('');
 
-  // Modals state
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editingParty, setEditingParty] = useState<Party | null>(null);
-  const [deletingParty, setDeletingParty] = useState<Party | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
-
-  // Add / Edit form fields
-  const [formName, setFormName] = useState('');
-  const [formPhone, setFormPhone] = useState('');
-  const [formAddress, setFormAddress] = useState('');
-  const [formEmail, setFormEmail] = useState('');
-  const [formOpeningBalance, setFormOpeningBalance] = useState('');
   const [importCsvContent, setImportCsvContent] = useState('');
 
   // Sync and load parties from cached IndexedDB
@@ -69,40 +127,56 @@ export default function PartyList() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, itemsPerPage, activeLedger?.id]);
+  }, [search, sortOrder, activeLedger?.id]);
 
-  // Open Edit modal
-  const handleOpenEdit = (party: Party, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingParty(party);
-    setFormName(party.name || '');
-    setFormPhone(party.phone || '');
-    setFormAddress(party.address || '');
-    setFormEmail(party.email || '');
-    setFormOpeningBalance(party.openingBalance?.toString() || '0');
-  };
+  let filteredParties = parties.filter(p => {
+    const q = (search || '').trim().toLowerCase();
+    if (!q) return true;
+    
+    // Check if query is phone-based
+    const phone = p.phone || '';
+    if (phone.includes(q)) return true;
 
-  // Open Delete modal
-  const handleOpenDelete = (party: Party, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setDeletingParty(party);
-  };
+    const name = (p.name || '').toLowerCase();
+    
+    // Split search query by spaces to support multi-term search in any order
+    const terms = q.split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return true;
 
-  // Submit Add Party
+    // A party matches if all search terms are present in the name
+    const matchesAllTerms = terms.every(term => name.includes(term));
+    if (matchesAllTerms) return true;
+
+    // Check initials: e.g. "mj" matches "Madan Jana"
+    const initials = name.split(/\s+/).map(w => w.charAt(0)).join('');
+    if (initials.includes(q)) return true;
+
+    return false;
+  });
+
+  if (sortOrder === 'none') {
+    filteredParties.sort((a, b) => (b.lastTransaction || 0) - (a.lastTransaction || 0));
+  } else if (sortOrder === 'asc') {
+    filteredParties.sort((a, b) => a.currentDue - b.currentDue);
+  } else if (sortOrder === 'desc') {
+    filteredParties.sort((a, b) => b.currentDue - a.currentDue);
+  }
+
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting || !activeLedger?.id) return;
+    if (isSubmitting) return;
+    if (!activeLedger?.id) return;
     setIsSubmitting(true);
     const id = uuidv4();
-    const balance = parseFloat(formOpeningBalance) || 0;
+    const balance = parseFloat(addOpeningBalance) || 0;
     
     const newParty: Party = {
       id,
       ledgerId: activeLedger.id,
-      name: formName.trim(),
-      phone: formatContactWith91(formPhone),
-      address: formAddress.trim(),
-      email: formEmail.trim(),
+      name: addName,
+      phone: formatContactWith91(addPhone),
+      address: addAddress,
+      email: addEmail.trim(),
       openingBalance: balance,
       currentDue: balance,
       lastTransaction: Date.now(),
@@ -110,14 +184,21 @@ export default function PartyList() {
     };
 
     try {
-      setParties(prev => [...prev, newParty]);
+      // 1. Update local UI state optimistically & close modal immediately
+      const newList = [...parties, newParty];
+      setParties(newList);
       setShowAddModal(false);
-      resetForm();
+      setAddName('');
+      setAddPhone('');
+      setAddAddress('');
+      setAddEmail('');
+      setAddOpeningBalance('');
       setIsSubmitting(false);
 
-      await setCacheItem<Party>('parties', newParty);
-      await setDoc(doc(db, 'parties', id), newParty);
-      await updateDashboardPartiesCount(activeLedger.id, 1);
+      // 2. Save in local cache & Firestore in background
+      setCacheItem<Party>('parties', newParty);
+      setDoc(doc(db, 'parties', id), newParty);
+      updateDashboardPartiesCount(activeLedger.id, 1);
       window.dispatchEvent(new CustomEvent('database-synced'));
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, `parties/${id}`);
@@ -126,75 +207,9 @@ export default function PartyList() {
     }
   };
 
-  // Submit Edit Party
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isSubmitting || !editingParty || !activeLedger?.id) return;
-    setIsSubmitting(true);
-
-    const balance = parseFloat(formOpeningBalance) || 0;
-    const balanceDiff = balance - (editingParty.openingBalance || 0);
-
-    const updatedParty: Party = {
-      ...editingParty,
-      name: formName.trim(),
-      phone: formatContactWith91(formPhone),
-      address: formAddress.trim(),
-      email: formEmail.trim(),
-      openingBalance: balance,
-      currentDue: (editingParty.currentDue || 0) + balanceDiff,
-      lastTransaction: Date.now()
-    };
-
-    try {
-      setParties(prev => prev.map(p => p.id === editingParty.id ? updatedParty : p));
-      setEditingParty(null);
-      resetForm();
-      setIsSubmitting(false);
-
-      await setCacheItem<Party>('parties', updatedParty);
-      await setDoc(doc(db, 'parties', editingParty.id), updatedParty);
-      window.dispatchEvent(new CustomEvent('database-synced'));
-    } catch (e) {
-      handleFirestoreError(e, OperationType.UPDATE, `parties/${editingParty.id}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Confirm Delete Party
-  const handleDeleteConfirm = async () => {
-    if (!deletingParty || isSubmitting || !activeLedger?.id) return;
-    setIsSubmitting(true);
-    const partyId = deletingParty.id;
-
-    try {
-      setParties(prev => prev.filter(p => p.id !== partyId));
-      setDeletingParty(null);
-      setIsSubmitting(false);
-
-      await deleteCacheItem('parties', partyId);
-      await deleteDoc(doc(db, 'parties', partyId));
-      await updateDashboardPartiesCount(activeLedger.id, -1);
-      window.dispatchEvent(new CustomEvent('database-synced'));
-    } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, `parties/${partyId}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const resetForm = () => {
-    setFormName('');
-    setFormPhone('');
-    setFormAddress('');
-    setFormEmail('');
-    setFormOpeningBalance('');
-  };
-
-  // Bulk Import Submit
   const handleImportSubmit = async () => {
-    if (isSubmitting || !activeLedger?.id) return;
+    if (isSubmitting) return;
+    if (!activeLedger?.id) return;
     setIsSubmitting(true);
     const lines = importCsvContent.split('\n');
     let addedCount = 0;
@@ -228,13 +243,14 @@ export default function PartyList() {
           importedParties.push(newParty);
           addedCount++;
           
+          // Write to Firestore & Cache
           await setDoc(doc(db, 'parties', id), newParty).catch(e => console.error(e));
           await setCacheItem<Party>('parties', newParty);
         }
       }
 
       if (addedCount > 0) {
-        setParties(prev => [...prev, ...importedParties]);
+        setParties([...parties, ...importedParties]);
         await updateDashboardPartiesCount(activeLedger.id, addedCount);
         window.dispatchEvent(new CustomEvent('database-synced'));
       }
@@ -248,299 +264,227 @@ export default function PartyList() {
     }
   };
 
-  // Filter, Search & Sorting Logic
-  const filteredParties = parties
-    .filter(p => {
-      const q = (search || '').trim().toLowerCase();
-      if (!q) return true;
-      if ((p.phone || '').toLowerCase().includes(q)) return true;
-      if ((p.name || '').toLowerCase().includes(q)) return true;
-      if ((p.email || '').toLowerCase().includes(q)) return true;
-      return false;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'recent') {
-        const timeA = a.lastTransaction || 0;
-        const timeB = b.lastTransaction || 0;
-        if (timeB !== timeA) return timeB - timeA;
-        return (a.name || '').localeCompare(b.name || '');
-      } else if (sortBy === 'balance_high') {
-        const balA = a.currentDue || 0;
-        const balB = b.currentDue || 0;
-        if (balB !== balA) return balB - balA;
-        return (a.name || '').localeCompare(b.name || '');
-      } else if (sortBy === 'balance_low') {
-        const balA = a.currentDue || 0;
-        const balB = b.currentDue || 0;
-        if (balA !== balB) return balA - balB;
-        return (a.name || '').localeCompare(b.name || '');
-      } else if (sortBy === 'name_asc') {
-        return (a.name || '').localeCompare(b.name || '');
-      } else if (sortBy === 'name_desc') {
-        return (b.name || '').localeCompare(a.name || '');
-      }
-      return 0;
-    });
-
-  const totalPages = Math.ceil(filteredParties.length / itemsPerPage) || 1;
+  const totalPages = Math.ceil(filteredParties.length / ITEMS_PER_PAGE);
   const paginatedParties = filteredParties.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
   );
 
-  const getPageNumbers = () => {
-    const pages: (number | string)[] = [];
-    if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      pages.push(1);
-      if (currentPage > 3) pages.push('...');
-      const start = Math.max(2, currentPage - 1);
-      const end = Math.min(totalPages - 1, currentPage + 1);
-      for (let i = start; i <= end; i++) pages.push(i);
-      if (currentPage < totalPages - 2) pages.push('...');
-      pages.push(totalPages);
-    }
-    return pages;
-  };
-
-  if (!activeLedger) {
-    return <div className="p-8 text-center text-gray-500 font-normal text-sm">Please select a ledger.</div>;
-  }
+  if (!activeLedger) return <div className="p-8 text-center text-gray-500">Please select a ledger.</div>;
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full font-sans text-gray-800">
-      
-      {/* Top Header & Breadcrumbs matching reference image */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 sm:pb-8">
+      {/* Modals */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="font-semibold text-lg text-gray-900">Add New Party</h3>
+              <button type="button" onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+            </div>
+            <form onSubmit={handleAddSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input required type="text" value={addName} onChange={e => setAddName(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input type="text" value={addPhone} onChange={e => setAddPhone(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <input type="text" value={addAddress} onChange={e => setAddAddress(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" value={addEmail} onChange={e => setAddEmail(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500" placeholder="e.g. client@example.com" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Opening Balance (Positive = Due to us, Negative = Advance)</label>
+                <input type="number" step="0.01" value={addOpeningBalance} onChange={e => setAddOpeningBalance(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+              </div>
+              <div className="pt-4 flex justify-end">
+                <button type="button" disabled={isSubmitting} onClick={() => setShowAddModal(false)} className="px-4 py-2 text-gray-600 mr-2 hover:bg-gray-50 rounded-md disabled:opacity-50">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:bg-sky-400 disabled:cursor-not-allowed flex items-center justify-center font-sans">
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="animate-spin mr-2" size={16} />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Party'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="font-semibold text-lg text-gray-900">Bulk Import Parties</h3>
+              <button type="button" onClick={() => setShowImportModal(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-gray-500 mb-4">Paste CSV format: <code>Name,Phone,OpeningBalance,Email</code> (one per line. Email is optional)</p>
+              <textarea
+                className="w-full h-48 px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500 font-mono text-sm"
+                value={importCsvContent}
+                onChange={e => setImportCsvContent(e.target.value)}
+                placeholder="John Doe,1234567890,500.00,john@example.com&#10;Jane Smith,0987654321,-200.00,jane@example.com"
+              ></textarea>
+              <div className="mt-4 flex justify-end">
+                <button type="button" disabled={isSubmitting} onClick={() => setShowImportModal(false)} className="px-4 py-2 text-gray-600 mr-2 hover:bg-gray-50 rounded-md disabled:opacity-50">Cancel</button>
+                <button type="button" disabled={isSubmitting} onClick={handleImportSubmit} className="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:bg-sky-400 disabled:cursor-not-allowed flex items-center justify-center font-sans">
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="animate-spin mr-2" size={16} />
+                      Importing...
+                    </>
+                  ) : (
+                    'Import'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Compact & Handy Header Section */}
+      <div className="flex items-center justify-between mb-4 gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-normal text-gray-900 tracking-tight">
-            Manage Accounts
-          </h1>
-          <p className="text-xs text-gray-500 font-normal mt-0.5">
-            Dashboard &gt; Accounts &gt; Manage Accounts ({activeLedger.name})
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-950 tracking-tight">
+              Parties
+            </h1>
+            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] sm:text-xs font-semibold font-mono">
+              {parties.length}
+            </span>
+            {isLoading && <Loader2 className="animate-spin text-gray-400 shrink-0" size={16} />}
+          </div>
+          <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 leading-tight truncate max-w-[180px] sm:max-w-none">
+            Manage customers & suppliers in {activeLedger.name}
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {currentUser?.isAdmin && (
             <button 
               type="button" 
               onClick={() => setShowImportModal(true)} 
-              className="inline-flex items-center justify-center px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-md text-xs font-normal hover:bg-gray-50 transition-all cursor-pointer"
+              className="inline-flex items-center justify-center p-1.5 sm:px-3 sm:py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 transition-all active:scale-95 shadow-sm"
+              title="Import Parties"
             >
-              <Upload size={14} className="mr-1.5 text-gray-500" />
-              <span>Import</span>
+              <Upload size={14} className="sm:mr-1.5" />
+              <span className="hidden sm:inline">Import</span>
             </button>
           )}
           <button 
             type="button" 
-            onClick={() => { resetForm(); setShowAddModal(true); }} 
-            className="inline-flex items-center justify-center px-3 py-1.5 bg-white border border-gray-300 text-gray-900 hover:bg-gray-50 rounded-md text-xs font-normal transition-all cursor-pointer shadow-2xs"
+            onClick={() => setShowAddModal(true)} 
+            className="inline-flex items-center justify-center px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-medium transition-all active:scale-95 shadow-sm shadow-sky-100"
           >
-            <Plus size={15} className="mr-1 text-gray-700" />
-            <span>Add Account</span>
+            <UserPlus size={14} className="mr-1" />
+            <span>Add Party</span>
           </button>
         </div>
       </div>
 
-      {/* Main Table Card Container */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-2xs">
-        
-        {/* Top Control Bar: Entries per page + Sort filter + Search */}
-        <div className="p-3 border-b border-gray-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs font-normal text-gray-700 bg-white">
-          
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span>Show</span>
-              <select
-                value={itemsPerPage}
-                onChange={e => {
-                  setItemsPerPage(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:border-sky-500 font-normal text-xs cursor-pointer text-gray-800"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-              <span>entries</span>
-            </div>
-
-            <div className="flex items-center gap-1.5 border-l border-gray-200 pl-3">
-              <span className="text-gray-500">Sort by:</span>
-              <select
-                value={sortBy}
-                onChange={e => {
-                  setSortBy(e.target.value as any);
-                  setCurrentPage(1);
-                }}
-                className="border border-gray-300 rounded px-2.5 py-1 bg-white focus:outline-none focus:border-sky-500 font-normal text-xs cursor-pointer text-gray-900"
-              >
-                <option value="recent">Recent Activity First</option>
-                <option value="balance_high">Balance: High to Low (Due)</option>
-                <option value="balance_low">Balance: Low to High (Advance)</option>
-                <option value="name_asc">Title: A to Z</option>
-                <option value="name_desc">Title: Z to A</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="relative w-full sm:w-64">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* Streamlined Search and Filter Controls */}
+        <div className="p-3 border-b border-gray-100 flex flex-col sm:flex-row gap-3 items-center justify-between bg-gray-50/30">
+          <div className="relative w-full sm:max-w-xs md:max-w-md border border-gray-200 bg-white rounded-lg flex items-center px-2.5 shadow-xs focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-500/50 transition-all">
+            <Search size={16} className="text-gray-400 shrink-0" />
             <input 
               type="text" 
-              placeholder="Search accounts..." 
+              placeholder="Search by name or phone..." 
               value={search}
-              onChange={e => {
-                setSearch(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full pl-3 pr-8 py-1.5 border border-gray-300 rounded focus:outline-none focus:border-sky-500 text-xs font-normal text-gray-800 placeholder-gray-400"
+              onChange={e => setSearch(e.target.value)}
+              className="w-full py-1.5 ml-2 bg-transparent focus:outline-none text-xs sm:text-sm text-gray-800 placeholder-gray-400"
             />
-            <Search size={14} className="absolute right-2.5 top-2 text-gray-400 pointer-events-none" />
+            {search && (
+              <button 
+                type="button" 
+                onClick={() => setSearch('')} 
+                className="text-gray-400 hover:text-gray-600 shrink-0"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
-
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-50">
+            <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Sort:</span>
+            <select
+              value={sortOrder}
+              onChange={e => setSortOrder(e.target.value as 'none' | 'asc' | 'desc')}
+              className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 bg-white text-gray-700 font-medium"
+            >
+              <option value="none">Recently Updated</option>
+              <option value="asc">Due Amount (Low to High)</option>
+              <option value="desc">Due Amount (High to Low)</option>
+            </select>
+          </div>
         </div>
 
-        {/* High-density, clean Table Grid */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs font-normal">
+        {/* Desktop View Table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-white border-b border-gray-200 text-gray-900 font-normal select-none">
-                <th className="p-3 border-r border-gray-200 font-normal w-12 text-center">
-                  <span>ID</span>
-                </th>
-                <th className="p-3 border-r border-gray-200 font-normal">
-                  <span>Account Number</span>
-                </th>
-                <th 
-                  onClick={() => {
-                    setSortBy(prev => prev === 'name_asc' ? 'name_desc' : 'name_asc');
-                    setCurrentPage(1);
-                  }}
-                  className="p-3 border-r border-gray-200 font-normal cursor-pointer hover:bg-gray-50 transition-colors"
-                  title="Click to sort by Title"
-                >
-                  <span className={sortBy.startsWith('name') ? 'font-semibold text-sky-700' : ''}>Title</span>
-                </th>
-                <th className="p-3 border-r border-gray-200 font-normal">
-                  <span>Type</span>
-                </th>
-                <th className="p-3 border-r border-gray-200 font-normal">
-                  <span>Group</span>
-                </th>
-                <th 
-                  onClick={() => {
-                    setSortBy(prev => prev === 'balance_high' ? 'balance_low' : 'balance_high');
-                    setCurrentPage(1);
-                  }}
-                  className="p-3 border-r border-gray-200 font-normal text-right cursor-pointer hover:bg-gray-50 transition-colors"
-                  title="Click to sort by Closing Balance"
-                >
-                  <span className={sortBy.startsWith('balance') ? 'font-semibold text-sky-700' : ''}>Closing</span>
-                </th>
-                <th className="p-3 border-r border-gray-200 font-normal text-center w-28">
-                  <span>Ledger</span>
-                </th>
-                <th className="p-3 font-normal text-center w-24">
-                  <span>Actions</span>
-                </th>
+              <tr className="bg-white border-b text-xs uppercase tracking-wider text-gray-500">
+                <th className="p-4 font-medium">Party Name</th>
+                <th className="p-4 font-medium">Contact</th>
+                <th className="p-4 font-medium text-right">Current Balance</th>
+                <th className="p-4 font-medium text-center">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
-              {paginatedParties.map((party, idx) => {
-                const rowNum = (currentPage - 1) * itemsPerPage + idx + 1;
-                const isDue = party.currentDue > 0;
-                const isAdvance = party.currentDue < 0;
-
-                return (
-                  <tr 
-                    key={party.id}
-                    onClick={() => navigate(`/parties/${party.id}`)}
-                    className="hover:bg-gray-50/80 cursor-pointer transition-colors"
-                  >
-                    {/* ID */}
-                    <td className="p-3 border-r border-gray-200 text-center text-gray-600 font-normal">
-                      {rowNum}
-                    </td>
-
-                    {/* Account Number / Phone */}
-                    <td className="p-3 border-r border-gray-200 text-gray-800 font-normal">
-                      {party.phone || '-'}
-                    </td>
-
-                    {/* Title / Party Name */}
-                    <td className="p-3 border-r border-gray-200 text-gray-900 font-normal">
-                      {party.name}
-                    </td>
-
-                    {/* Type */}
-                    <td className="p-3 border-r border-gray-200 text-gray-600 font-normal">
-                      Customer
-                    </td>
-
-                    {/* Group */}
-                    <td className="p-3 border-r border-gray-200 text-gray-500 font-normal">
-                      {party.email || party.address || '-'}
-                    </td>
-
-                    {/* Closing Balance */}
-                    <td className={`p-3 border-r border-gray-200 text-right font-normal ${
-                      isDue ? 'text-rose-600' : isAdvance ? 'text-emerald-600' : 'text-gray-800'
-                    }`}>
-                      {isDue ? (
-                        <>-{Math.abs(party.currentDue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
-                      ) : (
-                        <>{party.currentDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
-                      )}
-                    </td>
-
-                    {/* Ledger button matching reference image */}
-                    <td className="p-2 border-r border-gray-200 text-center">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/parties/${party.id}`);
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-gray-100 border border-gray-300 rounded text-[11px] font-normal text-gray-800 transition-all cursor-pointer shadow-2xs"
-                      >
-                        <BookOpen size={12} className="text-gray-600" />
-                        <span>Ledger</span>
-                      </button>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="p-2 text-center" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          type="button"
-                          onClick={(e) => handleOpenEdit(party, e)}
-                          className="p-1.5 text-gray-600 hover:text-sky-600 hover:bg-sky-50 rounded border border-gray-200 transition-colors cursor-pointer"
-                          title="Edit Account"
-                        >
-                          <Edit2 size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => handleOpenDelete(party, e)}
-                          className="p-1.5 text-gray-600 hover:text-rose-600 hover:bg-rose-50 rounded border border-gray-200 transition-colors cursor-pointer"
-                          title="Delete Account"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+            <tbody className="align-middle">
+              {paginatedParties.map((party) => (
+                <tr 
+                  key={party.id} 
+                  onClick={() => navigate(`/parties/${party.id}`)}
+                  className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  <td className="p-4">
+                    <div className="font-bold text-gray-950 text-sm">{party.name}</div>
+                    <div className="text-[11px] text-gray-400 font-medium mt-0.5">
+                      Last update: {formatRelativeTime(party.lastTransaction)}
+                    </div>
+                    {party.phone && (
+                      <div className="text-xs text-gray-500 lg:hidden mt-0.5 font-mono">{party.phone}</div>
+                    )}
+                    {currentUser?.isAdmin && (
+                      <div className="text-xs text-slate-400 font-mono mt-1 select-all" onClick={(e) => e.stopPropagation()}>
+                        ID: {party.id}
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-
+                    )}
+                  </td>
+                  <td className="p-4 text-sm text-gray-600 hidden lg:table-cell">{party.phone}</td>
+                  <td className="p-4 text-right">
+                    <div className={`font-semibold ${party.currentDue > 0 ? 'text-red-600' : party.currentDue < 0 ? 'text-green-600' : 'text-gray-600'}`}>
+                      {party.currentDue > 0 ? (
+                        <>-₹{Math.abs(party.currentDue).toLocaleString(undefined, {minimumFractionDigits:2})}</>
+                      ) : party.currentDue < 0 ? (
+                        <>₹ {Math.abs(party.currentDue).toLocaleString(undefined, {minimumFractionDigits:2})}</>
+                      ) : (
+                        <>₹ 0.00</>
+                      )
+                    }
+                    </div>
+                  </td>
+                  <td className="p-4 text-center">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                      {party.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
               {filteredParties.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-400 font-normal text-xs">
-                    No accounts or parties found matching your search.
+                  <td colSpan={4} className="p-8 text-center text-sm text-gray-500">
+                    No parties found matching your search.
                   </td>
                 </tr>
               )}
@@ -548,187 +492,108 @@ export default function PartyList() {
           </table>
         </div>
 
-        {/* Bottom Pagination Footer */}
-        <div className="p-3 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white text-xs font-normal text-gray-600">
-          <div>
-            Showing {filteredParties.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredParties.length)} of {filteredParties.length} entries
-          </div>
+        {/* Mobile View Card List */}
+        <div className="block md:hidden divide-y divide-gray-100 bg-white">
+          {paginatedParties.map((party) => {
+            const bgClass = getRandomBgColor(party.name);
+            return (
+              <div 
+                key={party.id} 
+                onClick={() => navigate(`/parties/${party.id}`)}
+                className="p-3.5 hover:bg-gray-50/45 active:bg-gray-50 transition-colors flex items-center justify-between gap-3 text-sm cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  {/* Circular initials badge */}
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs uppercase border shrink-0 ${bgClass}`}>
+                    {getInitials(party.name)}
+                  </div>
 
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              className="px-2.5 py-1 border border-gray-300 rounded bg-white hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white text-gray-700 font-normal transition-colors cursor-pointer"
-            >
-              Previous
-            </button>
+                  {/* Party Name & Phone */}
+                  <div className="min-w-0">
+                    <h4 className="font-semibold text-gray-950 text-xs sm:text-sm truncate">{party.name}</h4>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                      {party.phone ? (
+                        <p className="text-[11px] text-gray-500 font-mono">{party.phone}</p>
+                      ) : (
+                        <p className="text-[11px] text-gray-400 italic">No contact</p>
+                      )}
+                      <span className="text-[10px] text-gray-300">•</span>
+                      <p className="text-[11px] text-gray-400 font-medium">
+                        {formatRelativeTime(party.lastTransaction)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-            {getPageNumbers().map((page, i) =>
-              typeof page === 'number' ? (
+                {/* Balance */}
+                <div className="text-right shrink-0">
+                  <span className="text-[8px] uppercase font-bold tracking-wider leading-none block mb-1 text-gray-400">
+                    Balance
+                  </span>
+                  <div className={`font-extrabold text-xs sm:text-sm ${party.currentDue > 0 ? 'text-red-600' : party.currentDue < 0 ? 'text-emerald-600' : 'text-gray-500'}`}>
+                    {party.currentDue > 0 ? (
+                      <>-₹{Math.abs(party.currentDue).toLocaleString(undefined, {minimumFractionDigits: 2})}</>
+                    ) : party.currentDue < 0 ? (
+                      <>₹ {Math.abs(party.currentDue).toLocaleString(undefined, {minimumFractionDigits: 2})}</>
+                    ) : (
+                      <>₹ 0.00</>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {filteredParties.length === 0 && (
+            <div className="p-8 text-center text-sm text-gray-500">
+              No parties found matching your search.
+            </div>
+          )}
+        </div>
+
+        {totalPages > 1 && (
+          <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between bg-gray-50/50 gap-4">
+            <div className="text-sm text-gray-500">
+              Showing <span className="font-medium">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> to{' '}
+              <span className="font-medium">{Math.min(currentPage * ITEMS_PER_PAGE, filteredParties.length)}</span> of{' '}
+              <span className="font-medium">{filteredParties.length}</span> parties
+            </div>
+            <div className="flex items-center space-x-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                className="p-2 border border-gray-200 rounded-md hover:bg-white text-gray-600 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                 <button
                   key={page}
                   type="button"
                   onClick={() => setCurrentPage(page)}
-                  className={`px-3 py-1 rounded text-xs font-normal border transition-colors cursor-pointer ${
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${
                     currentPage === page
-                      ? 'bg-black text-white border-black font-normal'
-                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      ? 'bg-sky-600 border-sky-600 text-white'
+                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   {page}
                 </button>
-              ) : (
-                <span key={`ellipsis-${i}`} className="px-1 py-1 text-xs text-gray-400 font-normal select-none">
-                  ...
-                </span>
-              )
-            )}
+              ))}
 
-            <button
-              type="button"
-              disabled={currentPage === totalPages || totalPages === 0}
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              className="px-2.5 py-1 border border-gray-300 rounded bg-white hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white text-gray-700 font-normal transition-colors cursor-pointer"
-            >
-              Next
-            </button>
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                className="p-2 border border-gray-200 rounded-md hover:bg-white text-gray-600 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
-        </div>
-
+        )}
       </div>
-
-      {/* Add Account Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-md overflow-hidden text-xs border border-gray-200">
-            <div className="flex justify-between items-center p-3.5 border-b border-gray-200 bg-gray-50">
-              <h3 className="font-normal text-sm text-gray-900">Add New Account / Party</h3>
-              <button type="button" onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600"><X size={16}/></button>
-            </div>
-            <form onSubmit={handleAddSubmit} className="p-4 space-y-3 font-normal">
-              <div>
-                <label className="block text-gray-700 mb-1 font-normal">Party Name / Title</label>
-                <input required type="text" value={formName} onChange={e => setFormName(e.target.value)} className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:border-sky-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1 font-normal">Account Number / Phone</label>
-                <input type="text" value={formPhone} onChange={e => setFormPhone(e.target.value)} className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:border-sky-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1 font-normal">Email</label>
-                <input type="email" value={formEmail} onChange={e => setFormEmail(e.target.value)} className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:border-sky-500 focus:outline-none" placeholder="client@example.com" />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1 font-normal">Address / Group Notes</label>
-                <input type="text" value={formAddress} onChange={e => setFormAddress(e.target.value)} className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:border-sky-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1 font-normal">Opening Balance (Positive = Due to us, Negative = Advance)</label>
-                <input type="number" step="0.01" value={formOpeningBalance} onChange={e => setFormOpeningBalance(e.target.value)} className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:border-sky-500 focus:outline-none" />
-              </div>
-              <div className="pt-2 flex justify-end gap-2 border-t border-gray-100">
-                <button type="button" disabled={isSubmitting} onClick={() => setShowAddModal(false)} className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
-                <button type="submit" disabled={isSubmitting} className="px-4 py-1.5 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50 flex items-center justify-center cursor-pointer">
-                  {isSubmitting ? <Loader2 className="animate-spin mr-1.5" size={14} /> : null}
-                  Save Account
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Account Modal */}
-      {editingParty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-md overflow-hidden text-xs border border-gray-200">
-            <div className="flex justify-between items-center p-3.5 border-b border-gray-200 bg-gray-50">
-              <h3 className="font-normal text-sm text-gray-900">Edit Account / Party</h3>
-              <button type="button" onClick={() => setEditingParty(null)} className="text-gray-400 hover:text-gray-600"><X size={16}/></button>
-            </div>
-            <form onSubmit={handleEditSubmit} className="p-4 space-y-3 font-normal">
-              <div>
-                <label className="block text-gray-700 mb-1 font-normal">Party Name / Title</label>
-                <input required type="text" value={formName} onChange={e => setFormName(e.target.value)} className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:border-sky-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1 font-normal">Account Number / Phone</label>
-                <input type="text" value={formPhone} onChange={e => setFormPhone(e.target.value)} className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:border-sky-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1 font-normal">Email</label>
-                <input type="email" value={formEmail} onChange={e => setFormEmail(e.target.value)} className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:border-sky-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1 font-normal">Address / Group Notes</label>
-                <input type="text" value={formAddress} onChange={e => setFormAddress(e.target.value)} className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:border-sky-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-gray-700 mb-1 font-normal">Opening Balance</label>
-                <input type="number" step="0.01" value={formOpeningBalance} onChange={e => setFormOpeningBalance(e.target.value)} className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:border-sky-500 focus:outline-none" />
-              </div>
-              <div className="pt-2 flex justify-end gap-2 border-t border-gray-100">
-                <button type="button" disabled={isSubmitting} onClick={() => setEditingParty(null)} className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
-                <button type="submit" disabled={isSubmitting} className="px-4 py-1.5 bg-sky-600 text-white rounded hover:bg-sky-700 disabled:opacity-50 flex items-center justify-center cursor-pointer">
-                  {isSubmitting ? <Loader2 className="animate-spin mr-1.5" size={14} /> : null}
-                  Update Account
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {deletingParty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-sm overflow-hidden text-xs border border-gray-200 p-4 font-normal">
-            <h3 className="text-sm font-normal text-gray-900 mb-2">Delete Account</h3>
-            <p className="text-gray-600 mb-4 font-normal">
-              Are you sure you want to delete <span className="font-normal text-gray-900">{deletingParty.name}</span>? This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button type="button" disabled={isSubmitting} onClick={() => setDeletingParty(null)} className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded">
-                Cancel
-              </button>
-              <button type="button" disabled={isSubmitting} onClick={handleDeleteConfirm} className="px-3 py-1.5 bg-rose-600 text-white rounded hover:bg-rose-700 disabled:opacity-50 flex items-center justify-center">
-                {isSubmitting ? <Loader2 className="animate-spin mr-1.5" size={14} /> : null}
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bulk Import Modal */}
-      {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-lg overflow-hidden text-xs border border-gray-200">
-            <div className="flex justify-between items-center p-3.5 border-b border-gray-200 bg-gray-50">
-              <h3 className="font-normal text-sm text-gray-900">Bulk Import Accounts</h3>
-              <button type="button" onClick={() => setShowImportModal(false)} className="text-gray-400 hover:text-gray-600"><X size={16}/></button>
-            </div>
-            <div className="p-4 space-y-3 font-normal">
-              <p className="text-gray-500">Paste CSV format: <code>Name,Phone,OpeningBalance,Email</code> (one per line)</p>
-              <textarea
-                className="w-full h-40 p-2.5 border border-gray-300 rounded font-mono focus:border-sky-500 focus:outline-none"
-                value={importCsvContent}
-                onChange={e => setImportCsvContent(e.target.value)}
-                placeholder="John Doe,1234567890,500.00,john@example.com"
-              ></textarea>
-              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
-                <button type="button" disabled={isSubmitting} onClick={() => setShowImportModal(false)} className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
-                <button type="button" disabled={isSubmitting} onClick={handleImportSubmit} className="px-4 py-1.5 bg-sky-600 text-white rounded hover:bg-sky-700 disabled:opacity-50 flex items-center justify-center">
-                  {isSubmitting ? <Loader2 className="animate-spin mr-1.5" size={14} /> : null}
-                  Import Accounts
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
