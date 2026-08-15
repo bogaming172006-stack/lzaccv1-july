@@ -87,7 +87,7 @@ export default function Login() {
         {/* Brand Header */}
         <div className="text-center">
           <div className="flex justify-center mb-2.5">
-            <CompanyLogo className="h-14 sm:h-18 w-auto max-w-[170px] object-contain" />
+            <CompanyLogo className="h-20 min-[400px]:h-24 sm:h-28 w-auto max-w-[240px] object-contain" />
           </div>
           
           <h1 className="text-lg sm:text-[21px] font-bold text-[#082f1d] tracking-tight leading-snug">

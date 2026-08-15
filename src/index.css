@@ -158,7 +158,22 @@ html, body {
 /* Input focus styles */
 input:focus, select:focus, textarea:focus {
   outline: none;
+  border-color: #0e633d !important;
+  box-shadow: 0 0 0 2px rgba(14, 99, 61, 0.2) !important;
+}
+
+.theme-purchase input:focus, .theme-purchase select:focus, .theme-purchase textarea:focus {
+  outline: none;
   border-color: #7e22ce !important;
-  box-shadow: 0 0 0 1px #7e22ce !important;
+  box-shadow: 0 0 0 2px rgba(126, 34, 206, 0.2) !important;
+}
+
+/* Chrome/Safari Autofill Polish */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px white inset !important;
+  -webkit-text-fill-color: #0f172a !important;
 }
 
