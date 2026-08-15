@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
-import { LogIn, UserPlus, Database, ShieldCheck, Lock, User as UserIcon } from 'lucide-react';
+import { LogIn, UserPlus, Database, Lock, User as UserIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CompanyLogo from '../components/CompanyLogo';
 import { db, doc, setDoc, handleFirestoreError, OperationType } from '../firebase';
@@ -81,143 +81,153 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans antialiased">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-        {/* Top Corporate Branding Banner */}
-        <div className="bg-[#0f172a] px-8 py-7 text-center border-b border-slate-800">
-          <div className="flex justify-center mb-3">
-            <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-xs border border-white/10">
-              <CompanyLogo className="h-16 w-auto" variant="white" />
-            </div>
+    <div className="min-h-screen flex items-center justify-center bg-[#f0f2f5] p-3 sm:p-4 font-sans antialiased">
+      <div className="w-full max-w-[390px] bg-white rounded-2xl shadow-[0_12px_36px_-8px_rgba(0,0,0,0.1)] border border-slate-100/90 p-5 sm:p-7 transition-all">
+        
+        {/* Brand Header */}
+        <div className="text-center">
+          <div className="flex justify-center mb-2.5">
+            <CompanyLogo className="h-14 sm:h-18 w-auto max-w-[170px] object-contain" />
           </div>
-          <h1 className="text-white font-bold text-base tracking-tight">Greenzar Food & Beverage</h1>
-          <p className="text-slate-400 text-xs font-medium mt-1">Enterprise Financial Accounting & General Ledger</p>
+          
+          <h1 className="text-lg sm:text-[21px] font-bold text-[#082f1d] tracking-tight leading-snug">
+            Greenzar Food & Beverage
+          </h1>
+          
+          {/* Subtle Green Pill Accent */}
+          <div className="w-8 h-0.5 bg-[#148348] rounded-full mx-auto mt-2"></div>
         </div>
 
-        <div className="p-8 space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        {/* Thin Divider Line */}
+        <div className="w-full h-px bg-slate-100 my-4 sm:my-5"></div>
+
+        {/* Accounts Operator Authentication Section */}
+        <div className="mb-4 sm:mb-5">
+          <h2 className="font-bold text-slate-900 text-sm sm:text-[15px] tracking-tight">
+            Accounts Operator Authentication
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Enter authorized credentials to access
+          </p>
+        </div>
+
+        {!isLoading && users.length === 0 ? (
+          <form onSubmit={handleCreateInitialUser} className="space-y-3.5 sm:space-y-4">
+            <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs flex items-start gap-2">
+              <Database size={15} className="text-emerald-700 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-[11px]">Initial System Bootstrap</p>
+                <p className="mt-0.5 text-[10.5px] text-emerald-800 leading-relaxed">
+                  No operator accounts found. Create master Admin account.
+                </p>
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-2.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl font-semibold">
+                {error}
+              </div>
+            )}
+
             <div>
-              <h2 className="font-bold text-slate-900 text-sm">System Operator Authentication</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Enter authorized credentials to access workspace</p>
+              <label className="block text-[10.5px] font-bold uppercase tracking-wider text-[#0e633d] mb-1.5">
+                OPERATOR USERNAME
+              </label>
+              <div className="relative">
+                <UserIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0e633d]" />
+                <input
+                  type="text"
+                  required
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  disabled={isCreating}
+                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-[#0e633d] focus:ring-3 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-2xs"
+                  placeholder="Enter registered username"
+                />
+              </div>
             </div>
-            <ShieldCheck size={20} className="text-blue-600" />
-          </div>
 
-          {!isLoading && users.length === 0 ? (
-            <form onSubmit={handleCreateInitialUser} className="space-y-4">
-              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-start gap-2.5">
-                <Database size={16} className="text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold">Initial System Bootstrap</p>
-                  <p className="mt-0.5 text-[11px] text-amber-800">
-                    No operator accounts found. Create the master Administrator account to initialize database.
-                  </p>
-                </div>
+            <div>
+              <label className="block text-[10.5px] font-bold uppercase tracking-wider text-[#0e633d] mb-1.5">
+                4-DIGIT SECURITY PIN
+              </label>
+              <div className="relative">
+                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0e633d]" />
+                <input
+                  type="password"
+                  required
+                  maxLength={4}
+                  value={createPin}
+                  onChange={(e) => setCreatePin(e.target.value.replace(/[^0-9]/g, ''))}
+                  disabled={isCreating}
+                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium tracking-widest text-slate-900 placeholder:text-slate-400 focus:border-[#0e633d] focus:ring-3 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-2xs"
+                  placeholder="••••"
+                />
               </div>
+            </div>
 
-              {error && (
-                <div className="p-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg font-semibold">
-                  {error}
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Master Operator Username</label>
-                <div className="relative">
-                  <UserIcon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    required
-                    value={createName}
-                    onChange={(e) => setCreateName(e.target.value)}
-                    disabled={isCreating}
-                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    placeholder="e.g. Admin"
-                  />
-                </div>
+            <button
+              type="submit"
+              disabled={isCreating}
+              className="w-full py-2.5 sm:py-3 px-4 bg-[#0e633d] hover:bg-[#0a4e2f] active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-md shadow-emerald-950/15 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-1"
+            >
+              <UserPlus size={16} />
+              <span>{isCreating ? 'Provisioning Master...' : 'Provision Master Account & Enter'}</span>
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4">
+            {error && (
+              <div className="p-2.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl font-semibold">
+                {error}
               </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">4-Digit Security PIN</label>
-                <div className="relative">
-                  <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="password"
-                    required
-                    maxLength={4}
-                    value={createPin}
-                    onChange={(e) => setCreatePin(e.target.value.replace(/[^0-9]/g, ''))}
-                    disabled={isCreating}
-                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-center tracking-widest text-base font-mono font-bold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    placeholder="••••"
-                  />
-                </div>
+            )}
+            
+            <div>
+              <label className="block text-[10.5px] font-bold uppercase tracking-wider text-[#0e633d] mb-1.5">
+                OPERATOR USERNAME
+              </label>
+              <div className="relative">
+                <UserIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0e633d]" />
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={isLoading}
+                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-[#0e633d] focus:ring-3 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-2xs"
+                  placeholder="Enter registered username"
+                />
               </div>
+            </div>
 
-              <button
-                type="submit"
-                disabled={isCreating}
-                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                <UserPlus size={15} />
-                <span>{isCreating ? 'Provisioning Master...' : 'Provision Master Account & Enter'}</span>
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="p-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg font-semibold">
-                  {error}
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Operator Username</label>
-                <div className="relative">
-                  <UserIcon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    disabled={isLoading}
-                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    placeholder="Enter registered username"
-                  />
-                </div>
+            <div>
+              <label className="block text-[10.5px] font-bold uppercase tracking-wider text-[#0e633d] mb-1.5">
+                4-DIGIT SECURITY PIN
+              </label>
+              <div className="relative">
+                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0e633d]" />
+                <input
+                  type="password"
+                  maxLength={4}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))}
+                  disabled={isLoading}
+                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium tracking-widest text-slate-900 placeholder:text-slate-400 focus:border-[#0e633d] focus:ring-3 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-2xs"
+                  placeholder="••••"
+                />
               </div>
+            </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">4-Digit Security PIN</label>
-                <div className="relative">
-                  <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="password"
-                    maxLength={4}
-                    value={pin}
-                    onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))}
-                    disabled={isLoading}
-                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-center tracking-widest text-base font-mono font-bold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    placeholder="••••"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                <LogIn size={15} />
-                <span>{isLoading ? 'Authenticating...' : 'Sign In to Ledger'}</span>
-              </button>
-            </form>
-          )}
-
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <span>Encrypted Offline Engine</span>
-            <span>v2.4.0 Corporate Edition</span>
-          </div>
-        </div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-2.5 sm:py-3 px-4 bg-[#0e633d] hover:bg-[#0a4e2f] active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-md shadow-emerald-950/15 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-1"
+            >
+              <LogIn size={16} className="stroke-[2.2]" />
+              <span>{isLoading ? 'Authenticating...' : 'Sign In to Ledger'}</span>
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
