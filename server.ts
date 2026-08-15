@@ -23,7 +23,7 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
@@ -35,11 +35,13 @@ app.use((req, res, next) => {
   if (req.url.startsWith("/api/api")) {
     req.url = req.url.replace("/api/api", "/api");
   }
-  if (req.url.startsWith("/db/")) {
-    req.url = "/api" + req.url;
-  }
-  if (req.url === "/db") {
-    req.url = "/api/db";
+  // If request route lacks /api prefix in serverless rewrite
+  const apiPrefixes = ["/db", "/parties", "/sheets", "/ai"];
+  for (const prefix of apiPrefixes) {
+    if (req.url.startsWith(prefix) && !req.url.startsWith("/api")) {
+      req.url = "/api" + req.url;
+      break;
+    }
   }
   if (!req.url.startsWith("/")) {
     req.url = "/" + req.url;
@@ -69,12 +71,45 @@ const TABLES = [
 let tursoClientInstance: any = null;
 let useLocalFallback = false;
 
+function getSanitizedTursoConfig() {
+  const rawUrl = (
+    process.env.TURSO_DB_URL ||
+    process.env.TURSO_DATABASE_URL ||
+    process.env.TURSO_URL ||
+    process.env.LIBSQL_URL ||
+    process.env.DATABASE_URL ||
+    ""
+  ).trim();
+
+  const rawToken = (
+    process.env.TURSO_DB_AUTH_TOKEN ||
+    process.env.TURSO_AUTH_TOKEN ||
+    process.env.TURSO_TOKEN ||
+    process.env.LIBSQL_AUTH_TOKEN ||
+    process.env.DATABASE_AUTH_TOKEN ||
+    ""
+  ).trim();
+
+  let url = rawUrl.replace(/^["']|["']$/g, "").replace(/[\r\n\t]/g, "").trim();
+  let authToken = rawToken.replace(/^["']|["']$/g, "").replace(/[\r\n\t]/g, "").trim();
+
+  // If user provided a host without protocol (e.g. greenzardbv2-xxx.turso.io)
+  if (url && !url.startsWith("libsql://") && !url.startsWith("https://") && !url.startsWith("http://") && !url.startsWith("file:")) {
+    url = `libsql://${url}`;
+  }
+
+  return { url, authToken };
+}
+
 function getTurso() {
+  const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY);
+  const fallbackDbUrl = isServerless ? "file:/tmp/local.db" : "file:local.db";
+
   if (useLocalFallback) {
     if (!tursoClientInstance || tursoClientInstance._isRemote) {
-      console.log("[Database] Using local SQLite file-based fallback database (file:local.db)");
+      console.log(`[Database] Using local SQLite fallback database (${fallbackDbUrl})`);
       tursoClientInstance = createClient({
-        url: "file:local.db"
+        url: fallbackDbUrl
       });
       tursoClientInstance._isRemote = false;
     }
@@ -82,23 +117,31 @@ function getTurso() {
   }
 
   if (!tursoClientInstance) {
-    const url = (process.env.TURSO_DB_URL || "").trim().replace(/[\r\n]/g, "");
-    const authToken = (process.env.TURSO_DB_AUTH_TOKEN || "").trim().replace(/[\r\n]/g, "");
+    const { url, authToken } = getSanitizedTursoConfig();
 
     if (!url || url === "libsql://placeholder.turso.io" || url.includes("placeholder")) {
-      console.log("[Database] No valid TURSO_DB_URL configured in environment variables. Falling back to local SQLite file:local.db");
+      console.log(`[Database] No valid TURSO_DB_URL configured in environment variables. Falling back to local SQLite (${fallbackDbUrl})`);
       useLocalFallback = true;
       tursoClientInstance = createClient({
-        url: "file:local.db"
+        url: fallbackDbUrl
       });
       tursoClientInstance._isRemote = false;
     } else {
       console.log("[Database] Initializing Turso connection to:", url);
-      tursoClientInstance = createClient({ 
-        url, 
-        authToken: authToken || undefined 
-      });
-      tursoClientInstance._isRemote = true;
+      try {
+        tursoClientInstance = createClient({ 
+          url, 
+          authToken: authToken || undefined 
+        });
+        tursoClientInstance._isRemote = true;
+      } catch (err: any) {
+        console.error("[Database] Failed to create Turso client:", err.message);
+        useLocalFallback = true;
+        tursoClientInstance = createClient({
+          url: fallbackDbUrl
+        });
+        tursoClientInstance._isRemote = false;
+      }
     }
   }
   return tursoClientInstance;
@@ -158,8 +201,9 @@ class SafeLibsqlClient {
   }
 
   private async triggerFallback() {
-    console.warn("[Database] Re-initializing Turso client connection...");
-    tursoClientInstance = null; // force recreation of getTurso() with remote credentials
+    console.warn("[Database] Remote Turso connection encountered auth/network error, switching to fallback...");
+    useLocalFallback = true;
+    tursoClientInstance = null;
     tablesInitialized = false;
     const client = getTurso();
     await ensureTablesExist(client);
@@ -308,15 +352,16 @@ app.use("/api/db", async (req, res, next) => {
 
 // Connection check / diagnosis
 app.get("/api/db/connection-status", async (req, res) => {
-  const url = (process.env.TURSO_DB_URL || "").trim();
+  const { url } = getSanitizedTursoConfig();
 
   try {
     if (useLocalFallback) {
-      return res.json({ status: "connected", url: "Local SQLite Fallback (file:local.db)", isFallback: true });
+      return res.json({ status: "connected", url: "Local SQLite Fallback", isFallback: true });
     }
     const client = getTurso();
     await client.execute("SELECT 1");
-    res.json({ status: "connected", url: url || "Turso" });
+    await ensureTablesExist(client);
+    res.json({ status: "connected", url: url || "Turso Cloud Database" });
   } catch (err: any) {
     console.warn("[Diagnostic] Connection fail:", err.message || String(err));
     res.json({ 
