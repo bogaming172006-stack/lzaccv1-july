@@ -1,11 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { db, handleFirestoreError, OperationType, collection, query, where, getDocs, limit, orderBy } from '../firebase';
-import { Party, Transaction, DashboardSummary, LEDGER_TYPE_LABELS, Ledger } from '../types';
+import { useNavigate } from 'react-router-dom';
 import { 
-  FileUp, 
   TrendingUp, 
   TrendingDown, 
-  Clock, 
   Loader2, 
   BookOpen, 
   PlusCircle, 
@@ -13,62 +10,33 @@ import {
   ArrowUpRight, 
   ArrowDownRight, 
   Calendar, 
-  DollarSign, 
   Wallet, 
-  ChevronRight 
+  Users, 
+  CreditCard,
+  FileSpreadsheet,
+  FileText,
+  Building2,
+  CheckCircle2,
+  Clock,
+  ArrowRight
 } from 'lucide-react';
 import { useLedger } from '../LedgerContext';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { format, subDays, startOfDay, endOfDay, parseISO } from 'date-fns';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { format, subMonths, startOfMonth, endOfMonth, startOfDay, endOfDay, parseISO } from 'date-fns';
 import { syncCollection } from '../lib/syncCache';
 import { getFilteredCacheItems } from '../lib/idbCache';
 import CompanyLogo from '../components/CompanyLogo';
-
-// Professional ledger-themed color maps for UI accent continuity
-const themeMap: Record<Ledger['type'], {
-  gradient: string;
-  badgeBg: string;
-  glow: string;
-}> = {
-  SALE: {
-    gradient: 'from-slate-900 via-slate-850 to-sky-950',
-    badgeBg: 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-100 dark:border-sky-900/50',
-    glow: 'bg-sky-500'
-  },
-  PURCHASE: {
-    gradient: 'from-slate-900 via-slate-850 to-purple-950',
-    badgeBg: 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-100 dark:border-purple-900/50',
-    glow: 'bg-purple-500'
-  },
-  CASH_BANK: {
-    gradient: 'from-slate-900 via-slate-850 to-teal-950',
-    badgeBg: 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-900/50',
-    glow: 'bg-teal-500'
-  },
-  EXPENSE: {
-    gradient: 'from-slate-900 via-slate-850 to-rose-950',
-    badgeBg: 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-100 dark:border-rose-900/50',
-    glow: 'bg-rose-500'
-  },
-  ASSET: {
-    gradient: 'from-slate-900 via-slate-850 to-emerald-950',
-    badgeBg: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-100 dark:border-emerald-900/50',
-    glow: 'bg-emerald-500'
-  },
-  LIABILITY: {
-    gradient: 'from-slate-900 via-slate-850 to-amber-950',
-    badgeBg: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-100 dark:border-amber-900/50',
-    glow: 'bg-amber-500'
-  },
-  CAPITAL: {
-    gradient: 'from-slate-900 via-slate-850 to-indigo-950',
-    badgeBg: 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-100 dark:border-indigo-900/50',
-    glow: 'bg-indigo-500'
-  }
-};
+import PageHeader from '../components/ui/PageHeader';
+import StatCard from '../components/ui/StatCard';
+import Badge from '../components/ui/Badge';
+import AmountDisplay from '../components/ui/AmountDisplay';
+import { Card, CardHeader, CardBody } from '../components/ui/Card';
+import { Party, Transaction, DashboardSummary, LEDGER_TYPE_LABELS, Ledger } from '../types';
 
 export default function Dashboard() {
   const { activeLedger, ledgers, createLedger, setActiveLedgerId } = useLedger();
+  const navigate = useNavigate();
+  const [allLedgerTxs, setAllLedgerTxs] = useState<Transaction[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -77,25 +45,6 @@ export default function Dashboard() {
   const [newLedgerType, setNewLedgerType] = useState<Ledger['type']>('SALE');
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreatingLedger, setIsCreatingLedger] = useState(false);
-
-  // Simple Range Presets for Professional Mobile UX
-  const [rangePreset, setRangePreset] = useState<'7D' | '30D' | 'CUSTOM'>('7D');
-  const [filterStartDate, setFilterStartDate] = useState(format(subDays(new Date(), 6), 'yyyy-MM-dd'));
-  const [filterEndDate, setFilterEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-
-  // Mobile list tabs to avoid long vertical scrolling
-  const [partyTab, setPartyTab] = useState<'dues' | 'advances'>('dues');
-
-  // Triggered when preset changes
-  useEffect(() => {
-    if (rangePreset === '7D') {
-      setFilterStartDate(format(subDays(new Date(), 6), 'yyyy-MM-dd'));
-      setFilterEndDate(format(new Date(), 'yyyy-MM-dd'));
-    } else if (rangePreset === '30D') {
-      setFilterStartDate(format(subDays(new Date(), 29), 'yyyy-MM-dd'));
-      setFilterEndDate(format(new Date(), 'yyyy-MM-dd'));
-    }
-  }, [rangePreset]);
 
   // Load and Sync Local Cache
   const syncDashboardData = async () => {
@@ -126,12 +75,8 @@ export default function Dashboard() {
       // 3. Index-free transactions caching and filtering
       await syncCollection<Transaction>('transactions', activeLedger.id, 'transactions');
       const cachedTxs = await getFilteredCacheItems<Transaction>('transactions', t => t.ledgerId === activeLedger.id);
-      
-      const startTs = startOfDay(parseISO(filterStartDate)).getTime();
-      const endTs = endOfDay(parseISO(filterEndDate)).getTime();
-      
-      const rangeTxs = cachedTxs.filter(t => t.timestamp >= startTs && t.timestamp <= endTs);
-      setTransactions(rangeTxs);
+      setAllLedgerTxs(cachedTxs);
+      setTransactions(cachedTxs);
     } catch (e) {
       console.error("Dashboard cache retrieval failed:", e);
     } finally {
@@ -149,28 +94,34 @@ export default function Dashboard() {
     return () => {
       window.removeEventListener('database-synced', handleSync);
     };
-  }, [activeLedger?.id, filterStartDate, filterEndDate]);
+  }, [activeLedger?.id]);
 
-  // Generate 7-day trend chart from the queried transactions scope
+  // Generate 12-month column chart data for all months
   const chartData = useMemo(() => {
     const data = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = subDays(new Date(), i);
-      const start = startOfDay(date).getTime();
-      const end = endOfDay(date).getTime();
+    const now = new Date();
+    // 12 months rolling (from 11 months ago up to current month)
+    for (let i = 11; i >= 0; i--) {
+      const monthDate = subMonths(now, i);
+      const start = startOfMonth(monthDate).getTime();
+      const end = endOfMonth(monthDate).getTime();
       
-      const dayTxs = transactions.filter(t => t.timestamp >= start && t.timestamp <= end);
-      const debit = dayTxs.filter(t => t.type === 'DEBIT').reduce((acc, t) => acc + t.amount, 0);
-      const credit = dayTxs.filter(t => t.type === 'CREDIT').reduce((acc, t) => acc + t.amount, 0);
+      const monthTxs = allLedgerTxs.filter(t => t.timestamp >= start && t.timestamp <= end);
+      const debit = monthTxs.filter(t => t.type === 'DEBIT').reduce((acc, t) => acc + (t.amount || 0), 0);
+      const credit = monthTxs.filter(t => t.type === 'CREDIT').reduce((acc, t) => acc + (t.amount || 0), 0);
+      const txCount = monthTxs.length;
       
       data.push({
-        name: format(date, 'MMM dd'),
+        name: format(monthDate, 'MMM'),
+        fullMonth: format(monthDate, 'MMMM yyyy'),
         debit,
-        credit
+        credit,
+        net: debit - credit,
+        txCount
       });
     }
     return data;
-  }, [transactions]);
+  }, [allLedgerTxs]);
 
   if (!activeLedger) {
     const handleCreateLedgerSubmit = async (e: React.FormEvent) => {
@@ -192,30 +143,28 @@ export default function Dashboard() {
     };
 
     return (
-      <div className="p-4 sm:p-8 max-w-4xl mx-auto w-full pb-24 sm:pb-8 flex flex-col items-center justify-center min-h-[70vh]">
-        <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-          {/* Header */}
-          <div className="p-8 bg-gradient-to-br from-sky-50 to-indigo-50 border-b border-gray-100 text-center sm:text-left flex flex-col sm:flex-row items-center gap-6">
-            <div className="w-16 h-16 bg-sky-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-sky-500/25 flex-shrink-0 animate-pulse">
-              <BookOpen size={32} />
+      <div className="p-4 sm:p-8 max-w-4xl mx-auto w-full pb-24 sm:pb-8 flex flex-col items-center justify-center min-h-[75vh]">
+        <div className="w-full max-w-2xl bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="p-8 bg-slate-900 border-b border-slate-800 text-center sm:text-left flex flex-col sm:flex-row items-center gap-6">
+            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0">
+              <Building2 size={32} />
             </div>
             <div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 justify-center sm:justify-start">
-                <span className="text-sm font-semibold uppercase text-gray-500 tracking-wider">Welcome to</span>
-                <CompanyLogo className="h-16 w-auto -mt-1 self-center sm:self-auto" variant="color" />
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-center sm:justify-start">
+                <span className="text-xs font-bold uppercase text-slate-400 tracking-wider">Corporate ERP Portal</span>
+                <CompanyLogo className="h-7 w-auto self-center sm:self-auto" variant="white" />
               </div>
-              <p className="text-gray-600 mt-1.5 text-sm leading-relaxed">
-                Connect and manage your finances securely. To begin tracking parties, products, and transaction sheets in your live database, please select or create a ledger.
+              <p className="text-slate-300 mt-2 text-xs sm:text-sm leading-relaxed">
+                Welcome to Greenzar Food & Beverage enterprise financial system. To begin managing parties, transactions, and audit reports, please select or create a ledger.
               </p>
             </div>
           </div>
 
           <div className="p-8 space-y-8">
-            {/* 1. Select Existing Ledger if any */}
             {ledgers.length > 0 && (
               <div>
-                <h3 className="text-sm font-extrabold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
-                  <FolderPlus size={16} className="text-sky-500" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-3 flex items-center gap-2">
+                  <FolderPlus size={16} className="text-blue-600" />
                   Select an Existing Ledger
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -223,14 +172,14 @@ export default function Dashboard() {
                     <button
                       key={l.id}
                       onClick={() => setActiveLedgerId(l.id)}
-                      className="flex items-center justify-between p-4 bg-gray-50 hover:bg-sky-50/80 hover:border-sky-300 border border-gray-200/80 rounded-xl transition-all duration-150 text-left group animate-fade-in"
+                      className="flex items-center justify-between p-4 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 border border-slate-200 rounded-xl transition-all text-left group"
                     >
                       <div className="overflow-hidden mr-3">
-                        <p className="font-bold text-gray-900 truncate group-hover:text-sky-950 text-sm">{l.name}</p>
-                        <p className="text-xs text-gray-500 mt-1 uppercase tracking-tight">{LEDGER_TYPE_LABELS[l.type] || l.type}</p>
+                        <p className="font-bold text-slate-900 truncate group-hover:text-blue-900 text-sm">{l.name}</p>
+                        <p className="text-xs text-slate-500 mt-0.5 uppercase">{LEDGER_TYPE_LABELS[l.type] || l.type}</p>
                       </div>
-                      <span className="text-xs font-bold text-sky-600 bg-sky-100/50 px-2.5 py-1 rounded-full group-hover:bg-sky-600 group-hover:text-white transition-all">
-                        Activate
+                      <span className="text-xs font-bold text-blue-600 bg-blue-100/60 px-3 py-1 rounded-md group-hover:bg-blue-600 group-hover:text-white transition-all shrink-0">
+                        Open Book
                       </span>
                     </button>
                   ))}
@@ -238,39 +187,38 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* 2. Create New Ledger Form */}
             <div>
-              <h3 className="text-sm font-extrabold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
-                <PlusCircle size={16} className="text-emerald-500" />
-                Create a New Ledger
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-3 flex items-center gap-2">
+                <PlusCircle size={16} className="text-emerald-600" />
+                Create a New Ledger Book
               </h3>
               
-              <form onSubmit={handleCreateLedgerSubmit} className="space-y-4 bg-gray-50/50 p-5 border border-gray-100 rounded-xl">
+              <form onSubmit={handleCreateLedgerSubmit} className="space-y-4 bg-slate-50/70 p-5 border border-slate-200 rounded-xl">
                 {createError && (
-                  <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg">
+                  <div className="p-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg font-medium">
                     {createError}
                   </div>
                 )}
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Ledger Name</label>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Ledger Name</label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Main Sales Ledger 2026"
+                      placeholder="e.g. Sales Ledger 2026"
                       value={newLedgerName}
                       onChange={e => setNewLedgerName(e.target.value)}
-                      className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition-colors"
+                      className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Accounting Type</label>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Accounting Type</label>
                     <select
                       value={newLedgerType}
                       onChange={e => setNewLedgerType(e.target.value as Ledger['type'])}
-                      className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition-colors"
+                      className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600"
                     >
                       {Object.entries(LEDGER_TYPE_LABELS).map(([key, label]) => (
                         <option key={key} value={key}>{label}</option>
@@ -283,7 +231,7 @@ export default function Dashboard() {
                   <button
                     type="submit"
                     disabled={isCreatingLedger}
-                    className="w-full sm:w-auto px-6 py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-semibold text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+                    className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2 shadow-xs"
                   >
                     {isCreatingLedger ? (
                       <>
@@ -306,370 +254,350 @@ export default function Dashboard() {
     );
   }
 
-  // Calculate totals from the smart precalculated summary plus period transactions
-  const totalOutstanding = summary?.totalReceivable || 0;
+  const totalOutstanding = summary?.totalReceivable ?? parties.filter(p => p.currentDue > 0).reduce((a, b) => a + b.currentDue, 0);
+  const totalDebtorsCount = parties.filter(p => p.currentDue > 0).length;
+  const totalAdvancePayables = summary?.totalPayable ?? parties.filter(p => p.currentDue < 0).reduce((a, b) => a + Math.abs(b.currentDue), 0);
   
-  const periodDebit = transactions.filter(t => t.type === 'DEBIT').reduce((acc, t) => acc + t.amount, 0);
-  const periodCredit = transactions.filter(t => t.type === 'CREDIT').reduce((acc, t) => acc + t.amount, 0);
+  // Calculate Today's Transactions
+  const now = new Date();
+  const todayStartTs = startOfDay(now).getTime();
+  const todayEndTs = endOfDay(now).getTime();
+  const todayTxs = allLedgerTxs.filter(t => t.timestamp >= todayStartTs && t.timestamp <= todayEndTs);
+  const todayDebit = todayTxs.filter(t => t.type === 'DEBIT').reduce((acc, t) => acc + t.amount, 0);
+  const todayCredit = todayTxs.filter(t => t.type === 'CREDIT').reduce((acc, t) => acc + t.amount, 0);
+  const todayDebitCount = todayTxs.filter(t => t.type === 'DEBIT').length;
+  const todayCreditCount = todayTxs.filter(t => t.type === 'CREDIT').length;
 
-  const isToday = filterStartDate === format(new Date(), 'yyyy-MM-dd') && filterEndDate === format(new Date(), 'yyyy-MM-dd');
-  const isPurchaseStyle = activeLedger?.type === 'PURCHASE' || activeLedger?.type === 'LIABILITY' || activeLedger?.type === 'CAPITAL';
-  
-  let debitColor = '#ef4444';
-  let creditColor = '#10b981';
-  if (activeLedger) {
-    switch (activeLedger.type) {
-      case 'SALE':
-        debitColor = '#0ea5e9'; // sky-500
-        creditColor = '#10b981'; // emerald-500
-        break;
-      case 'PURCHASE':
-        debitColor = '#8b5cf6'; // purple-500
-        creditColor = '#f59e0b'; // amber-500
-        break;
-      case 'CASH_BANK':
-        debitColor = '#0d9488'; // teal-600
-        creditColor = '#10b981';
-        break;
-      case 'EXPENSE':
-        debitColor = '#f43f5e'; // rose-500
-        creditColor = '#f97316';
-        break;
-      case 'ASSET':
-        debitColor = '#10b981';
-        creditColor = '#6366f1';
-        break;
-      case 'LIABILITY':
-        debitColor = '#d97706';
-        creditColor = '#f43f5e';
-        break;
-      case 'CAPITAL':
-        debitColor = '#6366f1';
-        creditColor = '#fbbf24';
-        break;
-    }
-  }
-
-  const currentTheme = themeMap[activeLedger.type] || themeMap.SALE;
+  const debitColor = '#e11d48'; // Clear Red for Debit
+  const creditColor = '#059669'; // Clear Green for Credit
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 sm:pb-8">
-      {/* Header and Professional Filter Bar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 sm:mb-8 gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-black text-gray-950 dark:text-white tracking-tight flex items-center gap-2">
-              Dashboard
-            </h1>
-            {isLoading && <Loader2 className="animate-spin text-gray-400" size={16} />}
-            <span className={`text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full border ${currentTheme.badgeBg}`}>
-              {LEDGER_TYPE_LABELS[activeLedger.type] || activeLedger.type}
-            </span>
-          </div>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1 font-medium">Overview of {activeLedger.name}</p>
-        </div>
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 sm:pb-8 space-y-6">
+      
+      {/* Page Header */}
+      <PageHeader
+        title="Financial Overview"
+        subtitle={`Real-time corporate accounting summary for ${activeLedger.name}`}
+      />
+
+      {/* ========================================================================= */}
+      {/* HERO FINANCIAL METRICS: BIG TOTAL OUTSTANDING + TODAY'S CREDIT & DEBIT   */}
+      {/* ========================================================================= */}
+      <div className="space-y-4">
         
-        {/* Compact Segmented Controller & Date Range Selector */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
-          {/* Preset Buttons */}
-          <div className="flex items-center bg-gray-100 dark:bg-gray-800 p-1 rounded-xl self-start w-full sm:w-auto">
-            {(['7D', '30D', 'CUSTOM'] as const).map((preset) => (
+        {/* 1. Big Card: Total Party Outstanding - Exact Sapphire Blue Theme */}
+        <div className="bg-[#0055a5] rounded-2xl p-6 sm:p-8 text-white shadow-md relative overflow-hidden border border-[#004b91]">
+          {/* Subtle Background Accent */}
+          <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-md bg-white/20 text-white text-[11px] font-bold uppercase tracking-wider border border-white/20">
+                  Total Outstanding
+                </span>
+                <span className="text-xs text-blue-100 font-medium">
+                  • {totalDebtorsCount} {totalDebtorsCount === 1 ? 'party' : 'parties'} with balance dues
+                </span>
+              </div>
+
+              {/* Big High-Impact Amount */}
+              <div className="pt-1">
+                <span className="text-3xl sm:text-5xl font-extrabold tracking-tight tabular-nums text-white flex items-baseline gap-1 select-all font-sans">
+                  <span className="text-2xl sm:text-4xl text-blue-100 font-normal">₹</span>
+                  <span>
+                    {totalOutstanding.toLocaleString('en-IN', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })}
+                  </span>
+                  <span className="ml-2.5 text-xs sm:text-sm font-bold uppercase px-2.5 py-1 rounded-md bg-[#ff2d55] text-white tracking-wide shadow-xs">
+                    DR
+                  </span>
+                </span>
+              </div>
+
+              <p className="text-xs text-blue-100/90 font-medium">
+                Cumulative receivable balance dues across all active parties in {activeLedger.name}
+              </p>
+            </div>
+
+            <div className="flex flex-row md:flex-col items-center md:items-end gap-3 shrink-0">
               <button
-                key={preset}
-                type="button"
-                onClick={() => setRangePreset(preset)}
-                className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  rangePreset === preset
-                    ? 'bg-white dark:bg-gray-900 text-gray-950 dark:text-white shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
-                }`}
+                onClick={() => navigate('/parties')}
+                className="w-full sm:w-auto px-5 py-2.5 bg-white text-[#0055a5] hover:bg-blue-50 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
               >
-                {preset === '7D' ? '7 Days' : preset === '30D' ? '30 Days' : 'Custom'}
+                <Users size={16} className="text-[#0055a5]" />
+                <span>View All Parties ({parties.length})</span>
+                <ArrowRight size={14} className="text-[#0055a5] ml-0.5" />
               </button>
-            ))}
-          </div>
 
-          {/* Date Inputs - ONLY expands elegantly when 'CUSTOM' is selected */}
-          {rangePreset === 'CUSTOM' && (
-            <div className="flex items-center gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-800 shadow-xs animate-fade-in text-xs w-full sm:w-auto justify-between">
-              <Calendar size={14} className="text-gray-400 shrink-0" />
-              <input 
-                type="date" 
-                value={filterStartDate}
-                onChange={(e) => {
-                  setFilterStartDate(e.target.value);
-                  setRangePreset('CUSTOM');
-                }}
-                className="bg-transparent border-none outline-none cursor-pointer focus:ring-0 text-gray-700 dark:text-gray-200 text-xs p-0 w-24"
-              />
-              <span className="text-gray-300">-</span>
-              <input 
-                type="date" 
-                value={filterEndDate}
-                onChange={(e) => {
-                  setFilterEndDate(e.target.value);
-                  setRangePreset('CUSTOM');
-                }}
-                min={filterStartDate}
-                className="bg-transparent border-none outline-none cursor-pointer focus:ring-0 text-gray-700 dark:text-gray-200 text-xs p-0 w-24"
-              />
+              {totalAdvancePayables > 0 && (
+                <div className="text-[11px] text-white bg-white/15 px-3 py-1.5 rounded-lg border border-white/20 flex items-center gap-1.5">
+                  <span>Advance payables:</span>
+                  <span className="font-bold text-emerald-300">
+                    ₹{totalAdvancePayables.toLocaleString('en-IN', { minimumFractionDigits: 2 })} Cr
+                  </span>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
-      </div>
 
-      {/* 
-        PREMIUM WALLET SNAPSHOT CARD (Optimized for Mobile Version)
-        Consolidates 3 bulky full-width cards into 1 sleek interactive wallet dashboard element.
-      */}
-      <div className="mb-6 sm:mb-8">
-        <div className={`w-full bg-gradient-to-br ${currentTheme.gradient} text-white rounded-2xl p-5 sm:p-7 shadow-xl shadow-slate-900/10 relative overflow-hidden border border-slate-800 animate-fade-in`}>
-          {/* Ambient Blur Glow backing based on current ledger accent */}
-          <div className={`absolute -right-8 -top-8 w-36 h-36 rounded-full blur-3xl opacity-30 pointer-events-none ${currentTheme.glow}`}></div>
+        {/* 2. Side-by-Side: Today's Credit & Today's Debit */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           
-          <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-[10px] sm:text-xs uppercase font-extrabold tracking-widest text-slate-400 mb-1 flex items-center gap-1.5">
-                  <Wallet size={12} className="text-slate-300" />
-                  Total Outstanding Balance
-                </p>
-                <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight select-all">
-                  -₹{totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </h2>
+          {/* Card A: Todays Credit */}
+          <div className="bg-white rounded-xl border border-slate-200 border-l-4 border-l-emerald-500 p-5 shadow-xs hover:shadow-sm transition-all">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-600 font-sans">
+                    Todays Credit
+                  </p>
+                </div>
+                <div className="text-2xl sm:text-3xl font-extrabold text-emerald-600 tracking-tight font-sans select-all pt-0.5">
+                  <AmountDisplay 
+                    amount={todayCredit} 
+                    type="CREDIT" 
+                    showDrCr={false} 
+                    size="3xl" 
+                  />
+                </div>
               </div>
-              <div className="bg-white/10 p-2.5 rounded-xl border border-white/10 shrink-0 backdrop-blur-xs">
-                <TrendingDown className="text-red-400" size={18} />
+
+              <div className="p-3 rounded-xl bg-emerald-50 text-emerald-600 shrink-0 border border-emerald-100">
+                <ArrowUpRight size={24} />
               </div>
             </div>
 
-            {/* Quick Stats side-by-side indicator layout */}
-            <div className="grid grid-cols-2 gap-4 pt-5 border-t border-white/10">
-              <div className="space-y-1">
-                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
-                  {isToday ? "Today's" : "Period"} Debit (Dr)
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
-                  <span className="text-sm sm:text-lg font-extrabold text-white">
-                    ₹{periodDebit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-1 border-l border-white/10 pl-4 sm:pl-6">
-                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
-                  {isToday ? "Today's" : "Period"} Credit (Cr)
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                  <span className="text-sm sm:text-lg font-extrabold text-white">
-                    ₹{periodCredit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
+            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+              <span className="font-medium">
+                {todayCreditCount} {todayCreditCount === 1 ? 'credit entry' : 'credit entries'} received today
+              </span>
+              <button
+                onClick={() => navigate('/log')}
+                className="text-emerald-700 hover:text-emerald-900 font-bold transition-colors"
+              >
+                Journal →
+              </button>
             </div>
           </div>
+
+          {/* Card B: Todays Debit */}
+          <div className="bg-white rounded-xl border border-slate-200 border-l-4 border-l-rose-500 p-5 shadow-xs hover:shadow-sm transition-all">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-600 font-sans">
+                    Todays Debit
+                  </p>
+                </div>
+                <div className="text-2xl sm:text-3xl font-extrabold text-rose-600 tracking-tight font-sans select-all pt-0.5">
+                  <AmountDisplay 
+                    amount={todayDebit} 
+                    type="DEBIT" 
+                    showDrCr={false} 
+                    size="3xl" 
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-rose-50 text-rose-600 shrink-0 border border-rose-100">
+                <ArrowDownRight size={24} />
+              </div>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+              <span className="font-medium">
+                {todayDebitCount} {todayDebitCount === 1 ? 'debit voucher' : 'debit vouchers'} billed today
+              </span>
+              <button
+                onClick={() => navigate('/log')}
+                className="text-rose-700 hover:text-rose-900 font-bold transition-colors"
+              >
+                Journal →
+              </button>
+            </div>
+          </div>
+
         </div>
+
       </div>
 
-      {/* Main Charts & Activity section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 sm:mb-8">
+      {/* Main Charts & Activity Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Modern Micro-Trend Chart Container */}
-        <div className="lg:col-span-2 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-xs p-5 sm:p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-sm sm:text-base font-extrabold text-gray-900 dark:text-white tracking-tight font-sans">
-              7-Day Net Cashflow Trend
-            </h2>
-            <div className="flex items-center gap-3 text-xs font-semibold">
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: debitColor }}></span>
-                <span className="text-gray-500">Dr</span>
+        {/* 12-Month Cashflow Column Chart (2 Cols) */}
+        <Card className="lg:col-span-2">
+          <CardHeader
+            title="12-Month Transaction History"
+            subtitle="Annual monthly debit vs credit breakdown (12 Column Overview)"
+            action={
+              <div className="flex items-center gap-4 text-xs font-semibold">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-rose-600"></span>
+                  <span className="text-slate-700">Debit (Dr)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-emerald-600"></span>
+                  <span className="text-slate-700">Credit (Cr)</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: creditColor }}></span>
-                <span className="text-gray-500">Cr</span>
-              </div>
+            }
+          />
+
+          <CardBody>
+            <div className="h-[270px] sm:h-[310px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 15, right: 10, left: 10, bottom: 5 }} barGap={3} barCategoryGap="20%">
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={{ stroke: '#e2e8f0' }} 
+                    tickLine={false} 
+                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} 
+                    dy={6} 
+                  />
+                  <YAxis 
+                    width={75}
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} 
+                    tickFormatter={(value) => `₹${value >= 100000 ? (value / 100000).toFixed(1) + 'L' : value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`} 
+                  />
+                  <Tooltip 
+                    cursor={{ fill: 'rgba(241, 245, 249, 0.6)' }}
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl border border-slate-800 text-xs space-y-2 min-w-[170px]">
+                            <div className="font-bold border-b border-slate-800 pb-1 text-slate-200 flex items-center justify-between">
+                              <span>{data.fullMonth}</span>
+                              <span className="text-[10px] font-normal text-slate-400">{data.txCount} entries</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="flex items-center gap-1.5 text-rose-400 font-semibold">
+                                <span className="w-2 h-2 rounded-xs bg-rose-500"></span>
+                                Debit (Dr):
+                              </span>
+                              <span className="font-bold tabular-nums">
+                                ₹{Number(data.debit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                                <span className="w-2 h-2 rounded-xs bg-emerald-500"></span>
+                                Credit (Cr):
+                              </span>
+                              <span className="font-bold tabular-nums">
+                                ₹{Number(data.credit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                            <div className="pt-1 border-t border-slate-800 flex items-center justify-between text-[11px]">
+                              <span className="text-slate-400 font-medium">Net Monthly Flow:</span>
+                              <span className={`font-bold tabular-nums ${data.net >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                ₹{Math.abs(data.net).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {data.net >= 0 ? 'Dr' : 'Cr'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar 
+                    dataKey="debit" 
+                    name="Debit (Dr)" 
+                    fill={debitColor} 
+                    radius={[4, 4, 0, 0]} 
+                    maxBarSize={28}
+                  />
+                  <Bar 
+                    dataKey="credit" 
+                    name="Credit (Cr)" 
+                    fill={creditColor} 
+                    radius={[4, 4, 0, 0]} 
+                    maxBarSize={28}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          </div>
+          </CardBody>
+        </Card>
 
-          <div className="h-[200px] sm:h-[260px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorDebit" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={debitColor} stopOpacity={0.15}/>
-                    <stop offset="95%" stopColor={debitColor} stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorCredit" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={creditColor} stopOpacity={0.15}/>
-                    <stop offset="95%" stopColor={creditColor} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} dy={8} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} tickFormatter={(value) => `₹${value}`} />
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <Tooltip 
-                  formatter={(value: number) => [`₹${value.toFixed(2)}`]}
-                  contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', fontFamily: 'sans-serif', fontSize: '11px' }}
-                />
-                <Area type="monotone" dataKey="debit" stroke={debitColor} strokeWidth={2.5} fillOpacity={1} fill="url(#colorDebit)" />
-                <Area type="monotone" dataKey="credit" stroke={creditColor} strokeWidth={2.5} fillOpacity={1} fill="url(#colorCredit)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        {/* Recent Transactions Feed (1 Col) */}
+        <Card className="flex flex-col">
+          <CardHeader
+            title="Recent Ledger Entries"
+            subtitle={`${transactions.length} entries in period`}
+            action={
+              <button
+                onClick={() => navigate('/log')}
+                className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                Journal →
+              </button>
+            }
+          />
 
-        {/* Polished Activity Stream Card */}
-        <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-xs flex flex-col">
-          <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
-            <h2 className="text-sm sm:text-base font-extrabold text-gray-900 dark:text-white tracking-tight">
-              {isToday ? "Today's" : "Period"} Activity
-            </h2>
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-0.5 rounded-md">
-              {transactions.length} Tx
-            </span>
-          </div>
-          <div className="p-5 flex-1 overflow-y-auto max-h-[220px] sm:max-h-[260px] divide-y divide-gray-50 dark:divide-gray-800/60">
+          <div className="flex-1 overflow-y-auto max-h-[300px] divide-y divide-slate-100 p-0">
             {transactions.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 py-10">
-                <FileUp className="mx-auto mb-2 text-gray-300" size={26} />
-                <p className="text-xs font-semibold">No transactions recorded</p>
+              <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 py-12 px-4">
+                <FileText className="mx-auto mb-2 text-slate-300" size={28} />
+                <p className="text-xs font-semibold">No recent transactions recorded</p>
+                <p className="text-[11px] text-slate-400 mt-1">Record a debit or credit entry in Master Entry</p>
               </div>
             ) : (
-              transactions.sort((a,b) => b.timestamp - a.timestamp).slice(0, 8).map(tx => {
+              transactions.sort((a, b) => b.timestamp - a.timestamp).slice(0, 8).map(tx => {
                 const party = parties.find(p => p.id === tx.partyId);
                 return (
-                  <div key={tx.id} className="flex justify-between items-center py-3 first:pt-0 last:pb-0 group transition-colors">
-                    <div className="flex items-center min-w-0 pr-2">
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mr-3 ${
+                  <div 
+                    key={tx.id} 
+                    onClick={() => party && navigate(`/parties/${party.id}`)}
+                    className="p-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between gap-3 cursor-pointer"
+                  >
+                    <div className="flex items-center min-w-0">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mr-3 border ${
                         tx.type === 'DEBIT' 
-                          ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/30' 
-                          : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30'
+                          ? 'bg-rose-50 border-rose-200 text-rose-600' 
+                          : 'bg-emerald-50 border-emerald-200 text-emerald-600'
                       }`}>
-                        {tx.type === 'DEBIT' ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
+                        {tx.type === 'DEBIT' ? <ArrowDownRight size={16} /> : <ArrowUpRight size={16} />}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-bold text-gray-900 dark:text-white truncate">{party?.name || 'Unknown Party'}</p>
-                        <p className="text-[10px] text-gray-400 font-semibold truncate max-w-[140px] mt-0.5">{tx.notes || tx.invoiceNo || 'No details'}</p>
+                        <p className="text-xs font-bold text-slate-900 truncate">{party?.name || 'Unknown Party'}</p>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+                          <span>{format(tx.timestamp, 'dd MMM, HH:mm')}</span>
+                          {tx.invoiceNo && (
+                            <>
+                              <span>•</span>
+                              <span className="text-slate-700 font-medium">Inv #{tx.invoiceNo}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className={`text-xs font-extrabold text-right shrink-0 ${tx.type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
-                      {tx.type === 'DEBIT' ? '-' : '+'}₹{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+
+                    <div className="text-right shrink-0">
+                      <AmountDisplay 
+                        amount={tx.amount} 
+                        type={tx.type} 
+                        showDrCr={true} 
+                        size="sm" 
+                      />
                     </div>
                   </div>
-                )
+                );
               })
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
-      {/* 
-        TOP OUTSTANDING / ADVANCES TABBED CONTAINER
-        - Mobile: Toggle switch tab to view either Outstanding or Advances, saving 100% vertical space!
-        - Desktop (lg): Elegant 2-column bento box to display both details simultaneously.
-      */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-xs">
-        
-        {/* Header containing the smart mobile tabs toggler */}
-        <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="shrink-0">
-            <h2 className="text-sm sm:text-base font-extrabold text-gray-900 dark:text-white tracking-tight">Top Party Metrics</h2>
-            <p className="text-[10px] sm:text-xs text-gray-400 font-medium mt-0.5">Summary of top balances across ledger books</p>
-          </div>
-
-          {/* Tab Switcher visible only on Mobile/Tablet viewports */}
-          <div className="lg:hidden flex bg-gray-50 dark:bg-gray-800/50 p-1 rounded-xl w-full sm:w-auto">
-            <button
-              onClick={() => setPartyTab('dues')}
-              type="button"
-              className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                partyTab === 'dues'
-                  ? 'bg-white dark:bg-gray-900 text-red-600 dark:text-red-400 shadow-xs'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              Outstanding Dues
-            </button>
-            <button
-              onClick={() => setPartyTab('advances')}
-              type="button"
-              className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                partyTab === 'advances'
-                  ? 'bg-white dark:bg-gray-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              Advances
-            </button>
-          </div>
-        </div>
-
-        {/* Dynamic List rendering responsive wrapper */}
-        <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-8 divide-y lg:divide-y-0 lg:divide-x divide-gray-100 dark:divide-gray-800/80">
-          
-          {/* Section A: Top Outstanding (Visible on Desktop OR when Mobile tab is 'dues') */}
-          <div className={`space-y-4 pb-4 lg:pb-0 ${partyTab === 'dues' ? 'block' : 'hidden lg:block'}`}>
-            <h3 className="text-xs font-extrabold uppercase text-gray-400 tracking-wider flex items-center gap-1.5 mb-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-              Top Outstanding (Dues)
-            </h3>
-            
-            <div className="space-y-2.5 max-h-[220px] overflow-y-auto">
-              {parties.filter(p => p.currentDue > 0).length === 0 ? (
-                <div className="py-8 text-center text-xs text-gray-400 font-semibold">No outstanding balances</div>
-              ) : (
-                parties.filter(p => p.currentDue > 0)
-                  .sort((a,b) => b.currentDue - a.currentDue)
-                  .slice(0, 5)
-                  .map(p => (
-                    <div key={p.id} className="flex justify-between items-center py-2 border-b border-gray-50/50 dark:border-gray-800 last:border-0 hover:bg-gray-50/20 px-1 rounded transition-all">
-                      <div>
-                        <p className="text-xs font-bold text-gray-950 dark:text-white">{p.name}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{p.phone || 'No phone'}</p>
-                      </div>
-                      <div className="text-xs font-extrabold text-red-600 bg-red-50 dark:bg-red-950/20 px-2 py-1 rounded-md">
-                        -₹{p.currentDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                  ))
-              )}
-            </div>
-          </div>
-
-          {/* Section B: Top Advances (Visible on Desktop OR when Mobile tab is 'advances') */}
-          <div className={`space-y-4 pt-4 lg:pt-0 lg:pl-8 ${partyTab === 'advances' ? 'block' : 'hidden lg:block'}`}>
-            <h3 className="text-xs font-extrabold uppercase text-gray-400 tracking-wider flex items-center gap-1.5 mb-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              Top Advances (Credits)
-            </h3>
-            
-            <div className="space-y-2.5 max-h-[220px] overflow-y-auto">
-              {parties.filter(p => p.currentDue < 0).length === 0 ? (
-                <div className="py-8 text-center text-xs text-gray-400 font-semibold">No active credits or advances</div>
-              ) : (
-                parties.filter(p => p.currentDue < 0)
-                  .sort((a,b) => a.currentDue - b.currentDue)
-                  .slice(0, 5)
-                  .map(p => (
-                    <div key={p.id} className="flex justify-between items-center py-2 border-b border-gray-50/50 dark:border-gray-800 last:border-0 hover:bg-gray-50/20 px-1 rounded transition-all">
-                      <div>
-                        <p className="text-xs font-bold text-gray-950 dark:text-white">{p.name}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{p.phone || 'No phone'}</p>
-                      </div>
-                      <div className="text-xs font-extrabold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-1 rounded-md">
-                        ₹{Math.abs(p.currentDue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                  ))
-              )}
-            </div>
-          </div>
-
-        </div>
-      </div>
     </div>
   );
 }

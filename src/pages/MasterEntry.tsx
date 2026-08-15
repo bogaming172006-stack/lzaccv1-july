@@ -3,13 +3,31 @@ import { db, handleFirestoreError, OperationType, collection, doc, setDoc, updat
 import { Party, Transaction } from '../types';
 import { useLedger } from '../LedgerContext';
 import { v4 as uuidv4 } from 'uuid';
-import { Search, Check, Printer } from 'lucide-react';
+import { 
+  Search, 
+  Check, 
+  Printer, 
+  Plus, 
+  Minus, 
+  CreditCard, 
+  Building2, 
+  ArrowRight, 
+  Sparkles, 
+  Info,
+  AlertTriangle,
+  Receipt,
+  FileCheck
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { createTransaction } from '../lib/transactionService';
 import { getFilteredCacheItems } from '../lib/idbCache';
 import { syncCollection } from '../lib/syncCache';
 import ThermalReceiptModal from '../components/ThermalReceiptModal';
+import PageHeader from '../components/ui/PageHeader';
+import { Card, CardHeader, CardBody } from '../components/ui/Card';
+import Badge from '../components/ui/Badge';
+import AmountDisplay from '../components/ui/AmountDisplay';
 
 export default function MasterEntry() {
   const { activeLedger } = useLedger();
@@ -45,14 +63,11 @@ export default function MasterEntry() {
     const loadParties = async () => {
       if (!activeLedger?.id) return;
       try {
-        // 1. Fast optimistic load from local IndexedDB cache
         const cached = await getFilteredCacheItems<Party>('parties', p => p.ledgerId === activeLedger.id);
         setParties(cached);
         
-        // 2. Sync in background with Firestore safely
         await syncCollection<Party>('parties', activeLedger.id, 'parties');
         
-        // 3. Load updated list from cache
         const fresh = await getFilteredCacheItems<Party>('parties', p => p.ledgerId === activeLedger.id);
         setParties(fresh);
       } catch (err) {
@@ -75,31 +90,24 @@ export default function MasterEntry() {
     const q = (partySearch || '').trim().toLowerCase();
     if (!q) return true;
     
-    // Check if query is phone-based
     const phone = p.phone || '';
     if (phone.includes(q)) return true;
 
     const name = (p.name || '').toLowerCase();
-    
-    // Split search query by spaces to support multi-term search in any order
     const terms = q.split(/\s+/).filter(Boolean);
     if (terms.length === 0) return true;
 
-    // A party matches if all search terms are present in the name
     const matchesAllTerms = terms.every(term => name.includes(term));
     if (matchesAllTerms) return true;
 
-    // Check initials: e.g. "mj" matches "Madan Jana"
     const initials = name.split(/\s+/).map(w => w.charAt(0)).join('');
     if (initials.includes(q)) return true;
 
     return false;
   });
 
-  // Global hotkeys to toggle and change types instantly for fast entry
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // If confirm modal is open, Escape will cancel and focus notes field
       if (showConfirmModal) {
         if (e.key === 'Escape') {
           e.preventDefault();
@@ -109,17 +117,14 @@ export default function MasterEntry() {
         return;
       }
 
-      // Toggle type with F2 key
       if (e.key === 'F2') {
         e.preventDefault();
         handleTypeChange(type === 'DEBIT' ? 'CREDIT' : 'DEBIT');
       }
-      // Toggle separateCredit with F3 or Alt+S
       if (e.key === 'F3' || (e.altKey && e.key.toLowerCase() === 's')) {
         e.preventDefault();
         setSeparateCredit(prev => !prev);
       }
-      // Direct shortcut keys
       if (e.altKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         handleTypeChange('DEBIT');
@@ -173,7 +178,6 @@ export default function MasterEntry() {
     }
   }, [showSuccess]);
 
-  // Speed entry: dismiss success modal instantly on pressing Enter, Space or Escape
   useEffect(() => {
     if (!showSuccess) return;
     const handleSuccessKeyDown = (e: KeyboardEvent) => {
@@ -277,7 +281,6 @@ export default function MasterEntry() {
           amountRef.current?.focus();
         }
       } else {
-        // Only submit if amount and party are selected
         const isOk = type === 'CREDIT' && separateCredit
           ? ((parseFloat(cashAmount) || 0) + (parseFloat(acAmount) || 0) > 0)
           : (amount && !isNaN(Number(amount)) && Number(amount) > 0);
@@ -341,7 +344,7 @@ export default function MasterEntry() {
 
   const handleInvoiceCheck = async (isPreSubmit: boolean): Promise<boolean | string> => {
     if (!invoiceNo || !activeLedger) return true;
-    if (!isSaleLedger) return true; // Only validate invoices in sale ledgers
+    if (!isSaleLedger) return true;
     setIsCheckingInvoice(true);
     try {
       const normalizedInvoice = invoiceNo.toLowerCase().trim();
@@ -393,7 +396,6 @@ export default function MasterEntry() {
          return false;
       }
 
-      // Auto switch transaction type to opposite if one side is already listed
       let effectiveType = type;
       if (hasDebit && !hasCredit) {
          effectiveType = 'CREDIT';
@@ -407,7 +409,6 @@ export default function MasterEntry() {
          }
       }
 
-      // Check if user is attempting to create a duplicate entry of the same type
       if (effectiveType === 'DEBIT' && hasDebit) {
          const foundPartyId = debitTx?.partyId || debitTracked?.partyId;
          const pt = parties.find(p => p.id === foundPartyId);
@@ -432,7 +433,6 @@ export default function MasterEntry() {
          return false;
       }
 
-      // Matching invoice of opposite type found
       const foundPartyId = hasDebit ? (debitTx?.partyId || debitTracked?.partyId) : (creditTx?.partyId || creditTracked?.partyId);
       
       const lockedData: any = {};
@@ -454,7 +454,6 @@ export default function MasterEntry() {
               if (lockedData.type) {
                 setLockedInvoiceDetails(lockedData);
               }
-              // Auto-fill amount if currently empty
               if (lockedData.amount && !amount && !cashAmount && !acAmount) {
                 setAmount(lockedData.amount.toString());
               }
@@ -473,7 +472,6 @@ export default function MasterEntry() {
 
   const handleInvoiceBlur = async () => {
     if (invoiceNo && document.activeElement !== document.body) {
-      // Small delay to allow 'Enter' key handler or other clicks to process first if they did
       setTimeout(async () => {
         if (!selectedParty) {
           await handleInvoiceCheck(false);
@@ -495,7 +493,7 @@ export default function MasterEntry() {
     }
 
     if (!selectedParty) {
-      setAlertInfo({ message: "Please select a party first.", isError: true });
+      setAlertInfo({ message: "Please select an account party first.", isError: true });
       return;
     }
     if (type === 'CREDIT' && separateCredit) {
@@ -508,14 +506,14 @@ export default function MasterEntry() {
       }
     } else {
       if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
-        setAlertInfo({ message: "Please enter a valid amount.", isError: true });
+        setAlertInfo({ message: "Please enter a valid voucher amount.", isError: true });
         return;
       }
     }
     if (!invoiceNo.trim() && !notes.trim()) {
       setAlertInfo({ 
         title: "Required Information Missing",
-        message: "At least one of Reference/Invoice No. or Notes is required to record a transaction.", 
+        message: "At least one of Reference/Invoice No. or Description Notes is required to record a transaction voucher.", 
         isError: true 
       });
       return;
@@ -575,7 +573,6 @@ export default function MasterEntry() {
         partyPhone: selectedParty.phone || ''
       });
 
-      // Optimistically reset form and close confirm modal instantly
       setAmount('');
       setCashAmount('');
       setAcAmount('');
@@ -587,7 +584,6 @@ export default function MasterEntry() {
       setShowSuccess(true);
       setIsSubmitting(false);
 
-      // Save transaction in background
       createTransaction(newTx, selectedParty).catch(e => {
         handleFirestoreError(e, OperationType.CREATE, 'transactions');
       });
@@ -599,190 +595,184 @@ export default function MasterEntry() {
     }
   };
 
-  if (!activeLedger) return <div className="p-8 text-center text-gray-500">Please select a ledger.</div>;
+  if (!activeLedger) return <div className="p-8 text-center text-slate-500 font-medium">Please select a ledger.</div>;
 
   return (
-    <div className="p-3 sm:p-8 max-w-2xl mx-auto w-full pb-24 sm:pb-8 animate-fade-in">
-      <div className="mb-5 sm:mb-8">
-        <h1 className="text-lg sm:text-2xl font-black text-gray-950 dark:text-white tracking-tight">
-          New Entry
-        </h1>
-        <p className="text-xs sm:text-sm text-gray-500 mt-0.5 font-medium">Log a transaction to {activeLedger.name}</p>
-      </div>
+    <div className="p-4 sm:p-8 max-w-3xl mx-auto w-full pb-24 sm:pb-8 space-y-6">
+      {/* Page Header */}
+      <PageHeader
+        title={activeLedger.type === 'PURCHASE' ? "Purchase Voucher Entry" : "Journal Voucher Entry"}
+        subtitle={`Fast-post general ledger transactions to ${activeLedger.name}`}
+      />
 
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xs border border-gray-100 dark:border-gray-800 overflow-hidden p-4 sm:p-6 text-sm">
-        <form onSubmit={handlePreSubmit} className="space-y-4 sm:space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
-                Transaction Type
-              </label>
-              <div className="flex bg-gray-50 dark:bg-gray-950 p-1 rounded-xl border border-gray-150/50 dark:border-gray-800/60">
-                <button
-                  type="button"
-                  onClick={() => handleTypeChange('DEBIT')}
-                  className={`flex-1 py-1.5 text-xs font-extrabold rounded-lg transition-all ${type === 'DEBIT' ? 'bg-white dark:bg-gray-900 text-rose-600 shadow-xs' : 'text-gray-400 hover:text-gray-600'}`}
-                >
-                  DEBIT
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleTypeChange('CREDIT')}
-                  className={`flex-1 py-1.5 text-xs font-extrabold rounded-lg transition-all ${type === 'CREDIT' ? 'bg-white dark:bg-gray-900 text-emerald-600 shadow-xs' : 'text-gray-400 hover:text-gray-600'}`}
-                >
-                  CREDIT
-                </button>
-              </div>
-            </div>
-
-            {isSaleLedger ? (
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
-                  Invoice No
-                </label>
-                <div className="relative">
-                  <input
-                    ref={invoiceRef}
-                    type="text"
-                    value={invoiceNo}
-                    onKeyDown={handleInvoiceKeyDown}
-                    onBlur={handleInvoiceBlur}
-                    onChange={e => { setInvoiceNo(e.target.value.toLowerCase()); setPartyLockedByInvoice(false); setLockedInvoiceDetails(null); }}
-                    className="w-full px-3 py-1.5 sm:py-2 bg-gray-50 dark:bg-gray-950 border border-gray-150 dark:border-gray-800 rounded-xl focus:bg-white dark:focus:bg-gray-950 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm font-semibold text-gray-900 dark:text-white"
-                    placeholder="Enter Invoice No"
-                  />
-                  {isCheckingInvoice && (
-                    <div className="absolute right-3 top-2.5 sm:top-3 flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-sky-500 border-t-transparent"></div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
-                  Reference No. (Optional)
-                </label>
-                <div className="relative">
-                  <input
-                    ref={invoiceRef}
-                    type="text"
-                    value={invoiceNo}
-                    onKeyDown={handleInvoiceKeyDown}
-                    onBlur={handleInvoiceBlur}
-                    onChange={e => { setInvoiceNo(e.target.value.toLowerCase()); setPartyLockedByInvoice(false); setLockedInvoiceDetails(null); }}
-                    className="w-full px-3 py-1.5 sm:py-2 bg-gray-50 dark:bg-gray-950 border border-gray-150 dark:border-gray-800 rounded-xl focus:bg-white dark:focus:bg-gray-950 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm font-semibold text-gray-900 dark:text-white"
-                    placeholder="e.g. ref-123"
-                  />
-                  {isCheckingInvoice && (
-                    <div className="absolute right-3 top-2.5 sm:top-3 flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-sky-500 border-t-transparent"></div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="relative">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
-              Select Party
-            </label>
-            {partyLockedByInvoice && selectedParty ? (
-              <div className="flex flex-col space-y-1.5">
-                <div className="flex items-center justify-between p-3 border rounded-xl border-sky-100 dark:border-sky-950/40 bg-sky-50/40 dark:bg-sky-950/20">
-                  <div>
-                    <div className="font-bold text-gray-900 dark:text-white text-xs">{selectedParty.name}</div>
-                    <div className="text-gray-400 text-[10px] font-semibold mt-0.5">{selectedParty.phone || 'No phone'}</div>
-                  </div>
-                  <div className="text-[10px] text-sky-600 dark:text-sky-400 font-extrabold uppercase tracking-wider bg-sky-100 dark:bg-sky-950/60 px-2 py-0.5 rounded-md">Locked to invoice</div>
-                </div>
-                {lockedInvoiceDetails && (
-                  <div className="text-[10px] text-gray-400 font-bold flex justify-between px-1">
-                    <span>Prior {lockedInvoiceDetails.type}: ₹{lockedInvoiceDetails.amount?.toFixed(2)}</span>
-                    <span>Date: {lockedInvoiceDetails.date ? new Date(lockedInvoiceDetails.date).toLocaleDateString() : '-'}</span>
-                  </div>
-                )}
-              </div>
-            ) : !selectedParty ? (
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 sm:top-3 text-gray-400" size={14} />
-                <input
-                  type="text"
-                  ref={partySearchRef}
-                  placeholder={isSaleLedger && !invoiceNo.trim() ? "Enter Invoice No. first to search party" : "Search party by name or phone..."}
-                  value={partySearch}
-                  onChange={e => setPartySearch(e.target.value)}
-                  onKeyDown={handlePartySearchKeyDown}
-                  disabled={isSaleLedger && !invoiceNo.trim()}
-                  className="w-full pl-9 pr-3 py-1.5 sm:py-2 bg-gray-50 dark:bg-gray-950 border border-gray-150 dark:border-gray-800 rounded-xl focus:bg-white dark:focus:bg-gray-950 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm font-semibold disabled:bg-gray-100 dark:disabled:bg-gray-950/40 disabled:cursor-not-allowed"
-                />
-                
-                {partySearch && (
-                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-gray-50 dark:divide-gray-850">
-                    {filteredParties.length > 0 ? (
-                      filteredParties.map((p, idx) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          disabled={isSaleLedger && !invoiceNo.trim()}
-                          onClick={() => { 
-                            setSelectedParty(p); 
-                            setPartySearch(''); 
-                            setTimeout(() => amountRef.current?.focus(), 10);
-                          }}
-                          className={`w-full text-left px-4 py-2.5 flex justify-between items-center transition-all ${idx === searchSelectedIndex ? 'bg-sky-50/50 dark:bg-sky-950/20 border-l-4 border-sky-500 pl-3' : 'hover:bg-gray-50/50 dark:hover:bg-gray-950/20'}`}
-                        >
-                          <span className="font-bold text-gray-900 dark:text-white text-xs">{p.name}</span>
-                          <span className="text-gray-400 text-[10px] font-bold">{p.phone}</span>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-4 py-3 text-gray-400 text-xs font-semibold">No parties found.</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center justify-between p-3 border border-gray-150 dark:border-gray-800 rounded-xl bg-gray-50/50 dark:bg-gray-950/30">
-                <div>
-                  <div className="font-bold text-gray-950 dark:text-white text-xs">{selectedParty.name}</div>
-                  <div className="text-[10px] text-gray-400 font-bold mt-0.5">
-                    Balance: <span className={selectedParty.currentDue > 0 ? "text-rose-600" : "text-emerald-600"}>{selectedParty.currentDue > 0 ? `-₹${selectedParty.currentDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : `₹${Math.abs(selectedParty.currentDue).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { setSelectedParty(null); setTimeout(() => partySearchRef.current?.focus(), 10); }}
-                  className="text-xs font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 bg-sky-50 dark:bg-sky-950/50 px-2.5 py-1.5 rounded-lg border border-sky-100 dark:border-sky-900/50 transition-colors cursor-pointer"
-                >
-                  Change
-                </button>
-              </div>
-            )}
-          </div>
-
-          {type === 'CREDIT' && (
-            <div className="flex items-center gap-2 py-0.5">
-              <input
-                type="checkbox"
-                id="separateCredit"
-                checked={separateCredit}
-                onChange={e => setSeparateCredit(e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-gray-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
-              />
-              <label htmlFor="separateCredit" className="text-xs font-bold text-gray-500 cursor-pointer select-none">
-                Separate Cash & A/C Credit
-              </label>
-            </div>
-          )}
-
-          {type === 'CREDIT' && separateCredit ? (
+      {/* Main Voucher Entry Card */}
+      <Card>
+        <div className="p-5 sm:p-6">
+          <form onSubmit={handlePreSubmit} className="space-y-5">
+            {/* Voucher Type & Invoice/Ref Number */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-emerald-600 mb-1.5">Cash Credit</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>Voucher Type</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Press F2 to toggle</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => handleTypeChange('DEBIT')}
+                    className={`py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                      type === 'DEBIT' 
+                        ? 'bg-rose-600 text-white shadow-xs' 
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Minus size={14} />
+                    Debit (Dr)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTypeChange('CREDIT')}
+                    className={`py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                      type === 'CREDIT' 
+                        ? 'bg-emerald-600 text-white shadow-xs' 
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Plus size={14} />
+                    Credit (Cr)
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  {isSaleLedger ? 'Invoice Number' : 'Reference / Bill No.'}
+                </label>
                 <div className="relative">
-                  <span className="absolute left-3.5 top-1.5 sm:top-2 text-emerald-600 font-extrabold text-sm">₹</span>
+                  <input
+                    ref={invoiceRef}
+                    type="text"
+                    value={invoiceNo}
+                    onKeyDown={handleInvoiceKeyDown}
+                    onBlur={handleInvoiceBlur}
+                    onChange={e => { setInvoiceNo(e.target.value.toLowerCase()); setPartyLockedByInvoice(false); setLockedInvoiceDetails(null); }}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg focus:border-blue-600 text-sm font-mono font-semibold text-slate-900 placeholder:text-slate-400"
+                    placeholder="e.g. 1045 or INV-009"
+                  />
+                  {isCheckingInvoice && (
+                    <div className="absolute right-3 top-2.5 flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Party Selection Section */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                Account Party <span className="text-rose-500">*</span>
+              </label>
+
+              {partyLockedByInvoice && selectedParty ? (
+                <div className="p-3.5 border rounded-xl border-blue-200 bg-blue-50/50 flex flex-col space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-slate-900 text-sm">{selectedParty.name}</span>
+                      <span className="text-slate-500 text-xs font-mono ml-2">{selectedParty.phone || 'No phone'}</span>
+                    </div>
+                    <Badge variant="navy" size="xs">Locked by Invoice</Badge>
+                  </div>
+                  {lockedInvoiceDetails && (
+                    <div className="text-xs text-blue-700 font-semibold flex justify-between pt-1 border-t border-blue-100">
+                      <span>Prior {lockedInvoiceDetails.type}: ₹{lockedInvoiceDetails.amount?.toFixed(2)}</span>
+                      <span>Date: {lockedInvoiceDetails.date ? new Date(lockedInvoiceDetails.date).toLocaleDateString() : '-'}</span>
+                    </div>
+                  )}
+                </div>
+              ) : !selectedParty ? (
+                <div className="relative">
+                  <Search className="absolute left-3.5 top-2.5 text-slate-400" size={15} />
+                  <input
+                    type="text"
+                    ref={partySearchRef}
+                    placeholder={isSaleLedger && !invoiceNo.trim() ? "Enter Invoice No. first to search party..." : "Search party by business name or phone number..."}
+                    value={partySearch}
+                    onChange={e => setPartySearch(e.target.value)}
+                    onKeyDown={handlePartySearchKeyDown}
+                    disabled={isSaleLedger && !invoiceNo.trim()}
+                    className="w-full pl-10 pr-3.5 py-2 bg-white border border-slate-300 rounded-lg focus:border-blue-600 text-sm font-medium disabled:bg-slate-50 disabled:cursor-not-allowed"
+                  />
+                  
+                  {partySearch && (
+                    <div className="absolute z-20 w-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto divide-y divide-slate-100">
+                      {filteredParties.length > 0 ? (
+                        filteredParties.map((p, idx) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => { 
+                              setSelectedParty(p); 
+                              setPartySearch(''); 
+                              setTimeout(() => amountRef.current?.focus(), 10);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 flex justify-between items-center transition-all ${
+                              idx === searchSelectedIndex ? 'bg-blue-50 border-l-4 border-blue-600 pl-3' : 'hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="font-bold text-slate-900 text-xs sm:text-sm">{p.name}</span>
+                            <span className="text-slate-500 font-mono text-xs">{p.phone}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-slate-400 text-xs font-semibold text-center">
+                          No matching account parties found.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center justify-between p-3.5 border border-slate-200 rounded-xl bg-slate-50">
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm">{selectedParty.name}</div>
+                    <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                      <span>Current Due:</span>
+                      <AmountDisplay amount={selectedParty.currentDue} showDrCr={true} size="xs" />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedParty(null); setTimeout(() => partySearchRef.current?.focus(), 10); }}
+                    className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-xs transition-colors"
+                  >
+                    Change Account
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Split Cash vs A/C Toggle */}
+            {type === 'CREDIT' && (
+              <div className="flex items-center gap-2 p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                <input
+                  type="checkbox"
+                  id="masterSeparateCredit"
+                  checked={separateCredit}
+                  onChange={e => setSeparateCredit(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 cursor-pointer"
+                />
+                <label htmlFor="masterSeparateCredit" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
+                  Separate Cash & Bank Account Credit (F3)
+                </label>
+              </div>
+            )}
+
+            {/* Amount Entry Fields */}
+            {type === 'CREDIT' && separateCredit ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-emerald-700 mb-1.5">Cash Credit (₹)</label>
                   <input
                     ref={cashAmountRef}
                     onKeyDown={handleCashAmountKeyDown}
@@ -797,15 +787,12 @@ export default function MasterEntry() {
                       setAmount(cVal + aVal > 0 ? (cVal + aVal).toString() : '');
                     }}
                     disabled={isSaleLedger && !invoiceNo.trim()}
-                    className="w-full pl-8 pr-3 py-1.5 sm:py-2 bg-emerald-50/20 dark:bg-emerald-950/10 border border-emerald-100 dark:border-emerald-950/40 rounded-xl focus:bg-white dark:focus:bg-gray-950 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-sm font-extrabold text-emerald-800 dark:text-emerald-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-sm font-mono font-bold text-slate-900 focus:border-emerald-600"
                     placeholder="0.00"
                   />
                 </div>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-sky-600 mb-1.5">A/C Credit</label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1.5 sm:top-2 text-sky-600 font-extrabold text-sm">₹</span>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-blue-700 mb-1.5">Bank A/C Credit (₹)</label>
                   <input
                     ref={acAmountRef}
                     onKeyDown={handleAcAmountKeyDown}
@@ -820,17 +807,16 @@ export default function MasterEntry() {
                       setAmount(cVal + aVal > 0 ? (cVal + aVal).toString() : '');
                     }}
                     disabled={isSaleLedger && !invoiceNo.trim()}
-                    className="w-full pl-8 pr-3 py-1.5 sm:py-2 bg-sky-50/20 dark:bg-sky-950/10 border border-sky-100 dark:border-sky-950/40 rounded-xl focus:bg-white dark:focus:bg-gray-950 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm font-extrabold text-sky-800 dark:text-sky-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-sm font-mono font-bold text-slate-900 focus:border-blue-600"
                     placeholder="0.00"
                   />
                 </div>
               </div>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">Amount</label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1.5 sm:top-2 text-gray-400 font-extrabold text-sm">₹</span>
+            ) : (
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Voucher Amount (₹) <span className="text-rose-500">*</span>
+                </label>
                 <input
                   ref={amountRef}
                   onKeyDown={handleAmountKeyDown}
@@ -840,91 +826,80 @@ export default function MasterEntry() {
                   value={amount}
                   onChange={e => setAmount(e.target.value)}
                   disabled={isSaleLedger && !invoiceNo.trim()}
-                  className="w-full pl-8 pr-3 py-1.5 sm:py-2 bg-gray-50 dark:bg-gray-950 border border-gray-150 dark:border-gray-800 rounded-xl focus:bg-white dark:focus:bg-gray-950 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm font-extrabold text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-950/40 disabled:cursor-not-allowed"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-base font-mono font-bold text-slate-900 focus:border-blue-600 placeholder:text-slate-400"
                   placeholder="0.00"
                 />
               </div>
+            )}
+
+            {/* Particulars & Notes */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                Particulars / Transaction Description
+              </label>
+              <textarea
+                ref={notesRef}
+                onKeyDown={handleNotesKeyDown}
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                disabled={isSaleLedger && !invoiceNo.trim()}
+                className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm text-slate-900 focus:border-blue-600"
+                rows={2}
+                placeholder="e.g. Being goods supplied as per delivery challan / Payment via RTGS"
+              />
             </div>
-          )}
 
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">Notes (Optional)</label>
-            <textarea
-              ref={notesRef}
-              onKeyDown={handleNotesKeyDown}
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              disabled={isSaleLedger && !invoiceNo.trim()}
-              className="w-full px-3 py-1.5 sm:py-2 bg-gray-50 dark:bg-gray-950 border border-gray-150 dark:border-gray-800 rounded-xl focus:bg-white dark:focus:bg-gray-950 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm font-semibold text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-950/40 disabled:cursor-not-allowed"
-              rows={2}
-              placeholder="Add internal transaction notes here..."
-            />
-          </div>
+            {/* Submission Action */}
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button
+                type="submit"
+                disabled={isSubmitting || (isSaleLedger && !invoiceNo.trim())}
+                className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                Review Voucher & Post
+                <ArrowRight size={14} />
+              </button>
+            </div>
+          </form>
+        </div>
+      </Card>
 
-          <div className="pt-3 border-t border-gray-100 dark:border-gray-800 flex justify-end">
-            <button
-              type="submit"
-              disabled={isSubmitting || (isSaleLedger && !invoiceNo.trim())}
-              className="w-full sm:w-auto px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold active:scale-98 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
-            >
-              Review Transaction
-            </button>
-          </div>
-        </form>
-      </div>
-
+      {/* Confirmation Modal */}
       {showConfirmModal && selectedParty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden text-sm">
-            <div className="p-4 border-b">
-              <h3 className="font-semibold text-lg text-gray-900">Confirm Entry</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden text-xs">
+            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
+              <h3 className="font-bold text-slate-900 text-sm">Review & Post Voucher</h3>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-5 space-y-3">
               <div className="flex justify-between">
-                <span className="text-gray-500">Party</span>
-                <span className="font-semibold text-gray-900">{selectedParty.name}</span>
+                <span className="text-slate-500">Party Account:</span>
+                <span className="font-bold text-slate-900">{selectedParty.name}</span>
               </div>
               {(isSaleLedger || invoiceNo) && (
                 <div className="flex justify-between">
-                  <span className="text-gray-500">{isSaleLedger ? 'Invoice No' : 'Reference'}</span>
-                  <span className="font-medium text-gray-900">{invoiceNo || '-'}</span>
+                  <span className="text-slate-500">{isSaleLedger ? 'Invoice No:' : 'Reference:'}</span>
+                  <span className="font-mono text-slate-900">{invoiceNo || '-'}</span>
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-gray-500">Type</span>
-                <span className={`font-bold ${type === 'DEBIT' ? 'text-red-600' : 'text-emerald-600'}`}>{type}</span>
+                <span className="text-slate-500">Voucher Type:</span>
+                <span className={`font-bold ${type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>{type}</span>
               </div>
-              {type === 'CREDIT' ? (
-                <div className="pt-2 border-t space-y-1">
-                  <div className="flex justify-between font-medium">
-                    <span className="text-gray-500">Total Credit</span>
-                    <span className="font-bold text-lg text-emerald-600">₹{((parseFloat(cashAmount) || 0) + (parseFloat(acAmount) || 0)).toFixed(2)}</span>
-                  </div>
-                  {parseFloat(cashAmount || '0') > 0 && (
-                    <div className="flex justify-between text-xs text-emerald-600 pl-4 font-medium">
-                      <span>• Cash Portion</span>
-                      <span>₹{parseFloat(cashAmount).toFixed(2)}</span>
-                    </div>
-                  )}
-                  {parseFloat(acAmount || '0') > 0 && (
-                    <div className="flex justify-between text-xs text-sky-600 pl-4 font-medium">
-                      <span>• A/C Portion</span>
-                      <span>₹{parseFloat(acAmount).toFixed(2)}</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex justify-between pt-2 border-t">
-                  <span className="text-gray-500 font-medium">Amount</span>
-                  <span className="font-bold text-lg text-gray-900">₹{parseFloat(amount).toFixed(2)}</span>
-                </div>
-              )}
+              <div className="flex justify-between border-t border-slate-200 pt-2 font-bold text-sm">
+                <span className="text-slate-700">Total Amount:</span>
+                <span className="font-mono text-slate-900">
+                  ₹{type === 'CREDIT' && separateCredit
+                    ? ((parseFloat(cashAmount) || 0) + (parseFloat(acAmount) || 0)).toFixed(2)
+                    : parseFloat(amount).toFixed(2)}
+                </span>
+              </div>
             </div>
-            <div className="p-4 border-t bg-gray-50 flex justify-end space-x-2">
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
               <button 
                 onClick={() => setShowConfirmModal(false)}
                 disabled={isSubmitting}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md font-medium"
+                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-semibold"
               >
                 Cancel
               </button>
@@ -932,58 +907,53 @@ export default function MasterEntry() {
                 ref={confirmBtnRef}
                 onClick={handleConfirmSubmit}
                 disabled={isSubmitting}
-                className={`px-4 py-2 text-white rounded-md font-medium ${type === 'DEBIT' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'} ${isSubmitting ? 'opacity-50' : ''}`}
+                className={`px-5 py-2 text-white rounded-lg font-bold shadow-xs ${
+                  type === 'DEBIT' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
               >
-                {isSubmitting ? 'Saving...' : 'Confirm & Save'}
+                {isSubmitting ? 'Posting...' : 'Confirm & Save'}
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Alert Notice Modal */}
       {alertInfo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden transform transition-all">
-            <div className={`p-4 border-b ${alertInfo.isError ? 'border-red-100 bg-red-50' : 'border-sky-100 bg-sky-50'}`}>
-              <h3 className={`font-semibold text-lg flex items-center ${alertInfo.isError ? 'text-red-700' : 'text-sky-700'}`}>
-                {alertInfo.title || (alertInfo.isError ? 'Duplicate Entry' : 'Notice')}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden text-xs">
+            <div className={`p-4 border-b ${alertInfo.isError ? 'bg-rose-50 border-rose-100' : 'bg-blue-50 border-blue-100'}`}>
+              <h3 className={`font-bold text-sm flex items-center gap-1.5 ${alertInfo.isError ? 'text-rose-700' : 'text-blue-700'}`}>
+                <AlertTriangle size={16} />
+                {alertInfo.title || (alertInfo.isError ? 'Validation Notice' : 'Notice')}
               </h3>
             </div>
-            <div className="p-6">
-              <p className="text-gray-700 text-sm font-medium whitespace-pre-wrap">{alertInfo.message}</p>
+            <div className="p-5">
+              <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">{alertInfo.message}</p>
             </div>
-            <div className="p-4 border-t bg-gray-50 flex justify-end">
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
               <button 
                 autoFocus
                 onClick={() => {
                   setAlertInfo(null);
                   setTimeout(() => {
-                    if (document.activeElement === document.body || !document.activeElement) {
-                       if (alertInfo.isError) {
-                         invoiceRef.current?.focus();
-                       } else {
-                         if (selectedParty) {
-                           if (type === 'CREDIT') {
-                             cashAmountRef.current?.focus();
-                           } else {
-                             amountRef.current?.focus();
-                           }
-                         } else {
-                           partySearchRef.current?.focus();
-                         }
-                       }
+                    if (alertInfo.isError) {
+                      invoiceRef.current?.focus();
+                    } else {
+                      amountRef.current?.focus();
                     }
                   }, 50);
                 }}
-                className={`px-6 py-2 text-white rounded-md font-medium transition-colors ${alertInfo.isError ? 'bg-red-600 hover:bg-red-700' : 'bg-sky-600 hover:bg-sky-700'}`}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-bold shadow-xs"
               >
-                Okay
+                Acknowledge
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Thermal Receipt Modal */}
       {receiptTx && (
         <ThermalReceiptModal
           isOpen={true}
@@ -1000,31 +970,29 @@ export default function MasterEntry() {
         />
       )}
 
+      {/* Success Notification Banner Modal */}
       {showSuccess && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm transition-opacity">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col items-center p-6 transform transition-all duration-300">
-            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4 shadow-inner animate-[bounce_0.5s_ease-out]">
-              <Check className="text-emerald-500" size={32} strokeWidth={3} />
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 text-center space-y-4 border border-slate-200">
+            <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+              <Check size={28} />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-1">Entry Saved Successfully!</h3>
-            <p className="text-xs text-gray-500 text-center mb-6 font-medium">
-              Recorded in <span className="font-semibold text-gray-700">{activeLedger?.name}</span>
-            </p>
-            
-            <div className="w-full">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSuccess(false);
-                  if (invoiceRef.current) {
-                    invoiceRef.current.focus();
-                  }
-                }}
-                className="w-full py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold text-xs active:scale-95 transition-all text-center cursor-pointer"
-              >
-                Okay, Next
-              </button>
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-base">Voucher Posted!</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Recorded in {activeLedger?.name}</p>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowSuccess(false);
+                if (invoiceRef.current) {
+                  invoiceRef.current.focus();
+                }
+              }}
+              className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold"
+            >
+              Post Next Voucher (Enter)
+            </button>
           </div>
         </div>
       )}

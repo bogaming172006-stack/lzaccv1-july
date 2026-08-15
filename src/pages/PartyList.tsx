@@ -1,123 +1,90 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType, doc, setDoc } from '../firebase';
 import { Party } from '../types';
-import { Search, Plus, Upload, UserPlus, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { 
+  UserPlus, 
+  Search, 
+  ChevronLeft, 
+  ChevronRight, 
+  Upload, 
+  Loader2, 
+  X, 
+  Phone, 
+  Mail, 
+  MapPin, 
+  Users, 
+  TrendingDown, 
+  TrendingUp, 
+  ArrowRight,
+  Filter,
+  FileSpreadsheet,
+  Download
+} from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../AuthContext';
 import { useLedger } from '../LedgerContext';
-import { v4 as uuidv4 } from 'uuid';
-import { useNavigate } from 'react-router-dom';
 import { syncCollection } from '../lib/syncCache';
 import { getFilteredCacheItems, setCacheItem } from '../lib/idbCache';
 import { updateDashboardPartiesCount } from '../lib/transactionService';
 import { formatContactWith91 } from '../lib/phoneUtils';
+import PageHeader from '../components/ui/PageHeader';
+import StatCard from '../components/ui/StatCard';
+import AmountDisplay from '../components/ui/AmountDisplay';
+import Badge from '../components/ui/Badge';
+import { Card, CardHeader, CardBody } from '../components/ui/Card';
 
-const getInitials = (name: string) => {
-  return name ? name.charAt(0).toUpperCase() : '?';
-};
-
-const formatRelativeTime = (timestamp: number) => {
-  if (!timestamp) return 'No updates';
-  const now = Date.now();
-  const diffMs = now - timestamp;
-  
-  if (diffMs < 0) return 'Just now';
-  
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-  const diffWeeks = Math.floor(diffDays / 7);
-  const diffMonths = Math.floor(diffDays / 30.44);
-  const diffYears = Math.floor(diffDays / 365.25);
-
-  if (diffSecs < 60) {
-    return 'Just now';
-  } else if (diffMins < 60) {
-    return `${diffMins}m ago`;
-  } else if (diffHours < 24) {
-    return `${diffHours}h ago`;
-  } else if (diffDays === 1) {
-    return '1 day ago';
-  } else if (diffDays < 7) {
-    return `${diffDays} days ago`;
-  } else if (diffWeeks === 1) {
-    return '1 week ago';
-  } else if (diffWeeks < 4) {
-    return `${diffWeeks} weeks ago`;
-  } else if (diffMonths === 1) {
-    return '1 month ago';
-  } else if (diffMonths < 12) {
-    return `${diffMonths} months ago`;
-  } else if (diffYears === 1) {
-    return '1 yr ago';
-  } else {
-    return `${diffYears} yrs ago`;
-  }
-};
-
-const getRandomBgColor = (name: string) => {
-  const colors = [
-    'bg-blue-50 text-blue-700 border-blue-100',
-    'bg-emerald-50 text-emerald-700 border-emerald-100',
-    'bg-amber-50 text-amber-700 border-amber-100',
-    'bg-purple-50 text-purple-700 border-purple-100',
-    'bg-rose-50 text-rose-700 border-rose-100',
-    'bg-sky-50 text-sky-700 border-sky-100',
-    'bg-indigo-50 text-indigo-700 border-indigo-100'
-  ];
-  let sum = 0;
-  const safeName = name || '';
-  for (let i = 0; i < safeName.length; i++) {
-    sum += safeName.charCodeAt(i);
-  }
-  return colors[sum % colors.length];
-};
+const ITEMS_PER_PAGE = 20;
 
 export default function PartyList() {
-  const { currentUser } = useAuth();
   const { activeLedger } = useLedger();
+  const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [parties, setParties] = useState<Party[]>([]);
   const [search, setSearch] = useState('');
-  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'DUE' | 'ADVANCE' | 'INACTIVE'>('ALL');
+  const [sortOrder, setSortOrder] = useState<'recent' | 'name' | 'due_desc' | 'due_asc'>('recent');
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
-  
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Add Party Form State
+  const [showAddModal, setShowAddModal] = useState(false);
   const [addName, setAddName] = useState('');
   const [addPhone, setAddPhone] = useState('');
   const [addAddress, setAddAddress] = useState('');
   const [addEmail, setAddEmail] = useState('');
   const [addOpeningBalance, setAddOpeningBalance] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Bulk Import State
   const [showImportModal, setShowImportModal] = useState(false);
   const [importCsvContent, setImportCsvContent] = useState('');
 
-  // Sync and load parties from cached IndexedDB
-  const syncPartiesList = async () => {
-    if (!activeLedger?.id) {
-      setParties([]);
-      return;
-    }
+  // 1. Initial Load & Background Sync
+  const loadParties = async () => {
+    if (!activeLedger?.id) return;
     setIsLoading(true);
     try {
-      await syncCollection<Party>('parties', activeLedger.id, 'parties');
+      // Load cached items
       const cached = await getFilteredCacheItems<Party>('parties', p => p.ledgerId === activeLedger.id);
       setParties(cached);
-    } catch (err) {
-      console.error("Failed to sync parties:", err);
+
+      // Background sync from remote database
+      await syncCollection<Party>('parties', activeLedger.id, 'parties');
+      const fresh = await getFilteredCacheItems<Party>('parties', p => p.ledgerId === activeLedger.id);
+      setParties(fresh);
+    } catch (e) {
+      console.error("Failed to load parties:", e);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    syncPartiesList();
+    loadParties();
 
     const handleSync = () => {
-      syncPartiesList();
+      loadParties();
     };
     window.addEventListener('database-synced', handleSync);
     return () => {
@@ -125,57 +92,59 @@ export default function PartyList() {
     };
   }, [activeLedger?.id]);
 
+  // Reset page when filter or search changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, sortOrder, activeLedger?.id]);
+  }, [search, statusFilter, sortOrder]);
 
-  let filteredParties = parties.filter(p => {
-    const q = (search || '').trim().toLowerCase();
-    if (!q) return true;
-    
-    // Check if query is phone-based
-    const phone = p.phone || '';
-    if (phone.includes(q)) return true;
+  // 2. Filter & Sort
+  const filteredParties = parties
+    .filter(p => {
+      if (statusFilter === 'DUE') return p.currentDue > 0;
+      if (statusFilter === 'ADVANCE') return p.currentDue < 0;
+      if (statusFilter === 'INACTIVE') return p.status === 'Inactive';
+      return true;
+    })
+    .filter(p => {
+      if (!search.trim()) return true;
+      const q = search.toLowerCase().trim();
+      return (
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.phone || '').includes(q) ||
+        (p.email || '').toLowerCase().includes(q) ||
+        (p.address || '').toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => {
+      if (sortOrder === 'name') {
+        return a.name.localeCompare(b.name);
+      }
+      if (sortOrder === 'due_desc') {
+        return b.currentDue - a.currentDue;
+      }
+      if (sortOrder === 'due_asc') {
+        return a.currentDue - b.currentDue;
+      }
+      // 'recent' by lastTransaction
+      return (b.lastTransaction || 0) - (a.lastTransaction || 0);
+    });
 
-    const name = (p.name || '').toLowerCase();
-    
-    // Split search query by spaces to support multi-term search in any order
-    const terms = q.split(/\s+/).filter(Boolean);
-    if (terms.length === 0) return true;
-
-    // A party matches if all search terms are present in the name
-    const matchesAllTerms = terms.every(term => name.includes(term));
-    if (matchesAllTerms) return true;
-
-    // Check initials: e.g. "mj" matches "Madan Jana"
-    const initials = name.split(/\s+/).map(w => w.charAt(0)).join('');
-    if (initials.includes(q)) return true;
-
-    return false;
-  });
-
-  if (sortOrder === 'none') {
-    filteredParties.sort((a, b) => (b.lastTransaction || 0) - (a.lastTransaction || 0));
-  } else if (sortOrder === 'asc') {
-    filteredParties.sort((a, b) => a.currentDue - b.currentDue);
-  } else if (sortOrder === 'desc') {
-    filteredParties.sort((a, b) => b.currentDue - a.currentDue);
-  }
-
+  // 3. Add Party Handler
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting) return;
-    if (!activeLedger?.id) return;
+    if (isSubmitting || !activeLedger?.id) return;
+    if (!addName.trim()) return;
+
     setIsSubmitting(true);
     const id = uuidv4();
     const balance = parseFloat(addOpeningBalance) || 0;
-    
+
     const newParty: Party = {
       id,
       ledgerId: activeLedger.id,
-      name: addName,
+      name: addName.trim(),
       phone: formatContactWith91(addPhone),
-      address: addAddress,
+      address: addAddress.trim(),
       email: addEmail.trim(),
       openingBalance: balance,
       currentDue: balance,
@@ -184,8 +153,7 @@ export default function PartyList() {
     };
 
     try {
-      // 1. Update local UI state optimistically & close modal immediately
-      const newList = [...parties, newParty];
+      const newList = [newParty, ...parties];
       setParties(newList);
       setShowAddModal(false);
       setAddName('');
@@ -193,12 +161,10 @@ export default function PartyList() {
       setAddAddress('');
       setAddEmail('');
       setAddOpeningBalance('');
-      setIsSubmitting(false);
 
-      // 2. Save in local cache & Firestore in background
-      setCacheItem<Party>('parties', newParty);
-      setDoc(doc(db, 'parties', id), newParty);
-      updateDashboardPartiesCount(activeLedger.id, 1);
+      await setCacheItem<Party>('parties', newParty);
+      await setDoc(doc(db, 'parties', id), newParty);
+      await updateDashboardPartiesCount(activeLedger.id, 1);
       window.dispatchEvent(new CustomEvent('database-synced'));
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, `parties/${id}`);
@@ -207,9 +173,9 @@ export default function PartyList() {
     }
   };
 
+  // 4. Bulk CSV Import Handler
   const handleImportSubmit = async () => {
-    if (isSubmitting) return;
-    if (!activeLedger?.id) return;
+    if (isSubmitting || !activeLedger?.id) return;
     setIsSubmitting(true);
     const lines = importCsvContent.split('\n');
     let addedCount = 0;
@@ -243,14 +209,13 @@ export default function PartyList() {
           importedParties.push(newParty);
           addedCount++;
           
-          // Write to Firestore & Cache
           await setDoc(doc(db, 'parties', id), newParty).catch(e => console.error(e));
           await setCacheItem<Party>('parties', newParty);
         }
       }
 
       if (addedCount > 0) {
-        setParties([...parties, ...importedParties]);
+        setParties([...importedParties, ...parties]);
         await updateDashboardPartiesCount(activeLedger.id, addedCount);
         window.dispatchEvent(new CustomEvent('database-synced'));
       }
@@ -270,49 +235,487 @@ export default function PartyList() {
     currentPage * ITEMS_PER_PAGE
   );
 
-  if (!activeLedger) return <div className="p-8 text-center text-gray-500">Please select a ledger.</div>;
+  const totalReceivable = parties.filter(p => p.currentDue > 0).reduce((acc, p) => acc + p.currentDue, 0);
+  const totalPayable = parties.filter(p => p.currentDue < 0).reduce((acc, p) => acc + Math.abs(p.currentDue), 0);
+
+  const isPurchase = activeLedger?.type === 'PURCHASE';
+
+  if (!activeLedger) {
+    return <div className="p-8 text-center text-slate-500 font-medium">Please select a ledger.</div>;
+  }
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 sm:pb-8">
-      {/* Modals */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="font-semibold text-lg text-gray-900">Add New Party</h3>
-              <button type="button" onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 sm:pb-8 space-y-6">
+      
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+              {isPurchase ? "Vendor & Supplier Ledgers" : "Parties & Customer Ledgers"}
+            </h1>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            Directory of accounts, outstanding receivables, and advance balances for {activeLedger.name}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {currentUser?.isAdmin && (
+            <button
+              type="button"
+              onClick={() => setShowImportModal(true)}
+              className="inline-flex items-center justify-center px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-medium shadow-2xs transition-colors"
+            >
+              <Upload size={14} className="mr-1.5 text-slate-500" />
+              Bulk Import
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setShowAddModal(true)}
+            className={`inline-flex items-center justify-center gap-1.5 ${
+              isPurchase 
+                ? 'text-purple-800 hover:text-purple-950 font-bold bg-amber-100/70 border border-amber-300/80 px-3 py-1.5 rounded-lg shadow-2xs' 
+                : 'text-[#0055a5] hover:text-blue-800 font-semibold text-sm transition-colors py-1.5 px-2 rounded-lg hover:bg-blue-50/50'
+            }`}
+          >
+            <UserPlus size={16} />
+            <span>Add New {isPurchase ? 'Vendor' : 'Party'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 3 Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        
+        {/* Card 1: TOTAL REGISTERED PARTIES */}
+        <div className={`bg-white rounded-2xl border ${isPurchase ? 'border-purple-200' : 'border-slate-200'} p-6 shadow-2xs flex flex-col justify-between`}>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            {isPurchase ? "TOTAL REGISTERED VENDORS" : "TOTAL REGISTERED PARTIES"}
+          </span>
+          <div className="mt-3">
+            <div className={`text-3xl sm:text-4xl font-bold ${isPurchase ? 'text-purple-800' : 'text-[#0055a5]'} tracking-tight`}>
+              {parties.length}
             </div>
+            <p className="text-xs text-slate-500 mt-2">
+              {parties.filter(p => p.status === 'Active').length} Active Accounts
+            </p>
+          </div>
+        </div>
+
+        {/* Card 2: TOTAL RECEIVABLES (DUES) */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs flex flex-col justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            TOTAL RECEIVABLES (DUES)
+          </span>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-bold text-rose-600 tracking-tight tabular-nums flex items-baseline gap-1">
+              <span>₹{totalReceivable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-xs font-bold uppercase text-rose-600 ml-1">DR</span>
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              {parties.filter(p => p.currentDue > 0).length} parties with pending dues
+            </p>
+          </div>
+        </div>
+
+        {/* Card 3: TOTAL PAYABLES (ADVANCES) */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs flex flex-col justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            TOTAL PAYABLES (ADVANCES)
+          </span>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-bold text-emerald-600 tracking-tight tabular-nums flex items-baseline gap-1">
+              <span>₹{totalPayable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-xs font-bold uppercase text-emerald-600 ml-1">CR</span>
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              {parties.filter(p => p.currentDue < 0).length} parties with advance credit
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Main Table Container */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+        
+        {/* Search & Filter Toolbar */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
+          
+          {/* Search Field */}
+          <div className="relative flex-1 max-w-md">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by party name, phone, email, or address..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#0055a5] transition-colors"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Underline Tabs & Sort Dropdown */}
+          <div className="flex flex-wrap items-center justify-between lg:justify-end gap-5">
+            {/* Status Tabs */}
+            <div className="flex items-center space-x-6 text-xs sm:text-sm">
+              <button
+                type="button"
+                onClick={() => setStatusFilter('ALL')}
+                className={`py-1 transition-all ${
+                  statusFilter === 'ALL'
+                    ? 'border-b-2 border-[#0055a5] text-[#0055a5] font-semibold'
+                    : 'text-slate-600 hover:text-slate-900 font-medium'
+                }`}
+              >
+                All ({parties.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('DUE')}
+                className={`py-1 transition-all ${
+                  statusFilter === 'DUE'
+                    ? 'border-b-2 border-[#0055a5] text-[#0055a5] font-semibold'
+                    : 'text-slate-600 hover:text-slate-900 font-medium'
+                }`}
+              >
+                Debtors ({parties.filter(p => p.currentDue > 0).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('ADVANCE')}
+                className={`py-1 transition-all ${
+                  statusFilter === 'ADVANCE'
+                    ? 'border-b-2 border-[#0055a5] text-[#0055a5] font-semibold'
+                    : 'text-slate-600 hover:text-slate-900 font-medium'
+                }`}
+              >
+                Creditors ({parties.filter(p => p.currentDue < 0).length})
+              </button>
+            </div>
+
+            {/* Sort Select */}
+            <select
+              value={sortOrder}
+              onChange={e => setSortOrder(e.target.value as any)}
+              className="bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-700 font-medium focus:outline-none focus:border-[#0055a5] transition-colors cursor-pointer"
+            >
+              <option value="recent">Recently Active</option>
+              <option value="name">Name (A - Z)</option>
+              <option value="due_desc">Due Balance: High to Low</option>
+              <option value="due_asc">Due Balance: Low to High</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Accounting Table (Desktop) */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 bg-white text-[11px] font-semibold uppercase text-slate-700 tracking-wider">
+                <th className="py-3.5 px-4 w-5/12">Party Name & Information</th>
+                <th className="py-3.5 px-4 w-3/12">Contact Phone</th>
+                <th className="py-3.5 px-4 w-2/12 text-right">Current Ledger Balance</th>
+                {currentUser?.isAdmin && (
+                  <th className="py-3.5 px-4 w-1/12 text-center">Status</th>
+                )}
+                <th className="py-3.5 px-4 w-12 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs">
+              {paginatedParties.map((party) => {
+                return (
+                  <tr 
+                    key={party.id} 
+                    onClick={() => navigate(`/parties/${party.id}`)}
+                    className="hover:bg-slate-50/60 cursor-pointer transition-colors"
+                  >
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-3.5">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50/80 border border-blue-100 text-[#0055a5] flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                          {party.name.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-bold text-slate-900 text-sm block truncate hover:text-[#0055a5] transition-colors">
+                            {party.name}
+                          </span>
+                          {party.address && (
+                            <span className="text-xs text-slate-500 block truncate max-w-sm mt-0.5">
+                              {party.address}
+                            </span>
+                          )}
+                          {party.email && (
+                            <span className="text-xs text-slate-400 block truncate max-w-sm">
+                              {party.email}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="py-4 px-4">
+                      {party.phone ? (
+                        <span className="text-xs text-slate-800 font-medium font-sans">
+                          {party.phone}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">No contact</span>
+                      )}
+                    </td>
+
+                    <td className="py-4 px-4 text-right">
+                      <div className="font-bold text-xs sm:text-sm tabular-nums inline-flex items-baseline gap-1">
+                        <span className={party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-900"}>
+                          ₹{Math.abs(party.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        <span className={`text-[10px] font-bold uppercase ${party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-500"}`}>
+                          {party.currentDue > 0 ? 'DR' : party.currentDue < 0 ? 'CR' : ''}
+                        </span>
+                      </div>
+                    </td>
+
+                    {currentUser?.isAdmin && (
+                      <td className="py-4 px-4 text-center">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 uppercase tracking-wide">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          {party.status || 'ACTIVE'}
+                        </span>
+                      </td>
+                    )}
+
+                    <td className="py-4 px-4 text-right">
+                      <span className="inline-flex items-center justify-center w-7 h-7 text-slate-400 hover:text-slate-700 transition-colors">
+                        <ChevronRight size={16} />
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {filteredParties.length === 0 && (
+                <tr>
+                  <td colSpan={currentUser?.isAdmin ? 5 : 4} className="py-12 text-center text-slate-400 text-sm font-medium">
+                    No parties found matching your search or filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile View: High Density List */}
+        <div className="block md:hidden divide-y divide-slate-100 bg-white">
+          {paginatedParties.map((party) => (
+            <div 
+              key={party.id} 
+              onClick={() => navigate(`/parties/${party.id}`)}
+              className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between gap-3 cursor-pointer"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-blue-50/80 border border-blue-100 text-[#0055a5] flex items-center justify-center font-bold text-xs shrink-0 uppercase">
+                  {party.name.substring(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <h4 className="font-bold text-slate-900 text-sm truncate">{party.name}</h4>
+                  <p className="text-xs text-slate-500 mt-0.5">{party.phone || 'No phone'}</p>
+                </div>
+              </div>
+
+              <div className="text-right shrink-0">
+                <div className="font-bold text-xs tabular-nums">
+                  <span className={party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-900"}>
+                    ₹{Math.abs(party.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className={`text-[10px] ml-1 uppercase font-bold ${party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-500"}`}>
+                    {party.currentDue > 0 ? 'DR' : party.currentDue < 0 ? 'CR' : ''}
+                  </span>
+                </div>
+                {currentUser?.isAdmin && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 uppercase mt-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    {party.status || 'ACTIVE'}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {filteredParties.length === 0 && (
+            <div className="p-8 text-center text-slate-400 text-xs font-medium">
+              No parties found matching your search or filters.
+            </div>
+          )}
+        </div>
+
+        {/* Footer: Pagination and count */}
+        <div className="p-4 sm:p-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white text-xs text-slate-500 font-medium">
+          <div>
+            Showing {filteredParties.length > 0 ? ((currentPage - 1) * ITEMS_PER_PAGE) + 1 : 0} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredParties.length)} of {filteredParties.length} entries
+          </div>
+
+          <div className="flex items-center space-x-1.5">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              className="p-1.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-30 transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            
+            {Array.from({ length: Math.max(totalPages, 1) }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                type="button"
+                onClick={() => setCurrentPage(page)}
+                className={`w-8 h-8 flex items-center justify-center text-xs font-semibold rounded-lg border transition-colors ${
+                  currentPage === page
+                    ? 'bg-blue-50/80 border-blue-200 text-[#0055a5]'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              disabled={currentPage === totalPages || totalPages === 0}
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              className="p-1.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-30 transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Add Party Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                  <UserPlus size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Add New Party Account</h3>
+                  <p className="text-xs text-slate-500">Register a new customer or vendor in {activeLedger.name}</p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowAddModal(false)} 
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
             <form onSubmit={handleAddSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <input required type="text" value={addName} onChange={e => setAddName(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Party / Company Name <span className="text-rose-500">*</span>
+                </label>
+                <input 
+                  required 
+                  type="text" 
+                  value={addName} 
+                  onChange={e => setAddName(e.target.value)} 
+                  className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:border-blue-600" 
+                  placeholder="e.g. Royal Bengal Foods" 
+                />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                <input type="text" value={addPhone} onChange={e => setAddPhone(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Contact Phone Number
+                </label>
+                <input 
+                  type="text" 
+                  value={addPhone} 
+                  onChange={e => setAddPhone(e.target.value)} 
+                  className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 font-mono focus:border-blue-600" 
+                  placeholder="e.g. 9876543210" 
+                />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                <input type="text" value={addAddress} onChange={e => setAddAddress(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Business Address
+                </label>
+                <input 
+                  type="text" 
+                  value={addAddress} 
+                  onChange={e => setAddAddress(e.target.value)} 
+                  className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:border-blue-600" 
+                  placeholder="e.g. Plot 42, Food Park, Kolkata" 
+                />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" value={addEmail} onChange={e => setAddEmail(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500" placeholder="e.g. client@example.com" />
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Email Address
+                </label>
+                <input 
+                  type="email" 
+                  value={addEmail} 
+                  onChange={e => setAddEmail(e.target.value)} 
+                  className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:border-blue-600" 
+                  placeholder="e.g. accounts@royalbengalfoods.com" 
+                />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Opening Balance (Positive = Due to us, Negative = Advance)</label>
-                <input type="number" step="0.01" value={addOpeningBalance} onChange={e => setAddOpeningBalance(e.target.value)} className="w-full px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500" />
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Opening Balance (₹)
+                </label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  value={addOpeningBalance} 
+                  onChange={e => setAddOpeningBalance(e.target.value)} 
+                  className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 font-mono focus:border-blue-600" 
+                  placeholder="0.00 (Positive = Due Dr, Negative = Advance Cr)" 
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Enter positive value if party owes money (Debit Dr), negative for advance (Credit Cr).
+                </p>
               </div>
-              <div className="pt-4 flex justify-end">
-                <button type="button" disabled={isSubmitting} onClick={() => setShowAddModal(false)} className="px-4 py-2 text-gray-600 mr-2 hover:bg-gray-50 rounded-md disabled:opacity-50">Cancel</button>
-                <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:bg-sky-400 disabled:cursor-not-allowed flex items-center justify-center font-sans">
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button 
+                  type="button" 
+                  disabled={isSubmitting} 
+                  onClick={() => setShowAddModal(false)} 
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting} 
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="animate-spin mr-2" size={16} />
+                      <Loader2 className="animate-spin" size={14} />
                       Saving...
                     </>
                   ) : (
-                    'Save Party'
+                    'Save Party Account'
                   )}
                 </button>
               </div>
@@ -321,31 +724,66 @@ export default function PartyList() {
         </div>
       )}
 
+      {/* Bulk CSV Import Modal */}
       {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="font-semibold text-lg text-gray-900">Bulk Import Parties</h3>
-              <button type="button" onClick={() => setShowImportModal(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-slate-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                  <Upload size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Bulk Import Parties</h3>
+                  <p className="text-xs text-slate-500">Paste CSV data directly into {activeLedger.name}</p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowImportModal(false)} 
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <div className="p-6">
-              <p className="text-sm text-gray-500 mb-4">Paste CSV format: <code>Name,Phone,OpeningBalance,Email</code> (one per line. Email is optional)</p>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs text-slate-600">
+                <p className="font-bold text-slate-800 mb-1">Expected CSV Format (One entry per line):</p>
+                <code className="font-mono text-blue-700 block bg-white p-2 rounded border border-slate-200">
+                  Party Name, Phone Number, Opening Balance, Email
+                </code>
+              </div>
+
               <textarea
-                className="w-full h-48 px-3 py-2 border rounded-md focus:border-sky-500 focus:ring-1 focus:ring-sky-500 font-mono text-sm"
+                className="w-full h-44 p-3 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900 focus:border-blue-600 focus:outline-none"
                 value={importCsvContent}
                 onChange={e => setImportCsvContent(e.target.value)}
-                placeholder="John Doe,1234567890,500.00,john@example.com&#10;Jane Smith,0987654321,-200.00,jane@example.com"
-              ></textarea>
-              <div className="mt-4 flex justify-end">
-                <button type="button" disabled={isSubmitting} onClick={() => setShowImportModal(false)} className="px-4 py-2 text-gray-600 mr-2 hover:bg-gray-50 rounded-md disabled:opacity-50">Cancel</button>
-                <button type="button" disabled={isSubmitting} onClick={handleImportSubmit} className="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:bg-sky-400 disabled:cursor-not-allowed flex items-center justify-center font-sans">
+                placeholder="Greenzar Distributors,9876543210,15000.00,sales@distributors.com&#10;Metro Stores,9812345678,-5000.00,accounts@metro.com"
+              />
+
+              <div className="pt-2 flex items-center justify-end gap-2.5">
+                <button 
+                  type="button" 
+                  disabled={isSubmitting} 
+                  onClick={() => setShowImportModal(false)} 
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  disabled={isSubmitting} 
+                  onClick={handleImportSubmit} 
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-2 disabled:opacity-50"
+                >
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="animate-spin mr-2" size={16} />
-                      Importing...
+                      <Loader2 className="animate-spin" size={14} />
+                      Importing Records...
                     </>
                   ) : (
-                    'Import'
+                    'Run Bulk Import'
                   )}
                 </button>
               </div>
@@ -354,246 +792,6 @@ export default function PartyList() {
         </div>
       )}
 
-      {/* Compact & Handy Header Section */}
-      <div className="flex items-center justify-between mb-4 gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-950 tracking-tight">
-              Parties
-            </h1>
-            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] sm:text-xs font-semibold font-mono">
-              {parties.length}
-            </span>
-            {isLoading && <Loader2 className="animate-spin text-gray-400 shrink-0" size={16} />}
-          </div>
-          <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 leading-tight truncate max-w-[180px] sm:max-w-none">
-            Manage customers & suppliers in {activeLedger.name}
-          </p>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {currentUser?.isAdmin && (
-            <button 
-              type="button" 
-              onClick={() => setShowImportModal(true)} 
-              className="inline-flex items-center justify-center p-1.5 sm:px-3 sm:py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 transition-all active:scale-95 shadow-sm"
-              title="Import Parties"
-            >
-              <Upload size={14} className="sm:mr-1.5" />
-              <span className="hidden sm:inline">Import</span>
-            </button>
-          )}
-          <button 
-            type="button" 
-            onClick={() => setShowAddModal(true)} 
-            className="inline-flex items-center justify-center px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-medium transition-all active:scale-95 shadow-sm shadow-sky-100"
-          >
-            <UserPlus size={14} className="mr-1" />
-            <span>Add Party</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {/* Streamlined Search and Filter Controls */}
-        <div className="p-3 border-b border-gray-100 flex flex-col sm:flex-row gap-3 items-center justify-between bg-gray-50/30">
-          <div className="relative w-full sm:max-w-xs md:max-w-md border border-gray-200 bg-white rounded-lg flex items-center px-2.5 shadow-xs focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-500/50 transition-all">
-            <Search size={16} className="text-gray-400 shrink-0" />
-            <input 
-              type="text" 
-              placeholder="Search by name or phone..." 
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full py-1.5 ml-2 bg-transparent focus:outline-none text-xs sm:text-sm text-gray-800 placeholder-gray-400"
-            />
-            {search && (
-              <button 
-                type="button" 
-                onClick={() => setSearch('')} 
-                className="text-gray-400 hover:text-gray-600 shrink-0"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-50">
-            <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Sort:</span>
-            <select
-              value={sortOrder}
-              onChange={e => setSortOrder(e.target.value as 'none' | 'asc' | 'desc')}
-              className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 bg-white text-gray-700 font-medium"
-            >
-              <option value="none">Recently Updated</option>
-              <option value="asc">Due Amount (Low to High)</option>
-              <option value="desc">Due Amount (High to Low)</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Desktop View Table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-white border-b text-xs uppercase tracking-wider text-gray-500">
-                <th className="p-4 font-medium">Party Name</th>
-                <th className="p-4 font-medium">Contact</th>
-                <th className="p-4 font-medium text-right">Current Balance</th>
-                <th className="p-4 font-medium text-center">Status</th>
-              </tr>
-            </thead>
-            <tbody className="align-middle">
-              {paginatedParties.map((party) => (
-                <tr 
-                  key={party.id} 
-                  onClick={() => navigate(`/parties/${party.id}`)}
-                  className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
-                >
-                  <td className="p-4">
-                    <div className="font-bold text-gray-950 text-sm">{party.name}</div>
-                    <div className="text-[11px] text-gray-400 font-medium mt-0.5">
-                      Last update: {formatRelativeTime(party.lastTransaction)}
-                    </div>
-                    {party.phone && (
-                      <div className="text-xs text-gray-500 lg:hidden mt-0.5 font-mono">{party.phone}</div>
-                    )}
-                    {currentUser?.isAdmin && (
-                      <div className="text-xs text-slate-400 font-mono mt-1 select-all" onClick={(e) => e.stopPropagation()}>
-                        ID: {party.id}
-                      </div>
-                    )}
-                  </td>
-                  <td className="p-4 text-sm text-gray-600 hidden lg:table-cell">{party.phone}</td>
-                  <td className="p-4 text-right">
-                    <div className={`font-semibold ${party.currentDue > 0 ? 'text-red-600' : party.currentDue < 0 ? 'text-green-600' : 'text-gray-600'}`}>
-                      {party.currentDue > 0 ? (
-                        <>-₹{Math.abs(party.currentDue).toLocaleString(undefined, {minimumFractionDigits:2})}</>
-                      ) : party.currentDue < 0 ? (
-                        <>₹ {Math.abs(party.currentDue).toLocaleString(undefined, {minimumFractionDigits:2})}</>
-                      ) : (
-                        <>₹ 0.00</>
-                      )
-                    }
-                    </div>
-                  </td>
-                  <td className="p-4 text-center">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                      {party.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {filteredParties.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="p-8 text-center text-sm text-gray-500">
-                    No parties found matching your search.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile View Card List */}
-        <div className="block md:hidden divide-y divide-gray-100 bg-white">
-          {paginatedParties.map((party) => {
-            const bgClass = getRandomBgColor(party.name);
-            return (
-              <div 
-                key={party.id} 
-                onClick={() => navigate(`/parties/${party.id}`)}
-                className="p-3.5 hover:bg-gray-50/45 active:bg-gray-50 transition-colors flex items-center justify-between gap-3 text-sm cursor-pointer"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  {/* Circular initials badge */}
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs uppercase border shrink-0 ${bgClass}`}>
-                    {getInitials(party.name)}
-                  </div>
-
-                  {/* Party Name & Phone */}
-                  <div className="min-w-0">
-                    <h4 className="font-semibold text-gray-950 text-xs sm:text-sm truncate">{party.name}</h4>
-                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                      {party.phone ? (
-                        <p className="text-[11px] text-gray-500 font-mono">{party.phone}</p>
-                      ) : (
-                        <p className="text-[11px] text-gray-400 italic">No contact</p>
-                      )}
-                      <span className="text-[10px] text-gray-300">•</span>
-                      <p className="text-[11px] text-gray-400 font-medium">
-                        {formatRelativeTime(party.lastTransaction)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Balance */}
-                <div className="text-right shrink-0">
-                  <span className="text-[8px] uppercase font-bold tracking-wider leading-none block mb-1 text-gray-400">
-                    Balance
-                  </span>
-                  <div className={`font-extrabold text-xs sm:text-sm ${party.currentDue > 0 ? 'text-red-600' : party.currentDue < 0 ? 'text-emerald-600' : 'text-gray-500'}`}>
-                    {party.currentDue > 0 ? (
-                      <>-₹{Math.abs(party.currentDue).toLocaleString(undefined, {minimumFractionDigits: 2})}</>
-                    ) : party.currentDue < 0 ? (
-                      <>₹ {Math.abs(party.currentDue).toLocaleString(undefined, {minimumFractionDigits: 2})}</>
-                    ) : (
-                      <>₹ 0.00</>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {filteredParties.length === 0 && (
-            <div className="p-8 text-center text-sm text-gray-500">
-              No parties found matching your search.
-            </div>
-          )}
-        </div>
-
-        {totalPages > 1 && (
-          <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between bg-gray-50/50 gap-4">
-            <div className="text-sm text-gray-500">
-              Showing <span className="font-medium">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> to{' '}
-              <span className="font-medium">{Math.min(currentPage * ITEMS_PER_PAGE, filteredParties.length)}</span> of{' '}
-              <span className="font-medium">{filteredParties.length}</span> parties
-            </div>
-            <div className="flex items-center space-x-1">
-              <button
-                type="button"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                className="p-2 border border-gray-200 rounded-md hover:bg-white text-gray-600 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                <button
-                  key={page}
-                  type="button"
-                  onClick={() => setCurrentPage(page)}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${
-                    currentPage === page
-                      ? 'bg-sky-600 border-sky-600 text-white'
-                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-
-              <button
-                type="button"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                className="p-2 border border-gray-200 rounded-md hover:bg-white text-gray-600 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

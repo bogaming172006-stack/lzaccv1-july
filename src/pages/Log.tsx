@@ -3,15 +3,20 @@ import { db, handleFirestoreError, OperationType, collection, getDocs, query, wh
 import { Transaction, Party } from '../types';
 import { useLedger } from '../LedgerContext';
 import { useAuth } from '../AuthContext';
-import { format, startOfDay, endOfDay } from 'date-fns';
-import { Search, Loader2, ArrowRight, Trash2, Printer } from 'lucide-react';
+import { format } from 'date-fns';
+import { Search, Loader2, ArrowRight, Trash2, Printer, Calendar, TrendingDown, TrendingUp, DollarSign, X } from 'lucide-react';
 import { getFilteredCacheItems } from '../lib/idbCache';
 import { syncCollection } from '../lib/syncCache';
 import { deleteTransaction } from '../lib/transactionService';
 import ThermalReceiptModal from '../components/ThermalReceiptModal';
 import TransactionDetailModal from '../components/TransactionDetailModal';
+import PageHeader from '../components/ui/PageHeader';
+import StatCard from '../components/ui/StatCard';
+import AmountDisplay from '../components/ui/AmountDisplay';
+import Badge from '../components/ui/Badge';
+import { Card } from '../components/ui/Card';
 
-const BATCH_SIZE = 20;
+const BATCH_SIZE = 25;
 
 export default function Log() {
   const { activeLedger } = useLedger();
@@ -34,7 +39,6 @@ export default function Log() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deletePasswordError, setDeletePasswordError] = useState('');
 
-  // Sync parties from local cash
   const loadPartiesFromCache = async () => {
     if (!activeLedger?.id) return;
     const cached = await getFilteredCacheItems<Party>('parties', p => p.ledgerId === activeLedger.id);
@@ -50,15 +54,12 @@ export default function Log() {
     setIsLoading(true);
 
     try {
-      // 1. Optimistic fast load from local cache
       const cached = await getFilteredCacheItems<Transaction>('transactions', t => t.ledgerId === activeLedger.id);
       cached.sort((a, b) => b.timestamp - a.timestamp);
       setTransactions(cached);
 
-      // 2. Sync transactions in background
       await syncCollection<Transaction>('transactions', activeLedger.id, 'transactions');
       
-      // 3. Load latest update
       const fresh = await getFilteredCacheItems<Transaction>('transactions', t => t.ledgerId === activeLedger.id);
       fresh.sort((a, b) => b.timestamp - a.timestamp);
       setTransactions(fresh);
@@ -126,9 +127,8 @@ export default function Log() {
     }
   };
 
-  if (!activeLedger) return <div className="p-8 text-center text-gray-500">Please select a ledger.</div>;
+  if (!activeLedger) return <div className="p-8 text-center text-slate-500 font-medium">Please select a ledger.</div>;
 
-  // Filter global ledger list on client-side
   const filteredDisplay = transactions
     .filter(tx => filter === 'ALL' || tx.type === filter)
     .filter(tx => {
@@ -149,7 +149,6 @@ export default function Log() {
              (party?.name || '').toLowerCase().includes(lowerSearch);
     });
 
-  // Calculate totals matching date and search filters (independent of tab selection so user always gets the full picture)
   const dateAndSearchFiltered = transactions
     .filter(tx => {
       if (startDate && new Date(startDate).getTime() > tx.timestamp) return false;
@@ -181,168 +180,186 @@ export default function Log() {
   const hasMore = displayCount < filteredDisplay.length;
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 sm:pb-8">
-      <div className="mb-8 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight flex items-center gap-2">
-            Day Log
-            {isLoading && <Loader2 className="animate-spin text-gray-400" size={20} />}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">Review all global transactions for {activeLedger.name}</p>
-        </div>
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 sm:pb-8 space-y-6">
+      {/* Page Header */}
+      <PageHeader
+        title={activeLedger.type === 'PURCHASE' ? "Purchase Day Log" : "Day Log"}
+        subtitle={`Chronological transaction register and activity log for ${activeLedger.name}`}
+      />
+
+      {/* Filter Totals Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <StatCard
+          title="Period Debit (Dr)"
+          value={<AmountDisplay amount={totalDebit} type="DEBIT" size="xl" />}
+          subtitle="Total debits in filtered scope"
+          icon={TrendingDown}
+          iconColor="text-rose-600"
+          iconBg="bg-rose-50"
+        />
+
+        <StatCard
+          title="Period Credit (Cr)"
+          value={<AmountDisplay amount={totalCredit} type="CREDIT" size="xl" />}
+          subtitle="Total credits in filtered scope"
+          icon={TrendingUp}
+          iconColor="text-emerald-600"
+          iconBg="bg-emerald-50"
+        />
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-col gap-4">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col md:flex-row gap-3 items-center justify-between w-full">
-              <div className="flex bg-gray-100 p-1 rounded-md w-full md:w-auto shrink-0">
-                {(['ALL', 'DEBIT', 'CREDIT'] as const).map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => setFilter(tab)}
-                    className={`flex-1 md:flex-none px-4 py-1.5 text-xs font-bold rounded capitalize transition-all ${
-                      filter === tab ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-750'
-                    }`}
-                  >
-                    {tab.toLowerCase()}
-                  </button>
-                ))}
-              </div>
-
-              <div className="relative w-full md:w-72 border border-gray-200 bg-white rounded-md flex items-center px-3 shadow-xs">
-                <Search size={15} className="text-gray-400 shrink-0" />
-                <input 
-                  type="text" 
-                  placeholder="Search invoice, notes, party..." 
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="w-full py-1.5 ml-2 bg-transparent focus:outline-none text-xs sm:text-sm"
-                />
-              </div>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center bg-white border border-gray-200 rounded-md px-2.5 py-1 shadow-xs shrink-0">
-                <span className="text-[10px] sm:text-xs text-gray-400 font-semibold mr-1.5">From:</span>
-                <input 
-                  type="date" 
-                  className="bg-transparent focus:outline-none text-xs sm:text-sm text-gray-700 w-28"
-                  value={startDate}
-                  onChange={e => setStartDate(e.target.value)}
-                />
-              </div>
-              <div className="flex items-center bg-white border border-gray-200 rounded-md px-2.5 py-1 shadow-xs shrink-0">
-                <span className="text-[10px] sm:text-xs text-gray-400 font-semibold mr-1.5">To:</span>
-                <input 
-                  type="date" 
-                  className="bg-transparent focus:outline-none text-xs sm:text-sm text-gray-700 w-28"
-                  value={endDate}
-                  onChange={e => setEndDate(e.target.value)}
-                />
-              </div>
-              {(startDate || endDate) && (
-                <button 
-                  onClick={() => { setStartDate(''); setEndDate(''); }}
-                  className="text-xs text-sky-650 hover:text-sky-800 font-bold px-2 py-1 bg-sky-50 rounded-md"
+      {/* Main Journal Table Card */}
+      <Card>
+        {/* Filter Controls Bar */}
+        <div className="p-4 border-b border-slate-100 bg-slate-50/60 space-y-3">
+          <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+            {/* Segmented Type Filter */}
+            <div className="flex bg-slate-200/70 p-1 rounded-lg shrink-0">
+              {(['ALL', 'DEBIT', 'CREDIT'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setFilter(tab)}
+                  className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
+                    filter === tab 
+                      ? 'bg-white text-slate-900 shadow-xs' 
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
                 >
-                  Clear Dates
+                  {tab === 'ALL' ? 'All Vouchers' : tab === 'DEBIT' ? 'Debits (Dr)' : 'Credits (Cr)'}
                 </button>
-              )}
+              ))}
+            </div>
+
+            {/* Search Input */}
+            <div className="relative w-full lg:w-80">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="Search party name, invoice #, notes..." 
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:border-blue-600"
+              />
             </div>
           </div>
 
-          {/* Filtered Totals Summary Cards */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-4 border-t border-gray-100 pt-3 mt-1">
-            <div className="bg-red-50/50 rounded-lg p-2 sm:p-3.5 border border-red-100/50 flex flex-col justify-between">
-              <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-red-700/80 truncate">Debit (Dr)</span>
-              <div className="text-xs sm:text-lg font-extrabold text-red-700 mt-0.5 break-all">
-                ₹{totalDebit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-              </div>
-              <div className="hidden sm:block text-[9px] text-gray-400 mt-1">Active filters</div>
+          {/* Date Pickers */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <div className="flex items-center bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs">
+              <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mr-2">From:</span>
+              <input 
+                type="date" 
+                className="font-mono text-slate-700 bg-transparent focus:outline-none"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+              />
             </div>
-
-            <div className="bg-emerald-50/50 rounded-lg p-2 sm:p-3.5 border border-emerald-100/50 flex flex-col justify-between">
-              <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-emerald-700/80 truncate">Credit (Cr)</span>
-              <div className="text-xs sm:text-lg font-extrabold text-emerald-700 mt-0.5 break-all">
-                ₹{totalCredit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-              </div>
-              <div className="hidden sm:block text-[9px] text-gray-400 mt-1">Active filters</div>
+            <div className="flex items-center bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs">
+              <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mr-2">To:</span>
+              <input 
+                type="date" 
+                className="font-mono text-slate-700 bg-transparent focus:outline-none"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+              />
             </div>
-
-            <div className={`rounded-lg p-2 sm:p-3.5 border flex flex-col justify-between ${(totalCredit - totalDebit) >= 0 ? 'bg-sky-50/50 border-sky-100/50' : 'bg-amber-50/50 border-amber-100/50'}`}>
-              <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-gray-600 truncate">Net Balance</span>
-              <div className={`text-xs sm:text-lg font-extrabold mt-0.5 break-all ${(totalCredit - totalDebit) >= 0 ? 'text-sky-700' : 'text-amber-700'}`}>
-                ₹{Math.abs(totalCredit - totalDebit).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-                <span className="block text-[8px] sm:inline sm:text-[10px] font-semibold sm:ml-1 text-gray-500">
-                  {(totalCredit - totalDebit) >= 0 ? 'Cr' : 'Dr'}
-                </span>
-              </div>
-              <div className="hidden sm:block text-[9px] text-gray-400 mt-1">Net movement</div>
-            </div>
+            {(startDate || endDate) && (
+              <button 
+                onClick={() => { setStartDate(''); setEndDate(''); }}
+                className="text-xs text-slate-600 hover:text-slate-900 font-bold px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                Clear Dates
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Responsive Transaction List */}
+        {/* Desktop Table View */}
         <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse table-finance">
             <thead>
-              <tr className="bg-white border-b text-xs uppercase tracking-wider text-gray-500">
-                <th className="p-4 font-medium">Date</th>
-                <th className="p-4 font-medium">Party</th>
-                <th className="p-4 font-medium">Details</th>
-                <th className="p-4 font-medium text-right">Amount</th>
-                {currentUser?.isAdmin && <th className="p-4 font-medium text-center">Actions</th>}
+              <tr>
+                <th className="w-40">Date & Time</th>
+                <th className="w-48">Party Account</th>
+                <th>Particulars / Notes</th>
+                <th className="w-36 text-right">Debit (Dr)</th>
+                <th className="w-36 text-right">Credit (Cr)</th>
+                {currentUser?.isAdmin && <th className="w-20 text-center">Actions</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.map(tx => {
-                 const party = parties[tx.partyId];
-                 return (
-                   <tr 
-                     key={tx.id} 
-                     onClick={() => setSelectedDetailTx(tx)}
-                     className="border-b border-gray-50 hover:bg-gray-50 transition-colors text-sm cursor-pointer"
-                   >
-                     <td className="p-4 text-gray-500 whitespace-nowrap">
-                       {format(new Date(tx.timestamp), 'dd MMM yyyy')}
-                       <div className="text-xs text-gray-400 mt-0.5">{format(new Date(tx.timestamp), 'HH:mm')}</div>
-                     </td>
-                     <td className="p-4">
-                       <div className="font-medium text-gray-900">{party?.name || 'Unknown'}</div>
-                     </td>
-                     <td className="p-4 text-gray-600">
-                       <div>{tx.notes || '-'}</div>
-                       {tx.invoiceNo && <div className="text-xs font-mono text-gray-400 mt-0.5">Ref: {tx.invoiceNo}</div>}
-                     </td>
-                     <td className="p-4 text-right">
-                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${tx.type === 'DEBIT' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-                         {tx.type === 'DEBIT' ? 'Dr ' : 'Cr '}
-                         ₹{tx.amount.toLocaleString(undefined, {minimumFractionDigits:2})}
-                       </span>
-                     </td>
-                     {currentUser?.isAdmin && (
-                       <td className="p-4 text-center whitespace-nowrap">
-                         <button
-                           onClick={(e) => {
-                             e.stopPropagation();
-                             setDeletingTx(tx);
-                             setShowDeleteConfirm(true);
-                           }}
-                           className="text-gray-400 hover:text-red-600 transition-colors p-1.5 rounded hover:bg-red-50"
-                           title="Delete Transaction"
-                         >
-                           <Trash2 size={15} />
-                         </button>
-                       </td>
-                     )}
-                   </tr>
-                 )
-               })}
+                const party = parties[tx.partyId];
+                return (
+                  <tr 
+                    key={tx.id} 
+                    onClick={() => setSelectedDetailTx(tx)}
+                    className="hover:bg-blue-50/40 cursor-pointer transition-colors"
+                  >
+                    <td className="text-xs text-slate-600 whitespace-nowrap">
+                      {format(new Date(tx.timestamp), 'dd MMM yyyy, HH:mm')}
+                    </td>
+                    <td>
+                      <span className="font-bold text-slate-900 text-xs sm:text-sm block">
+                        {party?.name || 'Unknown Party'}
+                      </span>
+                      {party?.phone && (
+                        <span className="text-[11px] text-slate-400">
+                          {party.phone}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <span className="font-medium text-slate-700 text-xs block">
+                        {tx.notes || '-'}
+                      </span>
+                      {tx.invoiceNo && (
+                        <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded inline-block mt-0.5">
+                          Inv #{tx.invoiceNo}
+                        </span>
+                      )}
+                    </td>
+                    <td className="text-right tabular-nums text-xs">
+                      {tx.type === 'DEBIT' ? (
+                        <span className="font-bold text-rose-600">
+                          ₹{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </td>
+                    <td className="text-right tabular-nums text-xs">
+                      {tx.type === 'CREDIT' ? (
+                        <span className="font-bold text-emerald-600">
+                          ₹{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </td>
+                    {currentUser?.isAdmin && (
+                      <td className="text-center" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingTx(tx);
+                            setShowDeleteConfirm(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                          title="Delete Transaction"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={currentUser?.isAdmin ? 5 : 4} className="p-8 text-center text-sm text-gray-500">
-                    No transactions loaded matching current filters.
+                  <td colSpan={currentUser?.isAdmin ? 6 : 5} className="py-12 text-center text-xs font-semibold text-slate-400">
+                    No transactions matching current filters.
                   </td>
                 </tr>
               )}
@@ -350,197 +367,102 @@ export default function Log() {
           </table>
         </div>
 
-        {/* Mobile View Card List */}
-        <div className="block md:hidden divide-y divide-gray-100 bg-white">
+        {/* Mobile View */}
+        <div className="block md:hidden divide-y divide-slate-100 bg-white">
           {filtered.map(tx => {
             const party = parties[tx.partyId];
             return (
               <div 
                 key={tx.id} 
                 onClick={() => setSelectedDetailTx(tx)}
-                className="p-3 hover:bg-gray-50/40 transition-colors flex items-center justify-between gap-3 text-sm cursor-pointer"
+                className="p-3.5 hover:bg-slate-50 flex items-center justify-between gap-3 cursor-pointer"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  {/* Compact Date Badge */}
-                  <div className="flex flex-col items-center justify-center bg-gray-50 text-gray-500 rounded p-1 min-w-[38px] h-[38px] text-center border border-gray-100 shrink-0">
-                    <span className="text-[8px] font-bold uppercase leading-none">{format(new Date(tx.timestamp), 'MMM')}</span>
-                    <span className="text-xs font-extrabold text-gray-800 leading-tight mt-0.5">{format(new Date(tx.timestamp), 'dd')}</span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono">
+                    <span>{format(new Date(tx.timestamp), 'dd MMM, HH:mm')}</span>
+                    {tx.invoiceNo && <span className="text-blue-700 bg-blue-50 px-1 rounded">#{tx.invoiceNo}</span>}
                   </div>
-                  
-                  {/* Party & Info */}
-                  <div className="min-w-0">
-                    <h4 className="font-semibold text-gray-950 text-xs sm:text-sm truncate">{party?.name || 'Unknown'}</h4>
-                    <p className="text-[11px] text-gray-500 truncate mt-0.5 flex items-center gap-1.5">
-                      <span className="truncate">{tx.notes || 'No notes'}</span>
-                      {tx.invoiceNo && <span className="font-mono text-gray-400">({tx.invoiceNo})</span>}
-                    </p>
-                  </div>
+                  <h4 className="font-bold text-slate-900 text-xs sm:text-sm mt-0.5 truncate">
+                    {party?.name || 'Unknown'}
+                  </h4>
+                  <p className="text-[11px] text-slate-500 truncate">{tx.notes || 'General entry'}</p>
                 </div>
 
-                {/* Amount & Quick Actions */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="text-right">
-                    <span className={`text-[8px] sm:text-[9px] uppercase font-bold tracking-wider leading-none block mb-0.5 ${tx.type === 'DEBIT' ? 'text-red-500' : 'text-emerald-500'}`}>
-                      {tx.type === 'DEBIT' ? 'Debit (Dr)' : 'Credit (Cr)'}
-                    </span>
-                    <div className={`font-extrabold text-xs sm:text-sm ${tx.type === 'DEBIT' ? 'text-red-600' : 'text-emerald-600'}`}>
-                      {tx.type === 'DEBIT' ? '-' : '+'}₹{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </div>
-                  </div>
-
-                  {/* Icon Actions with slightly larger touch target box */}
-                  {currentUser?.isAdmin && (
-                    <div className="flex items-center gap-0.5 border-l pl-2 border-gray-150">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletingTx(tx);
-                          setShowDeleteConfirm(true);
-                        }}
-                        className="text-gray-400 hover:text-red-600 p-2 rounded-md hover:bg-red-50 active:bg-red-100 transition-colors"
-                        title="Delete Transaction"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  )}
+                <div className="text-right shrink-0">
+                  <AmountDisplay 
+                    amount={tx.amount} 
+                    type={tx.type} 
+                    showDrCr={true} 
+                    size="sm" 
+                  />
                 </div>
               </div>
             );
           })}
-          {filtered.length === 0 && (
-            <div className="p-8 text-center text-sm text-gray-500 bg-white">
-              No transactions loaded matching current filters.
-            </div>
-          )}
         </div>
 
-        {/* Load More Trigger */}
+        {/* Load More Button */}
         {hasMore && (
-          <div className="p-4 border-t border-gray-50 bg-gray-50/10 flex justify-center">
+          <div className="p-4 border-t border-slate-100 bg-slate-50/60 flex justify-center">
             <button
               onClick={() => setDisplayCount(prev => prev + BATCH_SIZE)}
-              className="flex items-center px-4 py-2 text-xs font-semibold text-sky-600 hover:text-sky-800 transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-lg shadow-xs transition-colors"
             >
-              Load Older Transactions
-              <ArrowRight size={14} className="ml-1" />
+              Load Older Vouchers ({filteredDisplay.length - displayCount} remaining)
+              <ArrowRight size={14} className="ml-1.5 text-slate-400" />
             </button>
           </div>
         )}
-      </div>
+      </Card>
 
+      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && deletingTx && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-gray-100">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="font-semibold text-lg text-red-600 flex items-center gap-2">
-                <Trash2 size={20} />
-                Delete Entry
-              </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden p-6 space-y-4">
+            <h3 className="font-bold text-rose-600 text-base flex items-center gap-2">
+              <Trash2 size={18} />
+              Delete Ledger Voucher
+            </h3>
+            <p className="text-xs text-slate-600">
+              Are you sure you want to delete this voucher from the ledger? All outstanding balances will be updated.
+            </p>
+            
+            <div className="space-y-1.5 pt-1">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Admin Password</label>
+              <input
+                type="password"
+                placeholder="Enter admin password"
+                value={deletePassword}
+                onChange={e => { setDeletePassword(e.target.value); setDeletePasswordError(''); }}
+                className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-xs font-mono focus:border-rose-600"
+              />
+              {deletePasswordError && (
+                <p className="text-xs text-rose-600 font-semibold mt-1">{deletePasswordError}</p>
+              )}
+            </div>
+
+            <div className="pt-2 flex justify-end gap-2">
               <button 
                 type="button" 
-                onClick={() => { setShowDeleteConfirm(false); setDeletingTx(null); setDeletePassword(''); setDeletePasswordError(''); }} 
-                className="text-gray-400 hover:text-gray-600 font-bold text-xl"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-gray-600 text-sm leading-relaxed">
-                Are you sure you want to delete this transaction entry? This action is irreversible. All related calculations, party outstanding dues, and daily logs will be automatically recalculated.
-              </p>
-              
-              <div className="bg-gray-50 p-4 rounded-lg space-y-2 border border-gray-100 text-sm">
-                <div className="flex justify-between text-gray-500">
-                  <span>Party:</span>
-                  <span className="font-medium text-gray-900">{parties[deletingTx.partyId]?.name || 'Unknown'}</span>
-                </div>
-                <div className="flex justify-between text-gray-500">
-                  <span>Type:</span>
-                  <span className={`font-semibold ${deletingTx.type === 'DEBIT' ? 'text-red-600' : 'text-green-600'}`}>
-                    {deletingTx.type}
-                  </span>
-                </div>
-                <div className="flex justify-between text-gray-500">
-                  <span>Amount:</span>
-                  <span className="font-bold text-gray-900">₹{deletingTx.amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                </div>
-                {deletingTx.notes && (
-                  <div className="flex justify-between text-gray-500">
-                    <span>Notes:</span>
-                    <span className="font-medium text-gray-900 max-w-[200px] truncate">{deletingTx.notes}</span>
-                  </div>
-                )}
-                {deletingTx.invoiceNo && (
-                  <div className="flex justify-between text-gray-500">
-                    <span>Reference:</span>
-                    <span className="font-mono text-gray-900">{deletingTx.invoiceNo}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-1.5 pt-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500">
-                  Admin Password
-                </label>
-                <input
-                  type="password"
-                  placeholder="Enter Admin Password to confirm"
-                  value={deletePassword}
-                  onChange={(e) => {
-                    setDeletePassword(e.target.value);
-                    setDeletePasswordError('');
-                  }}
-                  className="w-full px-3 py-2 border border-gray-250 rounded-md focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 text-sm"
-                />
-                {deletePasswordError && (
-                  <p className="text-xs text-red-600 font-semibold mt-0.5">
-                    {deletePasswordError}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="p-4 bg-gray-50 border-t flex justify-end space-x-2">
-              <button
-                type="button"
-                onClick={() => { setShowDeleteConfirm(false); setDeletingTx(null); setDeletePassword(''); setDeletePasswordError(''); }}
-                className="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-50 font-medium text-sm transition-all"
-                disabled={isDeleting}
+                onClick={() => { setShowDeleteConfirm(false); setDeletingTx(null); setDeletePassword(''); }} 
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={handleDeleteTx}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md font-medium text-sm transition-all flex items-center justify-center"
-                disabled={isDeleting}
+              <button 
+                type="button" 
+                onClick={handleDeleteTx} 
+                disabled={isDeleting} 
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-xs"
               >
-                {isDeleting ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin mr-2" />
-                    Deleting...
-                  </>
-                ) : (
-                  'Yes, Delete Entry'
-                )}
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
               </button>
             </div>
           </div>
         </div>
       )}
-      {receiptTx && (
-        <ThermalReceiptModal
-          isOpen={true}
-          onClose={() => setReceiptTx(null)}
-          transaction={receiptTx}
-          partyName={parties[receiptTx.partyId]?.name || 'Unknown'}
-          partyPhone={parties[receiptTx.partyId]?.phone}
-          ledgerName={activeLedger?.name || 'Ledger'}
-          isPurchaseStyle={activeLedger?.type === 'PURCHASE' || activeLedger?.type === 'LIABILITY' || activeLedger?.type === 'CAPITAL'}
-        />
-      )}
 
-      {/* Transaction Detail Popup Modal */}
+      {/* Transaction Detail Popup */}
       <TransactionDetailModal
         isOpen={selectedDetailTx !== null}
         onClose={() => setSelectedDetailTx(null)}
