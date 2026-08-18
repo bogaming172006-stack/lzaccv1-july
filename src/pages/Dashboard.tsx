@@ -310,7 +310,7 @@ export default function Dashboard() {
                       maximumFractionDigits: 2
                     })}
                   </span>
-                  <span className="ml-1 sm:ml-2.5 text-[8px] min-[400px]:text-[9px] sm:text-xs font-normal sm:font-semibold uppercase px-1.5 py-0.5 rounded bg-white/20 text-white border border-white/30 tracking-wide">
+                  <span className="ml-1 sm:ml-2 text-[10px] min-[400px]:text-xs sm:text-lg font-normal sm:font-semibold uppercase text-blue-200">
                     DR
                   </span>
                 </span>
