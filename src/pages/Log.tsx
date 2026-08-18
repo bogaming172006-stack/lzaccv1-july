@@ -180,11 +180,10 @@ export default function Log() {
   const hasMore = displayCount < filteredDisplay.length;
 
   return (
-    <div className="p-2.5 min-[400px]:p-3.5 sm:p-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-2.5 sm:space-y-6">
+    <div className="p-2 min-[400px]:p-3 sm:p-8 pt-1 min-[400px]:pt-1.5 sm:pt-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-2 sm:space-y-6">
       {/* Page Header */}
       <PageHeader
         title={activeLedger.type === 'PURCHASE' ? "Purchase Day Log" : "Day Log"}
-        subtitle={`Chronological transaction register and activity log for ${activeLedger.name}`}
       />
 
       {/* Filter Totals Metric Cards: Debit first, then Credit side-by-side */}
@@ -192,7 +191,6 @@ export default function Log() {
         <StatCard
           title="Period Debit (Dr)"
           value={<AmountDisplay amount={totalDebit} type="DEBIT" size="sm" />}
-          subtitle="Debits in scope"
           icon={TrendingDown}
           iconColor="text-rose-600"
           iconBg="bg-rose-50"
@@ -202,7 +200,6 @@ export default function Log() {
         <StatCard
           title="Period Credit (Cr)"
           value={<AmountDisplay amount={totalCredit} type="CREDIT" size="sm" />}
-          subtitle="Credits in scope"
           icon={TrendingUp}
           iconColor="text-emerald-600"
           iconBg="bg-emerald-50"

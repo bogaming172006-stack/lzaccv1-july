@@ -598,54 +598,53 @@ export default function MasterEntry() {
   if (!activeLedger) return <div className="p-8 text-center text-slate-500 font-medium">Please select a ledger.</div>;
 
   return (
-    <div className="p-3 min-[400px]:p-4 sm:p-8 max-w-3xl mx-auto w-full pb-20 sm:pb-8 space-y-3.5 sm:space-y-6">
+    <div className="p-2 min-[400px]:p-3 sm:p-8 pt-1 min-[400px]:pt-1.5 sm:pt-8 max-w-3xl mx-auto w-full pb-20 sm:pb-8 space-y-2 sm:space-y-6">
       {/* Page Header */}
       <PageHeader
         title={activeLedger.type === 'PURCHASE' ? "Purchase Voucher Entry" : "Journal Voucher Entry"}
-        subtitle={`Fast-post general ledger transactions to ${activeLedger.name}`}
       />
 
       {/* Main Voucher Entry Card */}
       <Card>
-        <div className="p-3.5 sm:p-6">
-          <form onSubmit={handlePreSubmit} className="space-y-3.5 sm:space-y-5">
+        <div className="p-2.5 min-[400px]:p-3.5 sm:p-6">
+          <form onSubmit={handlePreSubmit} className="space-y-2.5 sm:space-y-5">
             {/* Voucher Type & Invoice/Ref Number */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
               <div>
-                <label className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 mb-1 sm:mb-1.5 flex items-center justify-between">
+                <label className="block text-[10px] sm:text-xs font-normal sm:font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center justify-between">
                   <span>Voucher Type</span>
-                  <span className="text-[10px] text-slate-400 font-normal">Press F2 to toggle</span>
+                  <span className="text-[9px] sm:text-[10px] text-slate-400 font-normal hidden min-[400px]:inline">Press F2 to toggle</span>
                 </label>
-                <div className="grid grid-cols-2 gap-1.5 sm:gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <div className="grid grid-cols-2 gap-1 sm:gap-2 bg-slate-100 p-0.5 sm:p-1 rounded-lg sm:rounded-xl border border-slate-200">
                   <button
                     type="button"
                     onClick={() => handleTypeChange('DEBIT')}
-                    className={`py-1.5 sm:py-2 px-2.5 sm:px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-1.5 ${
+                    className={`py-1.5 sm:py-2 px-2 sm:px-3 text-[11px] sm:text-xs font-normal sm:font-bold rounded-md sm:rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-1.5 ${
                       type === 'DEBIT' 
-                        ? 'bg-rose-600 text-white shadow-2xs' 
+                        ? 'bg-rose-600 text-white shadow-2xs font-medium sm:font-bold' 
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <Minus size={13} />
+                    <Minus size={12} />
                     Debit (Dr)
                   </button>
                   <button
                     type="button"
                     onClick={() => handleTypeChange('CREDIT')}
-                    className={`py-1.5 sm:py-2 px-2.5 sm:px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-1.5 ${
+                    className={`py-1.5 sm:py-2 px-2 sm:px-3 text-[11px] sm:text-xs font-normal sm:font-bold rounded-md sm:rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-1.5 ${
                       type === 'CREDIT' 
-                        ? 'bg-emerald-600 text-white shadow-2xs' 
+                        ? 'bg-emerald-600 text-white shadow-2xs font-medium sm:font-bold' 
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <Plus size={13} />
+                    <Plus size={12} />
                     Credit (Cr)
                   </button>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 mb-1 sm:mb-1.5">
+                <label className="block text-[10px] sm:text-xs font-normal sm:font-bold uppercase tracking-wider text-slate-500 mb-1">
                   {isSaleLedger ? 'Invoice Number' : 'Reference / Bill No.'}
                 </label>
                 <div className="relative">
@@ -656,12 +655,12 @@ export default function MasterEntry() {
                     onKeyDown={handleInvoiceKeyDown}
                     onBlur={handleInvoiceBlur}
                     onChange={e => { setInvoiceNo(e.target.value.toLowerCase()); setPartyLockedByInvoice(false); setLockedInvoiceDetails(null); }}
-                    className="w-full px-3 py-1.5 sm:px-3.5 sm:py-2 bg-white border border-slate-300 rounded-lg focus:border-blue-600 text-xs sm:text-sm font-mono font-semibold text-slate-900 placeholder:text-slate-400"
+                    className="w-full px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-white border border-slate-300 rounded-lg focus:border-blue-600 text-[11.5px] sm:text-sm font-mono font-normal sm:font-semibold text-slate-900 placeholder:text-slate-400"
                     placeholder="e.g. 1045 or INV-009"
                   />
                   {isCheckingInvoice && (
-                    <div className="absolute right-3 top-2 flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-blue-600 border-t-transparent"></div>
+                    <div className="absolute right-2.5 top-2 flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-600 border-t-transparent"></div>
                     </div>
                   )}
                 </div>
@@ -670,21 +669,21 @@ export default function MasterEntry() {
 
             {/* Party Selection Section */}
             <div className="space-y-1">
-              <label className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700">
+              <label className="block text-[10px] sm:text-xs font-normal sm:font-bold uppercase tracking-wider text-slate-500">
                 Account Party <span className="text-rose-500">*</span>
               </label>
 
               {partyLockedByInvoice && selectedParty ? (
-                <div className="p-3 border rounded-xl border-blue-200 bg-blue-50/50 flex flex-col space-y-1">
+                <div className="p-2 sm:p-3 border rounded-lg sm:rounded-xl border-blue-200 bg-blue-50/50 flex flex-col space-y-1">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="font-bold text-slate-900 text-xs sm:text-sm">{selectedParty.name}</span>
-                      <span className="text-slate-500 text-[11px] font-mono ml-2">{selectedParty.phone || 'No phone'}</span>
+                      <span className="font-normal sm:font-bold text-slate-900 text-[11.5px] sm:text-sm">{selectedParty.name}</span>
+                      <span className="text-slate-500 text-[10px] sm:text-[11px] font-mono ml-2">{selectedParty.phone || 'No phone'}</span>
                     </div>
-                    <Badge variant="navy" size="xs">Locked by Invoice</Badge>
+                    <Badge variant="navy" size="xs">Locked</Badge>
                   </div>
                   {lockedInvoiceDetails && (
-                    <div className="text-[11px] text-blue-700 font-semibold flex justify-between pt-1 border-t border-blue-100">
+                    <div className="text-[10px] sm:text-[11px] text-blue-700 font-normal flex justify-between pt-1 border-t border-blue-100">
                       <span>Prior {lockedInvoiceDetails.type}: ₹{lockedInvoiceDetails.amount?.toFixed(2)}</span>
                       <span>Date: {lockedInvoiceDetails.date ? new Date(lockedInvoiceDetails.date).toLocaleDateString() : '-'}</span>
                     </div>
@@ -692,7 +691,7 @@ export default function MasterEntry() {
                 </div>
               ) : !selectedParty ? (
                 <div className="relative">
-                  <Search className="absolute left-3 top-2 text-slate-400" size={14} />
+                  <Search className="absolute left-2.5 top-2 text-slate-400" size={13} />
                   <input
                     type="text"
                     ref={partySearchRef}
@@ -701,11 +700,11 @@ export default function MasterEntry() {
                     onChange={e => setPartySearch(e.target.value)}
                     onKeyDown={handlePartySearchKeyDown}
                     disabled={isSaleLedger && !invoiceNo.trim()}
-                    className="w-full pl-8.5 pr-3 py-1.5 sm:py-2 bg-white border border-slate-300 rounded-lg focus:border-blue-600 text-xs sm:text-sm font-medium disabled:bg-slate-50 disabled:cursor-not-allowed"
+                    className="w-full pl-7.5 pr-2.5 py-1.5 sm:py-2 bg-white border border-slate-300 rounded-lg focus:border-blue-600 text-[11.5px] sm:text-sm font-normal disabled:bg-slate-50 disabled:cursor-not-allowed placeholder:text-slate-400"
                   />
                   
                   {partySearch && (
-                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto divide-y divide-slate-100">
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg sm:rounded-xl shadow-xl max-h-52 overflow-y-auto divide-y divide-slate-100">
                       {filteredParties.length > 0 ? (
                         filteredParties.map((p, idx) => (
                           <button
@@ -716,16 +715,16 @@ export default function MasterEntry() {
                               setPartySearch(''); 
                               setTimeout(() => amountRef.current?.focus(), 10);
                             }}
-                            className={`w-full text-left px-3.5 py-2 flex justify-between items-center transition-all ${
-                              idx === searchSelectedIndex ? 'bg-blue-50 border-l-4 border-blue-600 pl-2.5' : 'hover:bg-slate-50'
+                            className={`w-full text-left px-3 py-1.5 sm:py-2 flex justify-between items-center transition-all ${
+                              idx === searchSelectedIndex ? 'bg-blue-50 border-l-4 border-blue-600 pl-2' : 'hover:bg-slate-50'
                             }`}
                           >
-                            <span className="font-bold text-slate-900 text-xs sm:text-sm">{p.name}</span>
-                            <span className="text-slate-500 font-mono text-[11px]">{p.phone}</span>
+                            <span className="font-normal sm:font-bold text-slate-900 text-[11.5px] sm:text-sm">{p.name}</span>
+                            <span className="text-slate-500 font-mono text-[10px] sm:text-[11px]">{p.phone}</span>
                           </button>
                         ))
                       ) : (
-                        <div className="px-3.5 py-2.5 text-slate-400 text-xs font-semibold text-center">
+                        <div className="px-3 py-2 text-slate-400 text-[11px] font-normal text-center">
                           No matching account parties found.
                         </div>
                       )}
@@ -733,10 +732,10 @@ export default function MasterEntry() {
                   )}
                 </div>
               ) : (
-                <div className="flex items-center justify-between p-3 border border-slate-200 rounded-xl bg-slate-50">
+                <div className="flex items-center justify-between p-2 sm:p-3 border border-slate-200 rounded-lg sm:rounded-xl bg-slate-50">
                   <div>
-                    <div className="font-bold text-slate-900 text-xs sm:text-sm">{selectedParty.name}</div>
-                    <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
+                    <div className="font-normal sm:font-bold text-slate-900 text-[11.5px] sm:text-sm">{selectedParty.name}</div>
+                    <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5">
                       <span>Current Due:</span>
                       <AmountDisplay amount={selectedParty.currentDue} showDrCr={true} size="xs" />
                     </div>
@@ -744,7 +743,7 @@ export default function MasterEntry() {
                   <button
                     type="button"
                     onClick={() => { setSelectedParty(null); setTimeout(() => partySearchRef.current?.focus(), 10); }}
-                    className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-2xs transition-colors"
+                    className="text-[10.5px] sm:text-xs font-normal sm:font-bold text-blue-600 hover:text-blue-700 bg-white border border-slate-200 px-2 py-0.5 sm:py-1 rounded-md shadow-2xs transition-colors"
                   >
                     Change
                   </button>
@@ -754,7 +753,7 @@ export default function MasterEntry() {
 
             {/* Split Cash vs A/C Toggle */}
             {type === 'CREDIT' && (
-              <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="flex items-center gap-2 p-1.5 sm:p-2 bg-slate-50 rounded-lg border border-slate-200">
                 <input
                   type="checkbox"
                   id="masterSeparateCredit"
@@ -762,17 +761,17 @@ export default function MasterEntry() {
                   onChange={e => setSeparateCredit(e.target.checked)}
                   className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 cursor-pointer"
                 />
-                <label htmlFor="masterSeparateCredit" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
-                  Separate Cash & Bank Account Credit (F3)
+                <label htmlFor="masterSeparateCredit" className="text-[11px] sm:text-xs font-normal sm:font-bold text-slate-700 cursor-pointer select-none">
+                  Separate Cash & Bank Account Credit
                 </label>
               </div>
             )}
 
             {/* Amount Entry Fields */}
             {type === 'CREDIT' && separateCredit ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
                 <div>
-                  <label className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-emerald-700 mb-1">Cash Credit (₹)</label>
+                  <label className="block text-[10px] sm:text-xs font-normal sm:font-bold uppercase tracking-wider text-emerald-700 mb-1">Cash Credit (₹)</label>
                   <input
                     ref={cashAmountRef}
                     onKeyDown={handleCashAmountKeyDown}
@@ -787,12 +786,12 @@ export default function MasterEntry() {
                       setAmount(cVal + aVal > 0 ? (cVal + aVal).toString() : '');
                     }}
                     disabled={isSaleLedger && !invoiceNo.trim()}
-                    className="w-full px-3 py-1.5 sm:px-3.5 sm:py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm font-mono font-bold text-slate-900 focus:border-emerald-600"
+                    className="w-full px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm font-mono font-normal sm:font-bold text-slate-900 focus:border-emerald-600"
                     placeholder="0.00"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-blue-700 mb-1">Bank A/C Credit (₹)</label>
+                  <label className="block text-[10px] sm:text-xs font-normal sm:font-bold uppercase tracking-wider text-blue-700 mb-1">Bank A/C Credit (₹)</label>
                   <input
                     ref={acAmountRef}
                     onKeyDown={handleAcAmountKeyDown}
@@ -807,14 +806,14 @@ export default function MasterEntry() {
                       setAmount(cVal + aVal > 0 ? (cVal + aVal).toString() : '');
                     }}
                     disabled={isSaleLedger && !invoiceNo.trim()}
-                    className="w-full px-3 py-1.5 sm:px-3.5 sm:py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm font-mono font-bold text-slate-900 focus:border-blue-600"
+                    className="w-full px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm font-mono font-normal sm:font-bold text-slate-900 focus:border-blue-600"
                     placeholder="0.00"
                   />
                 </div>
               </div>
             ) : (
               <div>
-                <label className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                <label className="block text-[10px] sm:text-xs font-normal sm:font-bold uppercase tracking-wider text-slate-500 mb-1">
                   Voucher Amount (₹) <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -826,7 +825,7 @@ export default function MasterEntry() {
                   value={amount}
                   onChange={e => setAmount(e.target.value)}
                   disabled={isSaleLedger && !invoiceNo.trim()}
-                  className="w-full px-3 py-2 sm:px-3.5 sm:py-2.5 bg-white border border-slate-300 rounded-lg text-sm sm:text-base font-mono font-bold text-slate-900 focus:border-blue-600 placeholder:text-slate-400"
+                  className="w-full px-2.5 py-1.5 sm:px-3.5 sm:py-2.5 bg-white border border-slate-300 rounded-lg text-xs sm:text-base font-mono font-normal sm:font-bold text-slate-900 focus:border-blue-600 placeholder:text-slate-400"
                   placeholder="0.00"
                 />
               </div>
@@ -834,7 +833,7 @@ export default function MasterEntry() {
 
             {/* Particulars & Notes */}
             <div>
-              <label className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+              <label className="block text-[10px] sm:text-xs font-normal sm:font-bold uppercase tracking-wider text-slate-500 mb-1">
                 Particulars / Description
               </label>
               <textarea
@@ -843,18 +842,18 @@ export default function MasterEntry() {
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
                 disabled={isSaleLedger && !invoiceNo.trim()}
-                className="w-full px-3 py-1.5 sm:px-3.5 sm:py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm text-slate-900 focus:border-blue-600"
+                className="w-full px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-white border border-slate-300 rounded-lg text-[11px] sm:text-sm text-slate-900 font-normal focus:border-blue-600"
                 rows={2}
                 placeholder="e.g. Being goods supplied as per delivery challan / Payment via RTGS"
               />
             </div>
 
             {/* Submission Action */}
-            <div className="pt-3 border-t border-slate-100 flex justify-end">
+            <div className="pt-2 sm:pt-3 border-t border-slate-100 flex justify-end">
               <button
                 type="submit"
                 disabled={isSubmitting || (isSaleLedger && !invoiceNo.trim())}
-                className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11.5px] sm:text-xs font-normal sm:font-bold shadow-2xs transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
                 Review Voucher & Post
                 <ArrowRight size={13} />
