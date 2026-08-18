@@ -180,48 +180,50 @@ export default function Log() {
   const hasMore = displayCount < filteredDisplay.length;
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 sm:pb-8 space-y-6">
+    <div className="p-2.5 min-[400px]:p-3.5 sm:p-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-2.5 sm:space-y-6">
       {/* Page Header */}
       <PageHeader
         title={activeLedger.type === 'PURCHASE' ? "Purchase Day Log" : "Day Log"}
         subtitle={`Chronological transaction register and activity log for ${activeLedger.name}`}
       />
 
-      {/* Filter Totals Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Filter Totals Metric Cards: Debit first, then Credit side-by-side */}
+      <div className="grid grid-cols-2 gap-1.5 sm:gap-4">
         <StatCard
           title="Period Debit (Dr)"
-          value={<AmountDisplay amount={totalDebit} type="DEBIT" size="xl" />}
-          subtitle="Total debits in filtered scope"
+          value={<AmountDisplay amount={totalDebit} type="DEBIT" size="sm" />}
+          subtitle="Debits in scope"
           icon={TrendingDown}
           iconColor="text-rose-600"
           iconBg="bg-rose-50"
+          variant="debit"
         />
 
         <StatCard
           title="Period Credit (Cr)"
-          value={<AmountDisplay amount={totalCredit} type="CREDIT" size="xl" />}
-          subtitle="Total credits in filtered scope"
+          value={<AmountDisplay amount={totalCredit} type="CREDIT" size="sm" />}
+          subtitle="Credits in scope"
           icon={TrendingUp}
           iconColor="text-emerald-600"
           iconBg="bg-emerald-50"
+          variant="credit"
         />
       </div>
 
       {/* Main Journal Table Card */}
       <Card>
         {/* Filter Controls Bar */}
-        <div className="p-4 border-b border-slate-100 bg-slate-50/60 space-y-3">
-          <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+        <div className="p-2 sm:p-4 border-b border-slate-100 bg-slate-50/60 space-y-2 sm:space-y-3">
+          <div className="flex flex-col lg:flex-row gap-2 sm:gap-3 items-stretch lg:items-center justify-between">
             {/* Segmented Type Filter */}
-            <div className="flex bg-slate-200/70 p-1 rounded-lg shrink-0">
+            <div className="flex bg-slate-200/70 p-0.5 sm:p-1 rounded-lg shrink-0">
               {(['ALL', 'DEBIT', 'CREDIT'] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setFilter(tab)}
-                  className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
+                  className={`flex-1 sm:flex-initial px-2.5 sm:px-4 py-1 sm:py-1.5 text-[11px] sm:text-xs font-normal sm:font-bold rounded-md transition-all ${
                     filter === tab 
-                      ? 'bg-white text-slate-900 shadow-xs' 
+                      ? 'bg-white text-slate-900 shadow-2xs font-medium sm:font-bold' 
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
@@ -232,33 +234,33 @@ export default function Log() {
 
             {/* Search Input */}
             <div className="relative w-full lg:w-80">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input 
                 type="text" 
                 placeholder="Search party name, invoice #, notes..." 
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:border-blue-600"
+                className="w-full pl-7 pr-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-lg text-[11px] sm:text-xs text-slate-900 font-normal focus:border-blue-600 placeholder:text-slate-400"
               />
             </div>
           </div>
 
           {/* Date Pickers */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <div className="flex items-center bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs">
-              <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mr-2">From:</span>
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-0.5">
+            <div className="flex items-center bg-white border border-slate-300 rounded-lg px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10.5px] sm:text-xs">
+              <span className="text-slate-400 font-normal sm:font-bold uppercase tracking-wider text-[9px] sm:text-[10px] mr-1">From:</span>
               <input 
                 type="date" 
-                className="font-mono text-slate-700 bg-transparent focus:outline-none"
+                className="font-mono text-slate-700 bg-transparent focus:outline-none text-[10.5px] sm:text-xs font-normal"
                 value={startDate}
                 onChange={e => setStartDate(e.target.value)}
               />
             </div>
-            <div className="flex items-center bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs">
-              <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mr-2">To:</span>
+            <div className="flex items-center bg-white border border-slate-300 rounded-lg px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10.5px] sm:text-xs">
+              <span className="text-slate-400 font-normal sm:font-bold uppercase tracking-wider text-[9px] sm:text-[10px] mr-1">To:</span>
               <input 
                 type="date" 
-                className="font-mono text-slate-700 bg-transparent focus:outline-none"
+                className="font-mono text-slate-700 bg-transparent focus:outline-none text-[10.5px] sm:text-xs font-normal"
                 value={endDate}
                 onChange={e => setEndDate(e.target.value)}
               />
@@ -266,7 +268,7 @@ export default function Log() {
             {(startDate || endDate) && (
               <button 
                 onClick={() => { setStartDate(''); setEndDate(''); }}
-                className="text-xs text-slate-600 hover:text-slate-900 font-bold px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                className="text-[10px] sm:text-xs text-slate-600 hover:text-slate-900 font-normal px-2 py-0.5 sm:py-1 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
               >
                 Clear Dates
               </button>
@@ -367,7 +369,7 @@ export default function Log() {
           </table>
         </div>
 
-        {/* Mobile View */}
+        {/* Mobile View: High Density Compact List */}
         <div className="block md:hidden divide-y divide-slate-100 bg-white">
           {filtered.map(tx => {
             const party = parties[tx.partyId];
@@ -375,26 +377,24 @@ export default function Log() {
               <div 
                 key={tx.id} 
                 onClick={() => setSelectedDetailTx(tx)}
-                className="p-3.5 hover:bg-slate-50 flex items-center justify-between gap-3 cursor-pointer"
+                className="p-2 min-[400px]:p-2.5 hover:bg-slate-50 flex items-center justify-between gap-2 cursor-pointer transition-colors"
               >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1 text-[9px] min-[400px]:text-[9.5px] text-slate-400 font-mono">
                     <span>{format(new Date(tx.timestamp), 'dd MMM, HH:mm')}</span>
-                    {tx.invoiceNo && <span className="text-blue-700 bg-blue-50 px-1 rounded">#{tx.invoiceNo}</span>}
+                    {tx.invoiceNo && <span className="text-blue-600 bg-blue-50/80 px-1 py-0.2 rounded font-normal">#{tx.invoiceNo}</span>}
                   </div>
-                  <h4 className="font-bold text-slate-900 text-xs sm:text-sm mt-0.5 truncate">
+                  <h4 className="font-normal text-slate-800 text-[11.5px] min-[400px]:text-xs mt-0.5 truncate">
                     {party?.name || 'Unknown'}
                   </h4>
-                  <p className="text-[11px] text-slate-500 truncate">{tx.notes || 'General entry'}</p>
+                  <p className="text-[9.5px] min-[400px]:text-[10px] text-slate-400 truncate mt-0.5 font-normal">{tx.notes || 'General entry'}</p>
                 </div>
 
                 <div className="text-right shrink-0">
-                  <AmountDisplay 
-                    amount={tx.amount} 
-                    type={tx.type} 
-                    showDrCr={true} 
-                    size="sm" 
-                  />
+                  <span className={`text-[11.5px] min-[400px]:text-xs font-normal tabular-nums font-sans ${tx.type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    <span className="text-[9px] ml-0.5 uppercase opacity-90">{tx.type === 'DEBIT' ? 'Dr' : 'Cr'}</span>
+                  </span>
                 </div>
               </div>
             );

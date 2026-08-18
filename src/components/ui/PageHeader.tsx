@@ -25,9 +25,9 @@ export default function PageHeader({
   className = ''
 }: PageHeaderProps) {
   return (
-    <div className={`mb-6 sm:mb-8 ${className}`}>
+    <div className={`mb-4 sm:mb-8 ${className}`}>
       {breadcrumbs && breadcrumbs.length > 0 && (
-        <nav className="flex items-center space-x-1.5 text-xs text-slate-700 mb-2 font-medium">
+        <nav className="flex items-center space-x-1.5 text-xs text-slate-700 mb-1.5 sm:mb-2 font-medium">
           {breadcrumbs.map((item, idx) => (
             <React.Fragment key={idx}>
               {idx > 0 && <ChevronRight size={13} className="text-slate-400" />}
@@ -47,23 +47,23 @@ export default function PageHeader({
         </nav>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-sans">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <h1 className="text-base min-[400px]:text-lg sm:text-3xl font-semibold sm:font-extrabold text-slate-900 tracking-tight font-sans">
               {title}
             </h1>
             {badge}
           </div>
           {subtitle && (
-            <p className="text-sm text-slate-700 mt-1 font-normal max-w-2xl">
+            <p className="text-[10px] sm:text-sm text-slate-500 mt-0.5 sm:mt-1 font-normal max-w-2xl">
               {subtitle}
             </p>
           )}
         </div>
 
         {actions && (
-          <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap shrink-0">
             {actions}
           </div>
         )}

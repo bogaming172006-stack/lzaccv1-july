@@ -160,7 +160,7 @@ export default function Activities() {
   const hasMore = displayCount < filteredDisplay.length;
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 sm:pb-8 space-y-6">
+    <div className="p-3 min-[400px]:p-4 sm:p-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-3.5 sm:space-y-6">
       {/* Header */}
       <PageHeader
         title="Overall Transaction"
@@ -169,13 +169,13 @@ export default function Activities() {
 
       {/* Ledger Portfolio Cards */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
             Ledger Portfolio Summaries
           </h2>
-          <span className="text-xs font-medium text-slate-500">{ledgers.length} Active General Ledgers</span>
+          <span className="text-[11px] sm:text-xs font-medium text-slate-500">{ledgers.length} Active General Ledgers</span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
           {ledgerSummaries.map(({ ledger, debitSum, creditSum, netBalance, count }) => (
             <Card key={ledger.id} className="p-4 sm:p-5 hover:border-slate-300 transition-all">
               <div className="flex items-start justify-between mb-3">
@@ -393,6 +393,44 @@ export default function Activities() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View: High Density Compact List */}
+        <div className="block md:hidden divide-y divide-slate-100 bg-white">
+          {filtered.map(tx => {
+            const party = parties[tx.partyId];
+            const ledger = ledgers.find(l => l.id === tx.ledgerId);
+            return (
+              <div 
+                key={tx.id} 
+                className="p-2.5 sm:p-3 hover:bg-slate-50 flex items-center justify-between gap-2.5 transition-colors"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 text-[10.5px] text-slate-400 font-mono">
+                    <span>{format(new Date(tx.timestamp), 'dd MMM, HH:mm')}</span>
+                    {ledger && <span className="bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-semibold">{ledger.name}</span>}
+                    {tx.invoiceNo && <span className="text-blue-700 bg-blue-50 px-1 py-0.2 rounded font-semibold">#{tx.invoiceNo}</span>}
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-xs mt-0.5 truncate">
+                    {party?.name || 'Unknown Party'}
+                  </h4>
+                  <p className="text-[10.5px] text-slate-500 truncate mt-0.5">{tx.notes || 'General entry'}</p>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <span className={`font-bold font-mono text-xs ${tx.type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {tx.type === 'DEBIT' ? 'Dr ' : 'Cr '}₹{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+
+          {filtered.length === 0 && (
+            <div className="py-10 text-center text-xs font-semibold text-slate-400">
+              No transactions matching current filters across ledgers.
+            </div>
+          )}
         </div>
 
         {/* Load More Button */}

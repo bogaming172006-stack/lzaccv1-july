@@ -897,64 +897,84 @@ export default function PartyDetail() {
   const totalCreditSum = transactions.filter(t => t.type === 'CREDIT').reduce((acc, t) => acc + t.amount, 0);
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 sm:pb-8 space-y-6">
+    <div className="p-3 min-[400px]:p-4 sm:p-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-3 sm:space-y-6">
       
       {/* Top Breadcrumb & Actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <button 
           onClick={() => navigate('/parties')} 
           className="inline-flex items-center text-xs font-bold text-slate-600 hover:text-slate-900 transition-colors"
         >
-          <ArrowLeft size={14} className="mr-1.5" /> Back to Parties Directory
+          <ArrowLeft size={14} className="mr-1 sm:mr-1.5" /> Back to Parties
         </button>
 
-        {currentUser?.isAdmin && (
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             type="button"
-            onClick={handleOpenEditParty}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold shadow-xs transition-colors"
+            onClick={() => { setTxAmount(''); setTxInvoiceNo(''); setTxNotes(''); setTxError(''); setShowTxModal('DEBIT'); }}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold shadow-2xs transition-colors"
           >
-            <Edit2 size={13} className="text-blue-600" />
-            Edit Profile
+            <Minus size={12} />
+            <span>Debit (Dr)</span>
           </button>
-        )}
+          <button
+            type="button"
+            onClick={() => { setTxAmount(''); setTxCashAmount(''); setTxAcAmount(''); setTxInvoiceNo(''); setTxNotes(''); setTxError(''); setShowTxModal('CREDIT'); }}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold shadow-2xs transition-colors"
+          >
+            <Plus size={12} />
+            <span>Credit (Cr)</span>
+          </button>
+
+          {currentUser?.isAdmin && (
+            <button
+              type="button"
+              onClick={handleOpenEditParty}
+              className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold shadow-2xs transition-colors"
+              title="Edit Profile"
+            >
+              <Edit2 size={12} className="text-blue-600" />
+              <span className="hidden sm:inline">Edit Profile</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Corporate Account Header Card */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200/90 p-5 sm:p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="flex items-start gap-4 min-w-0">
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xs border border-slate-200/90 p-3.5 sm:p-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-6">
+          <div className="flex items-start gap-3 sm:gap-4 min-w-0">
             {/* Square outline box avatar */}
-            <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 text-slate-900 flex items-center justify-center font-bold text-xl uppercase shrink-0 shadow-2xs">
+            <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-white border border-slate-200 text-slate-900 flex items-center justify-center font-bold text-base sm:text-xl uppercase shrink-0 shadow-2xs">
               {party.name.substring(0, 2).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">{party.name}</h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight truncate">{party.name}</h1>
                 {currentUser?.isAdmin && (
-                  <span className="px-2.5 py-0.5 rounded-md text-xs font-medium bg-emerald-50 text-emerald-600 border border-emerald-200/50">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-medium bg-emerald-50 text-emerald-600 border border-emerald-200/50">
                     {party.status || 'Active'}
                   </span>
                 )}
               </div>
               
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-600 mt-2">
+              <div className="flex flex-wrap items-center gap-x-3.5 sm:gap-x-5 gap-y-1 text-[11px] sm:text-xs text-slate-600 mt-1 sm:mt-2">
                 {party.phone && (
-                  <span className="flex items-center gap-1.5 font-medium text-slate-700">
-                    <Phone size={13} className="text-slate-400" />
+                  <span className="flex items-center gap-1 font-medium text-slate-700">
+                    <Phone size={12} className="text-slate-400" />
                     {party.phone}
                   </span>
                 )}
                 {party.email && (
-                  <span className="flex items-center gap-1.5 text-slate-600">
-                    <Mail size={13} className="text-slate-400" />
-                    {party.email}
+                  <span className="flex items-center gap-1 text-slate-600 truncate max-w-[180px]">
+                    <Mail size={12} className="text-slate-400 shrink-0" />
+                    <span className="truncate">{party.email}</span>
                   </span>
                 )}
                 {party.address && (
-                  <span className="flex items-center gap-1.5 text-slate-600">
-                    <MapPin size={13} className="text-slate-400" />
-                    {party.address}
+                  <span className="flex items-center gap-1 text-slate-600 truncate max-w-[200px]">
+                    <MapPin size={12} className="text-slate-400 shrink-0" />
+                    <span className="truncate">{party.address}</span>
                   </span>
                 )}
               </div>
@@ -962,15 +982,15 @@ export default function PartyDetail() {
           </div>
 
           {/* Current Ledger Balance Display */}
-          <div className="flex flex-col items-start lg:items-end pt-4 lg:pt-0 border-t lg:border-t-0 border-slate-100 shrink-0">
-            <span className="text-[11px] uppercase font-semibold tracking-wider text-slate-500 mb-1">
+          <div className="flex flex-col items-start lg:items-end pt-2.5 lg:pt-0 border-t lg:border-t-0 border-slate-100 shrink-0">
+            <span className="text-[10px] sm:text-[11px] uppercase font-semibold tracking-wider text-slate-500 mb-0.5 sm:mb-1">
               CURRENT OUTSTANDING BALANCE
             </span>
-            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight tabular-nums flex items-baseline gap-1.5 select-all">
+            <div className="text-xl sm:text-3xl font-extrabold tracking-tight tabular-nums flex items-baseline gap-1 select-all">
               <span className={party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-900"}>
                 ₹ {Math.abs(party.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-              <span className={`text-sm font-bold uppercase ${party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-500"}`}>
+              <span className={`text-xs sm:text-sm font-bold uppercase ${party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-500"}`}>
                 {party.currentDue > 0 ? 'DR' : party.currentDue < 0 ? 'CR' : ''}
               </span>
             </div>
@@ -979,51 +999,51 @@ export default function PartyDetail() {
       </div>
 
       {/* Account Financial Metric Cards (3 Clean Cards) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
         
         {/* Card 1: OPENING BALANCE */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between space-y-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 shadow-2xs flex flex-col justify-between space-y-1 sm:space-y-2">
+          <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500">
             OPENING BALANCE
           </span>
           <div>
-            <div className="text-xl sm:text-2xl font-bold tracking-tight text-rose-600 tabular-nums">
+            <div className="text-lg sm:text-2xl font-bold tracking-tight text-rose-600 tabular-nums">
               ₹ {Math.abs(party.openingBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               {party.openingBalance !== 0 && (
-                <span className="ml-1.5 text-xs font-bold uppercase text-rose-600">
+                <span className="ml-1 text-[10px] sm:text-xs font-bold uppercase text-rose-600">
                   {party.openingBalance >= 0 ? 'DR' : 'CR'}
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-400 mt-1">Initial ledger balance</p>
+            <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5 sm:mt-1">Initial ledger balance</p>
           </div>
         </div>
 
         {/* Card 2: TOTAL DEBIT (DR) */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between space-y-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 shadow-2xs flex flex-col justify-between space-y-1 sm:space-y-2">
+          <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500">
             TOTAL DEBIT (DR)
           </span>
           <div>
-            <div className="text-xl sm:text-2xl font-bold tracking-tight text-rose-600 tabular-nums">
+            <div className="text-lg sm:text-2xl font-bold tracking-tight text-rose-600 tabular-nums">
               ₹ {totalDebitSum.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5 sm:mt-1">
               {transactions.filter(t => t.type === 'DEBIT').length} debit {transactions.filter(t => t.type === 'DEBIT').length === 1 ? 'entry' : 'entries'}
             </p>
           </div>
         </div>
 
         {/* Card 3: TOTAL CREDIT (CR) */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between space-y-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-5 shadow-2xs flex flex-col justify-between space-y-1 sm:space-y-2">
+          <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500">
             TOTAL CREDIT (CR)
           </span>
           <div>
-            <div className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
+            <div className="text-lg sm:text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
               ₹ {totalCreditSum.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5 sm:mt-1">
               {transactions.filter(t => t.type === 'CREDIT').length} credit {transactions.filter(t => t.type === 'CREDIT').length === 1 ? 'entry' : 'entries'}
             </p>
           </div>
@@ -1032,17 +1052,17 @@ export default function PartyDetail() {
       </div>
 
       {/* Main Ledger Statement Table Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+      <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
         {/* Statement Toolbar */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
+        <div className="p-3 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-3 sm:gap-4 items-stretch lg:items-center justify-between">
           <div>
-            <h3 className="font-bold text-slate-900 text-base">Account Journal Statement</h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <h3 className="font-bold text-slate-900 text-sm sm:text-base">Account Journal Statement</h3>
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
               Showing 1 to {filteredTxs.length} of {transactions.length} entries
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5">
             <div className="relative flex-1 sm:w-64">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -1050,24 +1070,24 @@ export default function PartyDetail() {
                 placeholder="Search notes or invoice no..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#0055a5] transition-colors"
+                className="w-full pl-8 pr-3 py-1.5 sm:py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#0055a5] transition-colors"
               />
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
               <button 
                 onClick={() => setShowDownloadModal(true)} 
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-lg shadow-2xs transition-colors"
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-lg shadow-2xs transition-colors"
               >
-                <Download size={13} className="mr-1.5 text-slate-700" />
+                <Download size={13} className="mr-1 sm:mr-1.5 text-slate-700" />
                 Export PDF
               </button>
               <button 
                 onClick={() => setShowShareModal(true)} 
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-lg shadow-2xs transition-colors"
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-lg shadow-2xs transition-colors"
               >
-                <Share2 size={13} className="mr-1.5 text-slate-700" />
-                Share Statement
+                <Share2 size={13} className="mr-1 sm:mr-1.5 text-slate-700" />
+                Share
               </button>
             </div>
           </div>
@@ -1222,31 +1242,31 @@ export default function PartyDetail() {
           Total {txWithBalance.length + 1} entries
         </div>
 
-        {/* Mobile View Card List */}
+        {/* Mobile View Card List (High Density & Compact) */}
         <div className="block md:hidden divide-y divide-slate-100 bg-white">
-          <div className="p-3.5 bg-slate-50 flex items-center justify-between text-xs">
+          <div className="p-2.5 sm:p-3.5 bg-slate-50 flex items-center justify-between text-xs">
             <div>
-              <span className="font-bold text-slate-800 block">
+              <span className="font-bold text-slate-800 block text-xs">
                 {isFirstPageOfTransactions ? 'Opening Balance' : 'Balance Brought Forward'}
               </span>
               <span className="text-[10px] text-slate-400">Prior period ledger state</span>
             </div>
-            <AmountDisplay amount={pageOpeningBalance} showDrCr={true} size="sm" />
+            <AmountDisplay amount={pageOpeningBalance} showDrCr={true} size="xs" />
           </div>
 
           {txWithBalance.map((tx) => (
             <div 
               key={tx.id} 
               onClick={() => setSelectedDetailTx(tx)}
-              className="p-3.5 hover:bg-slate-50 flex items-center justify-between gap-3 cursor-pointer"
+              className="p-2.5 sm:p-3.5 hover:bg-slate-50 flex items-center justify-between gap-2.5 cursor-pointer transition-colors"
             >
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-mono">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500 font-mono">
                   <span>{format(new Date(tx.timestamp), 'dd MMM, HH:mm')}</span>
-                  {tx.invoiceNo && <span className="text-blue-700 bg-blue-50 px-1 rounded">#{tx.invoiceNo}</span>}
+                  {tx.invoiceNo && <span className="text-blue-700 bg-blue-50 px-1 py-0.2 rounded font-semibold">#{tx.invoiceNo}</span>}
                 </div>
                 <h4 className="font-bold text-slate-900 text-xs mt-0.5 truncate">{tx.notes || 'Voucher entry'}</h4>
-                <div className="mt-1">
+                <div className="mt-0.5">
                   <span className="text-[10px] text-slate-400 font-mono">
                     Bal: {tx.runningBalance && tx.runningBalance > 0 ? `-${tx.runningBalance.toFixed(2)}` : tx.runningBalance?.toFixed(2)}
                   </span>
@@ -1258,7 +1278,7 @@ export default function PartyDetail() {
                   amount={tx.amount} 
                   type={tx.type} 
                   showDrCr={true} 
-                  size="sm" 
+                  size="xs" 
                 />
               </div>
             </div>

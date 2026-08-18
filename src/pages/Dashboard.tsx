@@ -272,7 +272,7 @@ export default function Dashboard() {
   const creditColor = '#059669'; // Clear Green for Credit
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 sm:pb-8 space-y-6">
+    <div className="p-3 min-[400px]:p-4 sm:p-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-3.5 sm:space-y-6">
       
       {/* Page Header */}
       <PageHeader
@@ -283,57 +283,53 @@ export default function Dashboard() {
       {/* ========================================================================= */}
       {/* HERO FINANCIAL METRICS: BIG TOTAL OUTSTANDING + TODAY'S CREDIT & DEBIT   */}
       {/* ========================================================================= */}
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         
         {/* 1. Big Card: Total Party Outstanding - Exact Sapphire Blue Theme */}
-        <div className="bg-[#0055a5] rounded-2xl p-6 sm:p-8 text-white shadow-md relative overflow-hidden border border-[#004b91]">
+        <div className="bg-[#0055a5] rounded-xl sm:rounded-2xl p-4 sm:p-8 text-white shadow-sm sm:shadow-md relative overflow-hidden border border-[#004b91]">
           {/* Subtle Background Accent */}
           <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-2.5">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-md bg-white/20 text-white text-[11px] font-bold uppercase tracking-wider border border-white/20">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+            <div className="space-y-1.5 sm:space-y-2.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-white text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">
                   Total Outstanding
                 </span>
-                <span className="text-xs text-blue-100 font-medium">
+                <span className="text-[11px] sm:text-xs text-blue-100 font-medium">
                   • {totalDebtorsCount} {totalDebtorsCount === 1 ? 'party' : 'parties'} with balance dues
                 </span>
               </div>
 
-              {/* Big High-Impact Amount */}
-              <div className="pt-1">
-                <span className="text-3xl sm:text-5xl font-extrabold tracking-tight tabular-nums text-white flex items-baseline gap-1 select-all font-sans">
-                  <span className="text-2xl sm:text-4xl text-blue-100 font-normal">₹</span>
+              {/* High-Impact Amount */}
+              <div className="pt-0.5 sm:pt-1">
+                <span className="text-2xl min-[400px]:text-3xl sm:text-5xl font-extrabold tracking-tight tabular-nums text-white flex items-baseline gap-1 select-all font-sans flex-wrap">
+                  <span className="text-xl min-[400px]:text-2xl sm:text-4xl text-blue-100 font-normal">₹</span>
                   <span>
                     {totalOutstanding.toLocaleString('en-IN', {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2
                     })}
                   </span>
-                  <span className="ml-2.5 text-xs sm:text-sm font-bold uppercase px-2.5 py-1 rounded-md bg-[#ff2d55] text-white tracking-wide shadow-xs">
+                  <span className="ml-1.5 sm:ml-2.5 text-[10px] sm:text-sm font-bold uppercase px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md bg-[#ff2d55] text-white tracking-wide shadow-xs">
                     DR
                   </span>
                 </span>
               </div>
-
-              <p className="text-xs text-blue-100/90 font-medium">
-                Cumulative receivable balance dues across all active parties in {activeLedger.name}
-              </p>
             </div>
 
-            <div className="flex flex-row md:flex-col items-center md:items-end gap-3 shrink-0">
+            <div className="flex flex-row md:flex-col items-center md:items-end gap-2.5 sm:gap-3 shrink-0">
               <button
                 onClick={() => navigate('/parties')}
-                className="w-full sm:w-auto px-5 py-2.5 bg-white text-[#0055a5] hover:bg-blue-50 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 bg-white text-[#0055a5] hover:bg-blue-50 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
               >
-                <Users size={16} className="text-[#0055a5]" />
+                <Users size={15} className="text-[#0055a5]" />
                 <span>View All Parties ({parties.length})</span>
-                <ArrowRight size={14} className="text-[#0055a5] ml-0.5" />
+                <ArrowRight size={13} className="text-[#0055a5] ml-0.5" />
               </button>
 
               {totalAdvancePayables > 0 && (
-                <div className="text-[11px] text-white bg-white/15 px-3 py-1.5 rounded-lg border border-white/20 flex items-center gap-1.5">
+                <div className="text-[10.5px] sm:text-[11px] text-white flex items-center gap-1.5 px-1 py-0.5">
                   <span>Advance payables:</span>
                   <span className="font-bold text-emerald-300">
                     ₹{totalAdvancePayables.toLocaleString('en-IN', { minimumFractionDigits: 2 })} Cr
@@ -344,79 +340,79 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 2. Side-by-Side: Today's Credit & Today's Debit */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* 2. Side-by-Side: Today's Debit & Today's Credit (Debit first, Credit second) */}
+        <div className="grid grid-cols-2 gap-2 sm:gap-4">
           
-          {/* Card A: Todays Credit */}
-          <div className="bg-white rounded-xl border border-slate-200 border-l-4 border-l-emerald-500 p-5 shadow-xs hover:shadow-sm transition-all">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-600 font-sans">
-                    Todays Credit
+          {/* Card A: Todays Debit */}
+          <div className="bg-white rounded-xl border border-slate-200 border-l-4 border-l-rose-500 p-3 sm:p-5 shadow-2xs hover:shadow-xs transition-all">
+            <div className="flex items-start justify-between gap-1.5">
+              <div className="space-y-0.5 sm:space-y-1 min-w-0 flex-1">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-rose-500 shrink-0"></span>
+                  <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 font-sans truncate">
+                    Todays Debit
                   </p>
                 </div>
-                <div className="text-2xl sm:text-3xl font-extrabold text-emerald-600 tracking-tight font-sans select-all pt-0.5">
+                <div className="text-base sm:text-3xl font-extrabold text-rose-600 tracking-tight font-sans select-all pt-0.5">
                   <AmountDisplay 
-                    amount={todayCredit} 
-                    type="CREDIT" 
+                    amount={todayDebit} 
+                    type="DEBIT" 
                     showDrCr={false} 
-                    size="3xl" 
+                    size="xl" 
                   />
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-emerald-50 text-emerald-600 shrink-0 border border-emerald-100">
-                <ArrowUpRight size={24} />
+              <div className="p-1 sm:p-2 text-rose-600 shrink-0 hidden min-[380px]:flex items-center justify-center">
+                <ArrowDownRight className="w-4 h-4 sm:w-6 sm:h-6" />
               </div>
             </div>
 
-            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
-              <span className="font-medium">
-                {todayCreditCount} {todayCreditCount === 1 ? 'credit entry' : 'credit entries'} received today
+            <div className="mt-2 pt-2 sm:mt-3 sm:pt-3 border-t border-slate-100 flex items-center justify-between text-[10.5px] sm:text-xs text-slate-600">
+              <span className="font-medium truncate">
+                {todayDebitCount} {todayDebitCount === 1 ? 'voucher' : 'vouchers'}
               </span>
               <button
                 onClick={() => navigate('/log')}
-                className="text-emerald-700 hover:text-emerald-900 font-bold transition-colors"
+                className="text-rose-700 hover:text-rose-900 font-bold transition-colors shrink-0 ml-1.5"
               >
                 Journal →
               </button>
             </div>
           </div>
 
-          {/* Card B: Todays Debit */}
-          <div className="bg-white rounded-xl border border-slate-200 border-l-4 border-l-rose-500 p-5 shadow-xs hover:shadow-sm transition-all">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-600 font-sans">
-                    Todays Debit
+          {/* Card B: Todays Credit */}
+          <div className="bg-white rounded-xl border border-slate-200 border-l-4 border-l-emerald-500 p-3 sm:p-5 shadow-2xs hover:shadow-xs transition-all">
+            <div className="flex items-start justify-between gap-1.5">
+              <div className="space-y-0.5 sm:space-y-1 min-w-0 flex-1">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                  <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 font-sans truncate">
+                    Todays Credit
                   </p>
                 </div>
-                <div className="text-2xl sm:text-3xl font-extrabold text-rose-600 tracking-tight font-sans select-all pt-0.5">
+                <div className="text-base sm:text-3xl font-extrabold text-emerald-600 tracking-tight font-sans select-all pt-0.5">
                   <AmountDisplay 
-                    amount={todayDebit} 
-                    type="DEBIT" 
+                    amount={todayCredit} 
+                    type="CREDIT" 
                     showDrCr={false} 
-                    size="3xl" 
+                    size="xl" 
                   />
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-rose-50 text-rose-600 shrink-0 border border-rose-100">
-                <ArrowDownRight size={24} />
+              <div className="p-1 sm:p-2 text-emerald-600 shrink-0 hidden min-[380px]:flex items-center justify-center">
+                <ArrowUpRight className="w-4 h-4 sm:w-6 sm:h-6" />
               </div>
             </div>
 
-            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
-              <span className="font-medium">
-                {todayDebitCount} {todayDebitCount === 1 ? 'debit voucher' : 'debit vouchers'} billed today
+            <div className="mt-2 pt-2 sm:mt-3 sm:pt-3 border-t border-slate-100 flex items-center justify-between text-[10.5px] sm:text-xs text-slate-600">
+              <span className="font-medium truncate">
+                {todayCreditCount} {todayCreditCount === 1 ? 'receipt' : 'receipts'}
               </span>
               <button
                 onClick={() => navigate('/log')}
-                className="text-rose-700 hover:text-rose-900 font-bold transition-colors"
+                className="text-emerald-700 hover:text-emerald-900 font-bold transition-colors shrink-0 ml-1.5"
               >
                 Journal →
               </button>
@@ -561,12 +557,10 @@ export default function Dashboard() {
                     className="p-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between gap-3 cursor-pointer"
                   >
                     <div className="flex items-center min-w-0">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mr-3 border ${
-                        tx.type === 'DEBIT' 
-                          ? 'bg-rose-50 border-rose-200 text-rose-600' 
-                          : 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                      <div className={`shrink-0 mr-2.5 flex items-center justify-center ${
+                        tx.type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'
                       }`}>
-                        {tx.type === 'DEBIT' ? <ArrowDownRight size={16} /> : <ArrowUpRight size={16} />}
+                        {tx.type === 'DEBIT' ? <ArrowDownRight size={18} /> : <ArrowUpRight size={18} />}
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-900 truncate">{party?.name || 'Unknown Party'}</p>

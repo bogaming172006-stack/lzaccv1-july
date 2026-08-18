@@ -352,7 +352,7 @@ export default function InvoiceSheets() {
   };
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto w-full pb-24 sm:pb-8 space-y-5">
+    <div className="p-3 min-[400px]:p-4 sm:p-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-3.5 sm:space-y-5">
       {/* Page Header */}
       <PageHeader
         title="Dual Invoice Sequence Sheets"
@@ -360,23 +360,23 @@ export default function InvoiceSheets() {
       />
 
       {/* Live Recent Activity Highlight & Quick Navigation Bar */}
-      <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 sm:p-4 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 shrink-0">
-            <Clock size={18} />
+      <div className="bg-white border border-slate-200/90 rounded-xl p-3 sm:p-4 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5 sm:gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="p-2 sm:p-2.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 shrink-0">
+            <Clock size={16} />
           </div>
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                Recent Activity Auto-Focus
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                Recent Activity
               </span>
               {recentOverallNum && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 font-mono">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[10.5px] font-bold bg-blue-100 text-blue-800 font-mono">
                   #{recentOverallNum}
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
               {recentOverall ? (
                 <>
                   Latest {recentOverall.type === 'DEBIT' ? 'Debit (Sale)' : 'Credit (Receipt)'} invoice #{recentOverallNum} ({renderRecentPartyName(recentOverall)})
@@ -390,13 +390,13 @@ export default function InvoiceSheets() {
         </div>
 
         {/* Quick Focus / Jump Buttons */}
-        <div className="flex items-center gap-2 flex-wrap w-full md:w-auto justify-start md:justify-end">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap w-full md:w-auto justify-start md:justify-end">
           {recentOverallNum && (
             <button
               onClick={() => scrollToInvoice(recentOverallNum, 'center', 'smooth')}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors"
+              className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs transition-colors"
             >
-              <Zap size={13} />
+              <Zap size={12} />
               Scroll to Recent (#{recentOverallNum})
             </button>
           )}
@@ -404,9 +404,9 @@ export default function InvoiceSheets() {
           {recentDebitNum && (
             <button
               onClick={() => scrollToInvoice(recentDebitNum, 'center', 'smooth')}
-              className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+              className="px-2 py-1 sm:px-2.5 sm:py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
             >
-              <ArrowDown size={12} />
+              <ArrowDown size={11} />
               Debit (#{recentDebitNum})
             </button>
           )}
@@ -414,9 +414,9 @@ export default function InvoiceSheets() {
           {recentCreditNum && (
             <button
               onClick={() => scrollToInvoice(recentCreditNum, 'center', 'smooth')}
-              className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+              className="px-2 py-1 sm:px-2.5 sm:py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
             >
-              <ArrowUp size={12} />
+              <ArrowUp size={11} />
               Credit (#{recentCreditNum})
             </button>
           )}
@@ -424,28 +424,28 @@ export default function InvoiceSheets() {
       </div>
 
       {/* Synchronized Columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-6">
         {/* Debit Sheet */}
-        <Card className="flex flex-col h-[70vh]">
-          <div className="p-4 border-b border-rose-100 bg-rose-50/60 flex items-center justify-between">
-            <h2 className="font-bold text-rose-900 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
+        <Card className="flex flex-col h-[65vh] sm:h-[70vh]">
+          <div className="p-3 sm:p-4 border-b border-rose-100 bg-rose-50/60 flex items-center justify-between">
+            <h2 className="font-bold text-rose-900 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5 sm:gap-2">
               <span className="w-2 h-2 rounded-full bg-rose-500"></span>
               Debit Sequence (Sales Billing)
             </h2>
-            <Badge variant="debit" size="sm">{debitCount} entered</Badge>
+            <Badge variant="debit" size="xs">{debitCount} entered</Badge>
           </div>
-          <div className="p-3 border-b border-slate-100 bg-slate-50/40">
-            <form onSubmit={e => handleSearch(e, 'DEBIT')} className="flex gap-2">
+          <div className="p-2.5 sm:p-3 border-b border-slate-100 bg-slate-50/40">
+            <form onSubmit={e => handleSearch(e, 'DEBIT')} className="flex gap-1.5 sm:gap-2">
               <input 
                 type="number" 
                 value={debitInput} 
                 onChange={e => setDebitInput(e.target.value)} 
                 placeholder={`Locate Invoice # (e.g. ${START_INVOICE})...`} 
-                className="flex-1 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900 focus:border-rose-600"
+                className="flex-1 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900 focus:border-rose-600"
               />
               <button 
                 type="submit" 
-                className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-xs transition-colors"
+                className="px-3 py-1 sm:px-3.5 sm:py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors"
               >
                 Jump
               </button>
@@ -472,26 +472,26 @@ export default function InvoiceSheets() {
         </Card>
 
         {/* Credit Sheet */}
-        <Card className="flex flex-col h-[70vh]">
-          <div className="p-4 border-b border-emerald-100 bg-emerald-50/60 flex items-center justify-between">
-            <h2 className="font-bold text-emerald-900 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
+        <Card className="flex flex-col h-[65vh] sm:h-[70vh]">
+          <div className="p-3 sm:p-4 border-b border-emerald-100 bg-emerald-50/60 flex items-center justify-between">
+            <h2 className="font-bold text-emerald-900 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5 sm:gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               Credit Sequence (Collections & Receipts)
             </h2>
-            <Badge variant="credit" size="sm">{creditCount} entered</Badge>
+            <Badge variant="credit" size="xs">{creditCount} entered</Badge>
           </div>
-          <div className="p-3 border-b border-slate-100 bg-slate-50/40">
-            <form onSubmit={e => handleSearch(e, 'CREDIT')} className="flex gap-2">
+          <div className="p-2.5 sm:p-3 border-b border-slate-100 bg-slate-50/40">
+            <form onSubmit={e => handleSearch(e, 'CREDIT')} className="flex gap-1.5 sm:gap-2">
               <input 
                 type="number" 
                 value={creditInput} 
                 onChange={e => setCreditInput(e.target.value)} 
                 placeholder={`Locate Invoice # (e.g. ${START_INVOICE})...`} 
-                className="flex-1 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900 focus:border-emerald-600"
+                className="flex-1 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900 focus:border-emerald-600"
               />
               <button 
                 type="submit" 
-                className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-xs transition-colors"
+                className="px-3 py-1 sm:px-3.5 sm:py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors"
               >
                 Jump
               </button>

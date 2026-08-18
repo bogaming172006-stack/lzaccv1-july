@@ -618,27 +618,27 @@ export default function Navigation() {
       </aside>
 
       {/* ========================================================================= */}
-      {/* MOBILE TOP BAR - Clean Light Style */}
+      {/* MOBILE TOP BAR - Clean Compact Style */}
       {/* ========================================================================= */}
-      <header className="sm:hidden fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 flex items-center px-4 justify-between z-40 shadow-xs text-slate-900">
+      <header className="sm:hidden fixed top-0 left-0 right-0 h-13 bg-white border-b border-slate-200 flex items-center px-3 justify-between z-40 shadow-2xs text-slate-900">
         <div className="flex items-center gap-2">
-          <div className="p-0.5 bg-white border border-slate-200 rounded">
-            <CompanyLogo className="h-6 w-auto" variant="color" />
+          <div className="p-0.5 bg-white border border-slate-200 rounded-md shadow-2xs">
+            <CompanyLogo className="h-6 w-auto object-contain" variant="color" />
           </div>
-          <span className="font-normal text-xs tracking-wide text-slate-900">Greenzar ERP</span>
+          <span className="font-bold text-xs tracking-tight text-slate-900">Greenzar ERP</span>
           {isPurchase && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+            <span className="px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
               PURCHASE
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={handleRefreshDatabase}
             disabled={isSyncing}
-            className={`p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50 ${isSyncing ? 'cursor-not-allowed' : ''}`}
+            className={`p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors ${isSyncing ? 'cursor-not-allowed' : ''}`}
             title="Refresh Database"
           >
             {syncSuccess ? (
@@ -650,7 +650,7 @@ export default function Navigation() {
 
           <button 
             onClick={() => setShowLedgerMenu(!showLedgerMenu)}
-            className={`text-xs font-medium ${
+            className={`text-xs font-semibold ${
               isPurchase 
                 ? 'text-purple-950 bg-purple-50 hover:bg-purple-100 border-purple-200' 
                 : 'text-slate-800 bg-slate-100 hover:bg-slate-200 border-slate-200'
@@ -662,13 +662,13 @@ export default function Navigation() {
         </div>
 
         {showLedgerMenu && (
-          <div className="absolute top-14 right-4 w-56 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in duration-150">
-            <div className="max-h-48 overflow-y-auto p-1.5 space-y-0.5">
+          <div className="absolute top-13 right-3 w-52 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in duration-150">
+            <div className="max-h-48 overflow-y-auto p-1 space-y-0.5">
               {ledgers.map(l => (
                 <button
                   key={l.id}
                   onClick={() => handleLedgerSwitch(l.id)}
-                  className={`w-full text-left px-3 py-2 text-xs rounded-lg transition-colors ${
+                  className={`w-full text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
                     activeLedger?.id === l.id 
                       ? l.type === 'PURCHASE' ? 'bg-purple-900 text-amber-300 font-medium' : 'bg-[#0055a5] text-white font-normal' 
                       : 'text-slate-700 hover:bg-slate-100'
@@ -679,12 +679,12 @@ export default function Navigation() {
               ))}
             </div>
             {currentUser.isAdmin && (
-              <div className="border-t border-slate-100 p-1.5 bg-slate-50">
+              <div className="border-t border-slate-100 p-1 bg-slate-50">
                 <button 
                   onClick={() => { setShowNewLedgerModal(true); setShowLedgerMenu(false); }}
-                  className="w-full flex items-center text-left px-3 py-1.5 text-xs text-[#0055a5] hover:bg-blue-50 rounded-lg font-normal"
+                  className="w-full flex items-center text-left px-2.5 py-1.5 text-xs text-[#0055a5] hover:bg-blue-50 rounded-lg font-medium"
                 >
-                  <Plus size={14} className="mr-1.5" />
+                  <Plus size={13} className="mr-1.5" />
                   Add Ledger
                 </button>
               </div>
@@ -694,15 +694,15 @@ export default function Navigation() {
       </header>
 
       {/* ========================================================================= */}
-      {/* MOBILE BOTTOM NAVIGATION BAR (5-Slot Clean Light Layout) */}
+      {/* MOBILE BOTTOM NAVIGATION BAR (Compact Modern 5-Slot Layout) */}
       {/* ========================================================================= */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex items-center justify-around px-2 z-40 shadow-lg text-slate-500">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-slate-200/90 flex items-center justify-around px-1 z-40 shadow-[0_-3px_12px_rgba(0,0,0,0.05)] text-slate-500">
         <NavLink
           to="/"
           end
           className={({ isActive }) =>
-            `flex flex-col items-center justify-center flex-1 h-full py-1 text-[11px] font-normal transition-colors ${
-              isActive ? (isPurchase ? 'text-purple-700 font-semibold' : 'text-[#0055a5]') : 'text-slate-500 hover:text-slate-900'
+            `flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] font-medium transition-colors ${
+              isActive ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#0055a5] font-bold') : 'text-slate-500 hover:text-slate-900'
             }`
           }
         >
@@ -713,8 +713,8 @@ export default function Navigation() {
         <NavLink
           to="/parties"
           className={({ isActive }) =>
-            `flex flex-col items-center justify-center flex-1 h-full py-1 text-[11px] font-normal transition-colors ${
-              isActive ? (isPurchase ? 'text-purple-700 font-semibold' : 'text-[#0055a5]') : 'text-slate-500 hover:text-slate-900'
+            `flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] font-medium transition-colors ${
+              isActive ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#0055a5] font-bold') : 'text-slate-500 hover:text-slate-900'
             }`
           }
         >
@@ -722,22 +722,22 @@ export default function Navigation() {
           <span>Parties</span>
         </NavLink>
 
-        {/* Highlighted Master Entry Action */}
+        {/* Compact Highlighted Master Entry Action */}
         <NavLink
           to="/master-entry"
           className="flex flex-col items-center justify-center flex-1 h-full relative"
         >
           {({ isActive }) => (
             <>
-              <div className={`flex items-center justify-center w-11 h-11 rounded-full shadow-md border-2 border-white -top-3.5 absolute transition-transform active:scale-95 ${
+              <div className={`flex items-center justify-center w-10 h-10 rounded-full shadow-md border-2 border-white -top-3 absolute transition-transform active:scale-95 ${
                 isPurchase
-                  ? 'bg-gradient-to-tr from-purple-800 to-purple-950 text-amber-300 ring-2 ring-amber-400/90'
+                  ? 'bg-gradient-to-tr from-purple-800 to-purple-950 text-amber-300 ring-1 ring-amber-400/90'
                   : 'bg-[#0055a5] text-white'
               }`}>
-                <Plus size={22} className={isActive ? "rotate-90 transition-transform duration-200" : ""} />
+                <Plus size={20} className={isActive ? "rotate-90 transition-transform duration-200" : ""} />
               </div>
-              <span className={`text-[11px] font-normal mt-7 ${
-                isActive ? (isPurchase ? 'text-purple-800 font-semibold' : 'text-[#0055a5]') : 'text-slate-500'
+              <span className={`text-[10px] mt-6.5 font-medium ${
+                isActive ? (isPurchase ? 'text-purple-800 font-bold' : 'text-[#0055a5] font-bold') : 'text-slate-500'
               }`}>
                 Voucher
               </span>
@@ -748,8 +748,8 @@ export default function Navigation() {
         <NavLink
           to="/log"
           className={({ isActive }) =>
-            `flex flex-col items-center justify-center flex-1 h-full py-1 text-[11px] font-normal transition-colors ${
-              isActive ? (isPurchase ? 'text-purple-700 font-semibold' : 'text-[#0055a5]') : 'text-slate-500 hover:text-slate-900'
+            `flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] font-medium transition-colors ${
+              isActive ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#0055a5] font-bold') : 'text-slate-500 hover:text-slate-900'
             }`
           }
         >
@@ -760,8 +760,8 @@ export default function Navigation() {
         <button
           onClick={() => setShowMobileMore(!showMobileMore)}
           type="button"
-          className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[11px] font-normal transition-colors ${
-            showMobileMore ? (isPurchase ? 'text-purple-700 font-semibold' : 'text-[#0055a5]') : 'text-slate-500 hover:text-slate-900'
+          className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] font-medium transition-colors ${
+            showMobileMore ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#0055a5] font-bold') : 'text-slate-500 hover:text-slate-900'
           }`}
         >
           <Menu size={18} className="mb-0.5" />
