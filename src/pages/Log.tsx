@@ -224,7 +224,7 @@ export default function Log() {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  {tab === 'ALL' ? 'All Vouchers' : tab === 'DEBIT' ? 'Debits (Dr)' : 'Credits (Cr)'}
+                  {tab === 'ALL' ? 'All Transactions' : tab === 'DEBIT' ? 'Debits (Dr)' : 'Credits (Cr)'}
                 </button>
               ))}
             </div>

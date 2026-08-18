@@ -20,17 +20,16 @@ export default function TransactionDetailModal({
 }: TransactionDetailModalProps) {
   if (!isOpen || !transaction) return null;
 
-  // Format running balance nicely if available
   const runningBalance = transaction.runningBalance;
 
-  // Helper to parse notes for Cash / AC breakdown (e.g., "[Cash: ₹1500.00, A/C: ₹10500.00] - notes")
+  // Helper to parse notes for Cash / AC breakdown
   const parseNotesBreakdown = (notesText: string) => {
     const bracketRegex = /^\[(Cash:\s*₹[^,\]]+)?(?:,\s*)?(A\/C:\s*₹[^\]]+)?\]/i;
     const match = notesText.match(bracketRegex);
     
     if (match) {
-      const cashPart = match[1]; // Cash: ₹...
-      const acPart = match[2]; // A/C: ₹...
+      const cashPart = match[1];
+      const acPart = match[2];
       const remainingNotes = notesText.replace(bracketRegex, '').trim();
       return {
         hasBreakdown: true,
@@ -50,122 +49,125 @@ export default function TransactionDetailModal({
   const breakdown = parseNotesBreakdown(transaction.notes || '');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-2xs animate-fade-in"
+      onClick={onClose}
+    >
       <div 
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all border border-gray-100"
+        className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden transform transition-all border border-slate-200"
         onClick={(e) => e.stopPropagation()}
         id="transaction-detail-modal"
       >
         {/* Header */}
-        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-          <div className="flex items-center gap-2">
-            <span className={`p-1.5 rounded-lg ${transaction.type === 'DEBIT' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-              <FileText size={16} />
+        <div className="flex justify-between items-center px-3.5 py-2.5 sm:px-4 sm:py-3 border-b border-slate-100 bg-slate-50/80">
+          <div className="flex items-center gap-1.5">
+            <span className={`p-1 rounded-md ${transaction.type === 'DEBIT' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+              <FileText size={13} />
             </span>
-            <h3 className="font-extrabold text-gray-900 tracking-tight text-base">Transaction Details</h3>
+            <h3 className="font-normal text-slate-800 text-xs sm:text-sm tracking-tight">Transaction Details</h3>
           </div>
           <button 
             type="button" 
             onClick={onClose} 
-            className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
             id="close-detail-modal-btn"
           >
-            <X size={18} />
+            <X size={15} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-5">
+        <div className="p-3 sm:p-4 space-y-2.5 sm:space-y-3">
           {/* Amount Box */}
-          <div className="text-center py-5 px-4 bg-gray-50/70 rounded-xl border border-gray-100">
-            <span className={`text-[10px] uppercase font-bold tracking-widest leading-none block mb-1.5 ${transaction.type === 'DEBIT' ? 'text-rose-500' : 'text-emerald-500'}`}>
+          <div className="text-center py-2.5 px-3 bg-slate-50/80 rounded-lg border border-slate-100">
+            <span className={`text-[9.5px] min-[400px]:text-[10px] uppercase font-normal tracking-wider block mb-0.5 ${transaction.type === 'DEBIT' ? 'text-rose-500' : 'text-emerald-600'}`}>
               {transaction.type === 'DEBIT' ? 'Debit (Dr) / Outflow' : 'Credit (Cr) / Inflow'}
             </span>
-            <div className={`text-3xl font-extrabold tracking-tight ${transaction.type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
+            <div className={`text-base min-[400px]:text-lg sm:text-xl font-normal tracking-tight tabular-nums ${transaction.type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
               {transaction.type === 'DEBIT' ? '-' : '+'}₹{transaction.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </div>
           </div>
 
           {/* Core Info list */}
-          <div className="space-y-3.5">
+          <div className="space-y-2 text-[11px] min-[400px]:text-[11.5px] sm:text-xs">
             {/* Party */}
-            <div className="flex items-start gap-3">
-              <User size={16} className="text-gray-400 mt-1 shrink-0" />
-              <div className="min-w-0">
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block leading-none mb-0.5">Party</span>
-                <span className="font-bold text-gray-950 text-sm">{partyName}</span>
+            <div className="flex items-start gap-2">
+              <User size={13} className="text-slate-400 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1 flex items-center justify-between gap-1">
+                <span className="text-[9.5px] min-[400px]:text-[10px] text-slate-400 font-normal uppercase">Party</span>
+                <span className="font-normal text-slate-800 truncate">{partyName}</span>
               </div>
             </div>
 
             {/* Ledger Name */}
             {ledgerName && (
-              <div className="flex items-start gap-3">
-                <BookOpen size={16} className="text-gray-400 mt-1 shrink-0" />
-                <div className="min-w-0">
-                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block leading-none mb-0.5">Ledger / Book</span>
-                  <span className="font-semibold text-gray-700 text-sm">{ledgerName}</span>
+              <div className="flex items-start gap-2">
+                <BookOpen size={13} className="text-slate-400 mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1 flex items-center justify-between gap-1">
+                  <span className="text-[9.5px] min-[400px]:text-[10px] text-slate-400 font-normal uppercase">Ledger</span>
+                  <span className="font-normal text-slate-700 truncate">{ledgerName}</span>
                 </div>
               </div>
             )}
 
             {/* Date & Time */}
-            <div className="flex items-start gap-3">
-              <Calendar size={16} className="text-gray-400 mt-1 shrink-0" />
-              <div className="min-w-0">
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block leading-none mb-0.5">Date & Time</span>
-                <span className="font-semibold text-gray-800 text-sm">
+            <div className="flex items-start gap-2">
+              <Calendar size={13} className="text-slate-400 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1 flex items-center justify-between gap-1">
+                <span className="text-[9.5px] min-[400px]:text-[10px] text-slate-400 font-normal uppercase">Date & Time</span>
+                <span className="font-normal text-slate-700">
                   {format(new Date(transaction.timestamp), 'dd MMM yyyy, hh:mm a')}
                 </span>
               </div>
             </div>
 
             {/* Reference No */}
-            <div className="flex items-start gap-3">
-              <Hash size={16} className="text-gray-400 mt-1 shrink-0" />
-              <div className="min-w-0">
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block leading-none mb-0.5">Reference / Ref No</span>
-                <span className={`text-sm ${transaction.invoiceNo ? 'font-mono font-bold text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded' : 'font-semibold text-gray-400 italic'}`}>
-                  {transaction.invoiceNo || 'Not provided'}
+            <div className="flex items-start gap-2">
+              <Hash size={13} className="text-slate-400 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1 flex items-center justify-between gap-1">
+                <span className="text-[9.5px] min-[400px]:text-[10px] text-slate-400 font-normal uppercase">Reference</span>
+                <span className={`font-normal ${transaction.invoiceNo ? 'text-slate-800 bg-slate-100 px-1.5 py-0.2 rounded' : 'text-slate-400 italic'}`}>
+                  {transaction.invoiceNo || 'None'}
                 </span>
               </div>
             </div>
 
-            {/* Running Balance (if available) */}
+            {/* Running Balance */}
             {runningBalance !== undefined && (
-              <div className="flex items-start gap-3 border-t pt-3 border-gray-100">
-                <div className={`p-1 rounded ${runningBalance > 0 ? 'bg-rose-50 text-rose-600' : runningBalance < 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-600'}`}>
-                  {runningBalance >= 0 ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
+              <div className="flex items-start gap-2 border-t pt-2 border-slate-100">
+                <div className={`p-0.5 rounded ${runningBalance > 0 ? 'text-rose-600' : runningBalance < 0 ? 'text-emerald-600' : 'text-slate-600'}`}>
+                  {runningBalance >= 0 ? <ArrowDownRight size={13} /> : <ArrowUpRight size={13} />}
                 </div>
-                <div className="min-w-0">
-                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block leading-none mb-0.5">Running Balance After Transaction</span>
-                  <span className={`text-sm font-extrabold ${runningBalance > 0 ? 'text-rose-600' : runningBalance < 0 ? 'text-emerald-600' : 'text-gray-600'}`}>
-                    {runningBalance === 0 ? '₹ 0.00' : runningBalance > 0 ? `-₹${Math.abs(runningBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })} (Dr)` : `₹${Math.abs(runningBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })} (Cr)`}
+                <div className="min-w-0 flex-1 flex items-center justify-between gap-1">
+                  <span className="text-[9.5px] min-[400px]:text-[10px] text-slate-400 font-normal uppercase">Balance</span>
+                  <span className={`font-normal tabular-nums ${runningBalance > 0 ? 'text-rose-600' : runningBalance < 0 ? 'text-emerald-600' : 'text-slate-600'}`}>
+                    {runningBalance === 0 ? '₹0.00' : runningBalance > 0 ? `₹${Math.abs(runningBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })} Dr` : `₹${Math.abs(runningBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })} Cr`}
                   </span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Separate Payment Breakdown (if parsed) */}
+          {/* Payment Breakdown (if parsed) */}
           {breakdown.hasBreakdown && (
-            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100/70 space-y-2">
-              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block leading-none mb-1">Payment Split Breakdown</span>
-              <div className="grid grid-cols-2 gap-2.5">
+            <div className="p-2 bg-slate-50 rounded-lg border border-slate-100 space-y-1.5">
+              <span className="text-[9px] text-slate-400 font-normal uppercase tracking-wider block">Split Details</span>
+              <div className="grid grid-cols-2 gap-1.5">
                 {breakdown.cashPart && (
-                  <div className="flex items-center gap-1.5 bg-white p-2 rounded-lg border border-emerald-100/80">
-                    <DollarSign size={14} className="text-emerald-500" />
+                  <div className="flex items-center gap-1 bg-white p-1.5 rounded border border-emerald-100">
+                    <DollarSign size={12} className="text-emerald-500" />
                     <div className="min-w-0">
-                      <span className="text-[9px] text-gray-400 block font-semibold leading-none">Cash</span>
-                      <span className="font-extrabold text-emerald-700 text-xs">{breakdown.cashPart}</span>
+                      <span className="text-[8.5px] text-slate-400 block font-normal">Cash</span>
+                      <span className="font-normal text-emerald-700 text-[10.5px]">{breakdown.cashPart}</span>
                     </div>
                   </div>
                 )}
                 {breakdown.acPart && (
-                  <div className="flex items-center gap-1.5 bg-white p-2 rounded-lg border border-sky-100/80">
-                    <CreditCard size={14} className="text-sky-500" />
+                  <div className="flex items-center gap-1 bg-white p-1.5 rounded border border-sky-100">
+                    <CreditCard size={12} className="text-sky-500" />
                     <div className="min-w-0">
-                      <span className="text-[9px] text-gray-400 block font-semibold leading-none">Bank A/C</span>
-                      <span className="font-extrabold text-sky-700 text-xs">{breakdown.acPart}</span>
+                      <span className="text-[8.5px] text-slate-400 block font-normal">Bank A/C</span>
+                      <span className="font-normal text-sky-700 text-[10.5px]">{breakdown.acPart}</span>
                     </div>
                   </div>
                 )}
@@ -174,23 +176,23 @@ export default function TransactionDetailModal({
           )}
 
           {/* Notes Card */}
-          <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100/60">
-            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block leading-none mb-1.5">Particulars / Notes</span>
-            <p className="text-gray-700 text-xs sm:text-sm font-medium whitespace-pre-wrap leading-relaxed">
+          <div className="p-2.5 bg-slate-50/70 rounded-lg border border-slate-100">
+            <span className="text-[9px] min-[400px]:text-[9.5px] text-slate-400 font-normal uppercase tracking-wider block mb-0.5">Notes</span>
+            <p className="text-slate-600 text-[10.5px] min-[400px]:text-[11px] sm:text-xs font-normal whitespace-pre-wrap leading-relaxed">
               {breakdown.cleanNotes}
             </p>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+        <div className="px-3.5 py-2 sm:px-4 sm:py-2.5 border-t border-slate-100 bg-slate-50/80 flex justify-end">
           <button 
             type="button" 
             onClick={onClose} 
-            className="px-5 py-2 bg-gray-900 hover:bg-gray-850 active:scale-98 text-white rounded-xl font-bold text-xs transition-all cursor-pointer shadow-md shadow-gray-950/5"
+            className="px-3 py-1 bg-slate-800 hover:bg-slate-900 active:scale-98 text-white rounded-md font-normal text-[11px] sm:text-xs transition-all cursor-pointer shadow-2xs"
             id="ok-detail-modal-btn"
           >
-            Okay, Close
+            Close
           </button>
         </div>
       </div>

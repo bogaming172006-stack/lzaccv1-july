@@ -272,66 +272,65 @@ export default function Dashboard() {
   const creditColor = '#059669'; // Clear Green for Credit
 
   return (
-    <div className="p-3 min-[400px]:p-4 sm:p-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-3.5 sm:space-y-6">
+    <div className="p-2 min-[400px]:p-3 sm:p-8 pt-1 min-[400px]:pt-1.5 sm:pt-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-2 sm:space-y-6">
       
       {/* Page Header */}
       <PageHeader
         title="Financial Overview"
-        subtitle={`Real-time corporate accounting summary for ${activeLedger.name}`}
       />
 
       {/* ========================================================================= */}
       {/* HERO FINANCIAL METRICS: BIG TOTAL OUTSTANDING + TODAY'S CREDIT & DEBIT   */}
       {/* ========================================================================= */}
-      <div className="space-y-3 sm:space-y-4">
+      <div className="space-y-2 sm:space-y-4">
         
         {/* 1. Big Card: Total Party Outstanding - Exact Sapphire Blue Theme */}
-        <div className="bg-[#0055a5] rounded-xl sm:rounded-2xl p-4 sm:p-8 text-white shadow-sm sm:shadow-md relative overflow-hidden border border-[#004b91]">
+        <div className="bg-[#0055a5] rounded-lg sm:rounded-2xl p-2.5 min-[400px]:p-3.5 sm:p-8 text-white shadow-2xs sm:shadow-md relative overflow-hidden border border-[#004b91]">
           {/* Subtle Background Accent */}
           <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
-            <div className="space-y-1.5 sm:space-y-2.5">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-white text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-6">
+            <div className="space-y-0.5 sm:space-y-2.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-white text-[9px] min-[400px]:text-[10px] sm:text-[11px] font-normal sm:font-bold uppercase tracking-wider">
                   Total Outstanding
                 </span>
-                <span className="text-[11px] sm:text-xs text-blue-100 font-medium">
-                  • {totalDebtorsCount} {totalDebtorsCount === 1 ? 'party' : 'parties'} with balance dues
+                <span className="text-[9.5px] min-[400px]:text-[10.5px] sm:text-xs text-blue-100 font-normal">
+                  • {totalDebtorsCount} {totalDebtorsCount === 1 ? 'party' : 'parties'} with balance
                 </span>
               </div>
 
               {/* High-Impact Amount */}
               <div className="pt-0.5 sm:pt-1">
-                <span className="text-2xl min-[400px]:text-3xl sm:text-5xl font-extrabold tracking-tight tabular-nums text-white flex items-baseline gap-1 select-all font-sans flex-wrap">
-                  <span className="text-xl min-[400px]:text-2xl sm:text-4xl text-blue-100 font-normal">₹</span>
+                <span className="text-lg min-[400px]:text-xl sm:text-5xl font-normal sm:font-extrabold tracking-tight tabular-nums text-white flex items-baseline gap-1 select-all font-sans flex-wrap">
+                  <span className="text-base min-[400px]:text-lg sm:text-4xl text-blue-100 font-normal">₹</span>
                   <span>
                     {totalOutstanding.toLocaleString('en-IN', {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2
                     })}
                   </span>
-                  <span className="ml-1.5 sm:ml-2.5 text-[10px] sm:text-sm font-bold uppercase px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md bg-[#ff2d55] text-white tracking-wide shadow-xs">
+                  <span className="ml-1 sm:ml-2.5 text-[8px] min-[400px]:text-[9px] sm:text-xs font-normal sm:font-semibold uppercase px-1.5 py-0.5 rounded bg-white/20 text-white border border-white/30 tracking-wide">
                     DR
                   </span>
                 </span>
               </div>
             </div>
 
-            <div className="flex flex-row md:flex-col items-center md:items-end gap-2.5 sm:gap-3 shrink-0">
+            <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-start gap-2 sm:gap-3 shrink-0 pt-1 md:pt-0 border-t md:border-t-0 border-blue-400/30">
               <button
                 onClick={() => navigate('/parties')}
-                className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 bg-white text-[#0055a5] hover:bg-blue-50 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+                className="px-2.5 py-1 sm:px-5 sm:py-2.5 bg-white text-[#0055a5] hover:bg-blue-50 font-normal sm:font-bold text-[10.5px] min-[400px]:text-[11px] sm:text-xs rounded-md sm:rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-98"
               >
-                <Users size={15} className="text-[#0055a5]" />
-                <span>View All Parties ({parties.length})</span>
-                <ArrowRight size={13} className="text-[#0055a5] ml-0.5" />
+                <Users size={13} className="text-[#0055a5]" />
+                <span>All Parties ({parties.length})</span>
+                <ArrowRight size={11} className="text-[#0055a5]" />
               </button>
 
               {totalAdvancePayables > 0 && (
-                <div className="text-[10.5px] sm:text-[11px] text-white flex items-center gap-1.5 px-1 py-0.5">
-                  <span>Advance payables:</span>
-                  <span className="font-bold text-emerald-300">
+                <div className="text-[9.5px] min-[400px]:text-[10.5px] sm:text-[11px] text-white flex items-center gap-1 px-1 py-0.5">
+                  <span className="font-normal text-blue-100">Advance:</span>
+                  <span className="font-normal sm:font-bold text-emerald-300">
                     ₹{totalAdvancePayables.toLocaleString('en-IN', { minimumFractionDigits: 2 })} Cr
                   </span>
                 </div>
@@ -341,80 +340,80 @@ export default function Dashboard() {
         </div>
 
         {/* 2. Side-by-Side: Today's Debit & Today's Credit (Debit first, Credit second) */}
-        <div className="grid grid-cols-2 gap-2 sm:gap-4">
+        <div className="grid grid-cols-2 gap-1.5 sm:gap-4">
           
           {/* Card A: Todays Debit */}
-          <div className="bg-white rounded-xl border border-slate-200 border-l-4 border-l-rose-500 p-3 sm:p-5 shadow-2xs hover:shadow-xs transition-all">
-            <div className="flex items-start justify-between gap-1.5">
-              <div className="space-y-0.5 sm:space-y-1 min-w-0 flex-1">
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-rose-500 shrink-0"></span>
-                  <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 font-sans truncate">
+          <div className="bg-white rounded-lg sm:rounded-xl border border-slate-200 border-l-3 sm:border-l-4 border-l-rose-500 p-2 min-[400px]:p-2.5 sm:p-5 shadow-2xs hover:shadow-xs transition-all">
+            <div className="flex items-start justify-between gap-1">
+              <div className="space-y-0.5 min-w-0 flex-1">
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
+                  <p className="text-[9px] min-[400px]:text-[10px] sm:text-xs font-normal sm:font-bold uppercase tracking-wider text-slate-500 font-sans truncate">
                     Todays Debit
                   </p>
                 </div>
-                <div className="text-base sm:text-3xl font-extrabold text-rose-600 tracking-tight font-sans select-all pt-0.5">
+                <div className="text-xs min-[400px]:text-sm sm:text-3xl font-normal sm:font-extrabold text-rose-600 tracking-tight font-sans select-all pt-0.5">
                   <AmountDisplay 
                     amount={todayDebit} 
                     type="DEBIT" 
                     showDrCr={false} 
-                    size="xl" 
+                    size="sm" 
                   />
                 </div>
               </div>
 
-              <div className="p-1 sm:p-2 text-rose-600 shrink-0 hidden min-[380px]:flex items-center justify-center">
-                <ArrowDownRight className="w-4 h-4 sm:w-6 sm:h-6" />
+              <div className="p-0.5 sm:p-2 text-rose-600 shrink-0 hidden min-[380px]:flex items-center justify-center">
+                <ArrowDownRight className="w-3.5 h-3.5 sm:w-6 sm:h-6" />
               </div>
             </div>
 
-            <div className="mt-2 pt-2 sm:mt-3 sm:pt-3 border-t border-slate-100 flex items-center justify-between text-[10.5px] sm:text-xs text-slate-600">
-              <span className="font-medium truncate">
+            <div className="mt-1 pt-1 sm:mt-3 sm:pt-3 border-t border-slate-100 flex items-center justify-between text-[9px] min-[400px]:text-[10px] sm:text-xs text-slate-500">
+              <span className="font-normal truncate">
                 {todayDebitCount} {todayDebitCount === 1 ? 'voucher' : 'vouchers'}
               </span>
               <button
                 onClick={() => navigate('/log')}
-                className="text-rose-700 hover:text-rose-900 font-bold transition-colors shrink-0 ml-1.5"
+                className="text-rose-700 hover:text-rose-900 font-normal sm:font-bold transition-colors shrink-0 ml-1"
               >
-                Journal →
+                Log →
               </button>
             </div>
           </div>
 
           {/* Card B: Todays Credit */}
-          <div className="bg-white rounded-xl border border-slate-200 border-l-4 border-l-emerald-500 p-3 sm:p-5 shadow-2xs hover:shadow-xs transition-all">
-            <div className="flex items-start justify-between gap-1.5">
-              <div className="space-y-0.5 sm:space-y-1 min-w-0 flex-1">
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                  <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 font-sans truncate">
+          <div className="bg-white rounded-lg sm:rounded-xl border border-slate-200 border-l-3 sm:border-l-4 border-l-emerald-500 p-2 min-[400px]:p-2.5 sm:p-5 shadow-2xs hover:shadow-xs transition-all">
+            <div className="flex items-start justify-between gap-1">
+              <div className="space-y-0.5 min-w-0 flex-1">
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                  <p className="text-[9px] min-[400px]:text-[10px] sm:text-xs font-normal sm:font-bold uppercase tracking-wider text-slate-500 font-sans truncate">
                     Todays Credit
                   </p>
                 </div>
-                <div className="text-base sm:text-3xl font-extrabold text-emerald-600 tracking-tight font-sans select-all pt-0.5">
+                <div className="text-xs min-[400px]:text-sm sm:text-3xl font-normal sm:font-extrabold text-emerald-600 tracking-tight font-sans select-all pt-0.5">
                   <AmountDisplay 
                     amount={todayCredit} 
                     type="CREDIT" 
                     showDrCr={false} 
-                    size="xl" 
+                    size="sm" 
                   />
                 </div>
               </div>
 
-              <div className="p-1 sm:p-2 text-emerald-600 shrink-0 hidden min-[380px]:flex items-center justify-center">
-                <ArrowUpRight className="w-4 h-4 sm:w-6 sm:h-6" />
+              <div className="p-0.5 sm:p-2 text-emerald-600 shrink-0 hidden min-[380px]:flex items-center justify-center">
+                <ArrowUpRight className="w-3.5 h-3.5 sm:w-6 sm:h-6" />
               </div>
             </div>
 
-            <div className="mt-2 pt-2 sm:mt-3 sm:pt-3 border-t border-slate-100 flex items-center justify-between text-[10.5px] sm:text-xs text-slate-600">
-              <span className="font-medium truncate">
+            <div className="mt-1 pt-1 sm:mt-3 sm:pt-3 border-t border-slate-100 flex items-center justify-between text-[9px] min-[400px]:text-[10px] sm:text-xs text-slate-500">
+              <span className="font-normal truncate">
                 {todayCreditCount} {todayCreditCount === 1 ? 'receipt' : 'receipts'}
               </span>
               <button
                 onClick={() => navigate('/log')}
-                className="text-emerald-700 hover:text-emerald-900 font-bold transition-colors shrink-0 ml-1.5"
+                className="text-emerald-700 hover:text-emerald-900 font-normal sm:font-bold transition-colors shrink-0 ml-1"
               >
-                Journal →
+                Log →
               </button>
             </div>
           </div>
@@ -424,45 +423,46 @@ export default function Dashboard() {
       </div>
 
       {/* Main Charts & Activity Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 sm:gap-6">
         
         {/* 12-Month Cashflow Column Chart (2 Cols) */}
         <Card className="lg:col-span-2">
-          <CardHeader
-            title="12-Month Transaction History"
-            subtitle="Annual monthly debit vs credit breakdown (12 Column Overview)"
-            action={
-              <div className="flex items-center gap-4 text-xs font-semibold">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-rose-600"></span>
-                  <span className="text-slate-700">Debit (Dr)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-emerald-600"></span>
-                  <span className="text-slate-700">Credit (Cr)</span>
-                </div>
+          <div className="px-2.5 sm:px-5 py-2 sm:py-4 border-b border-slate-100 flex items-center justify-between gap-2 bg-slate-50/50">
+            <div>
+              <h3 className="text-[11.5px] sm:text-base font-normal sm:font-bold text-slate-900 tracking-tight font-sans">
+                12-Month History
+              </h3>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-4 text-[9.5px] sm:text-xs font-normal sm:font-semibold">
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                <span className="w-2 h-2 rounded-2xs bg-rose-600"></span>
+                <span className="text-slate-600">Dr</span>
               </div>
-            }
-          />
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                <span className="w-2 h-2 rounded-2xs bg-emerald-600"></span>
+                <span className="text-slate-600">Cr</span>
+              </div>
+            </div>
+          </div>
 
-          <CardBody>
-            <div className="h-[270px] sm:h-[310px] w-full">
+          <div className="p-2 min-[400px]:p-3 sm:p-5">
+            <div className="h-[150px] min-[400px]:h-[170px] sm:h-[310px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 15, right: 10, left: 10, bottom: 5 }} barGap={3} barCategoryGap="20%">
+                <BarChart data={chartData} margin={{ top: 10, right: 5, left: -15, bottom: 0 }} barGap={2} barCategoryGap="15%">
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis 
                     dataKey="name" 
                     axisLine={{ stroke: '#e2e8f0' }} 
                     tickLine={false} 
-                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} 
-                    dy={6} 
+                    tick={{ fontSize: 9, fill: '#64748b', fontWeight: 400 }} 
+                    dy={4} 
                   />
                   <YAxis 
-                    width={75}
+                    width={50}
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} 
-                    tickFormatter={(value) => `₹${value >= 100000 ? (value / 100000).toFixed(1) + 'L' : value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`} 
+                    tick={{ fontSize: 9, fill: '#64748b', fontWeight: 400 }} 
+                    tickFormatter={(value) => `₹${value >= 100000 ? (value / 100000).toFixed(0) + 'L' : value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`} 
                   />
                   <Tooltip 
                     cursor={{ fill: 'rgba(241, 245, 249, 0.6)' }}
@@ -470,32 +470,32 @@ export default function Dashboard() {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload;
                         return (
-                          <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl border border-slate-800 text-xs space-y-2 min-w-[170px]">
-                            <div className="font-bold border-b border-slate-800 pb-1 text-slate-200 flex items-center justify-between">
+                          <div className="bg-slate-900 text-white p-2 sm:p-3 rounded-lg sm:rounded-xl shadow-xl border border-slate-800 text-[10px] sm:text-xs space-y-1.5 min-w-[140px] sm:min-w-[170px]">
+                            <div className="font-normal sm:font-bold border-b border-slate-800 pb-1 text-slate-200 flex items-center justify-between">
                               <span>{data.fullMonth}</span>
-                              <span className="text-[10px] font-normal text-slate-400">{data.txCount} entries</span>
+                              <span className="text-[9px] font-normal text-slate-400">{data.txCount} entries</span>
                             </div>
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="flex items-center gap-1.5 text-rose-400 font-semibold">
-                                <span className="w-2 h-2 rounded-xs bg-rose-500"></span>
-                                Debit (Dr):
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="flex items-center gap-1 text-rose-400 font-normal sm:font-semibold">
+                                <span className="w-1.5 h-1.5 rounded-2xs bg-rose-500"></span>
+                                Dr:
                               </span>
-                              <span className="font-bold tabular-nums">
+                              <span className="font-normal sm:font-bold tabular-nums">
                                 ₹{Number(data.debit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                               </span>
                             </div>
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-                                <span className="w-2 h-2 rounded-xs bg-emerald-500"></span>
-                                Credit (Cr):
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="flex items-center gap-1 text-emerald-400 font-normal sm:font-semibold">
+                                <span className="w-1.5 h-1.5 rounded-2xs bg-emerald-500"></span>
+                                Cr:
                               </span>
-                              <span className="font-bold tabular-nums">
+                              <span className="font-normal sm:font-bold tabular-nums">
                                 ₹{Number(data.credit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                               </span>
                             </div>
-                            <div className="pt-1 border-t border-slate-800 flex items-center justify-between text-[11px]">
-                              <span className="text-slate-400 font-medium">Net Monthly Flow:</span>
-                              <span className={`font-bold tabular-nums ${data.net >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                            <div className="pt-1 border-t border-slate-800 flex items-center justify-between text-[9px] sm:text-[11px]">
+                              <span className="text-slate-400 font-normal">Net:</span>
+                              <span className={`font-normal sm:font-bold tabular-nums ${data.net >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
                                 ₹{Math.abs(data.net).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {data.net >= 0 ? 'Dr' : 'Cr'}
                               </span>
                             </div>
@@ -509,43 +509,43 @@ export default function Dashboard() {
                     dataKey="debit" 
                     name="Debit (Dr)" 
                     fill={debitColor} 
-                    radius={[4, 4, 0, 0]} 
-                    maxBarSize={28}
+                    radius={[3, 3, 0, 0]} 
+                    maxBarSize={14}
                   />
                   <Bar 
                     dataKey="credit" 
                     name="Credit (Cr)" 
                     fill={creditColor} 
-                    radius={[4, 4, 0, 0]} 
-                    maxBarSize={28}
+                    radius={[3, 3, 0, 0]} 
+                    maxBarSize={14}
                   />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </CardBody>
+          </div>
         </Card>
 
         {/* Recent Transactions Feed (1 Col) */}
         <Card className="flex flex-col">
-          <CardHeader
-            title="Recent Ledger Entries"
-            subtitle={`${transactions.length} entries in period`}
-            action={
-              <button
-                onClick={() => navigate('/log')}
-                className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
-              >
-                Journal →
-              </button>
-            }
-          />
+          <div className="px-2.5 sm:px-5 py-2 sm:py-4 border-b border-slate-100 flex items-center justify-between gap-2 bg-slate-50/50">
+            <div>
+              <h3 className="text-[11.5px] sm:text-base font-normal sm:font-bold text-slate-900 tracking-tight font-sans">
+                Recent Entries
+              </h3>
+            </div>
+            <button
+              onClick={() => navigate('/log')}
+              className="text-[10.5px] sm:text-xs font-normal sm:font-bold text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              All →
+            </button>
+          </div>
 
-          <div className="flex-1 overflow-y-auto max-h-[300px] divide-y divide-slate-100 p-0">
+          <div className="flex-1 overflow-y-auto max-h-[220px] sm:max-h-[300px] divide-y divide-slate-100 p-0">
             {transactions.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 py-12 px-4">
-                <FileText className="mx-auto mb-2 text-slate-300" size={28} />
-                <p className="text-xs font-semibold">No recent transactions recorded</p>
-                <p className="text-[11px] text-slate-400 mt-1">Record a debit or credit entry in Master Entry</p>
+              <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 py-8 sm:py-12 px-4">
+                <FileText className="mx-auto mb-1.5 text-slate-300" size={22} />
+                <p className="text-[11px] sm:text-xs font-normal sm:font-semibold">No recent transactions</p>
               </div>
             ) : (
               transactions.sort((a, b) => b.timestamp - a.timestamp).slice(0, 8).map(tx => {
@@ -554,22 +554,22 @@ export default function Dashboard() {
                   <div 
                     key={tx.id} 
                     onClick={() => party && navigate(`/parties/${party.id}`)}
-                    className="p-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between gap-3 cursor-pointer"
+                    className="p-2 min-[400px]:p-2.5 sm:p-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between gap-2 cursor-pointer"
                   >
                     <div className="flex items-center min-w-0">
-                      <div className={`shrink-0 mr-2.5 flex items-center justify-center ${
+                      <div className={`shrink-0 mr-1.5 sm:mr-2.5 flex items-center justify-center ${
                         tx.type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'
                       }`}>
-                        {tx.type === 'DEBIT' ? <ArrowDownRight size={18} /> : <ArrowUpRight size={18} />}
+                        {tx.type === 'DEBIT' ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-900 truncate">{party?.name || 'Unknown Party'}</p>
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-[11px] min-[400px]:text-[11.5px] sm:text-xs font-normal sm:font-bold text-slate-800 truncate">{party?.name || 'Unknown Party'}</p>
+                        <div className="flex items-center gap-1 text-[9px] min-[400px]:text-[9.5px] sm:text-[11px] text-slate-400 mt-0.5">
                           <span>{format(tx.timestamp, 'dd MMM, HH:mm')}</span>
                           {tx.invoiceNo && (
                             <>
                               <span>•</span>
-                              <span className="text-slate-700 font-medium">Inv #{tx.invoiceNo}</span>
+                              <span className="text-slate-600 font-normal">#{tx.invoiceNo}</span>
                             </>
                           )}
                         </div>
@@ -581,7 +581,7 @@ export default function Dashboard() {
                         amount={tx.amount} 
                         type={tx.type} 
                         showDrCr={true} 
-                        size="sm" 
+                        size="xs" 
                       />
                     </div>
                   </div>

@@ -625,12 +625,7 @@ export default function Navigation() {
           <div className="p-0.5 bg-white border border-slate-200 rounded-md shadow-2xs">
             <CompanyLogo className="h-6 w-auto object-contain" variant="color" />
           </div>
-          <span className="font-bold text-xs tracking-tight text-slate-900">Greenzar ERP</span>
-          {isPurchase && (
-            <span className="px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-              PURCHASE
-            </span>
-          )}
+          <span className="font-semibold text-xs tracking-tight text-slate-900">Greenzar ERP</span>
         </div>
 
         <div className="flex items-center gap-1.5">

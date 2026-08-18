@@ -245,95 +245,83 @@ export default function PartyList() {
   }
 
   return (
-    <div className="p-3 min-[400px]:p-4 sm:p-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-3.5 sm:space-y-6">
+    <div className="p-2 min-[400px]:p-3 sm:p-8 pt-1 min-[400px]:pt-1.5 sm:pt-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-2 sm:space-y-6">
       
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+      <div className="flex flex-row items-center justify-between gap-1.5 sm:gap-4">
         <div>
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <h1 className="text-xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-              {isPurchase ? "Vendor & Supplier Ledgers" : "Parties & Customer Ledgers"}
+          <div className="flex items-center gap-1.5 sm:gap-3 flex-wrap">
+            <h1 className="text-sm min-[400px]:text-base sm:text-3xl font-semibold sm:font-bold text-slate-900 tracking-tight">
+              {isPurchase ? "Purchases Parties" : "Party Ledgers"}
             </h1>
           </div>
-          <p className="text-[11px] sm:text-sm text-slate-500 mt-0.5 sm:mt-1">
-            Directory of accounts, outstanding receivables, and advance balances for {activeLedger.name}
-          </p>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-3 shrink-0">
           {currentUser?.isAdmin && (
             <button
               type="button"
               onClick={() => setShowImportModal(true)}
-              className="inline-flex items-center justify-center px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-medium shadow-2xs transition-colors"
+              className="inline-flex items-center justify-center px-1.5 sm:px-3.5 py-0.5 sm:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-normal sm:font-medium shadow-2xs transition-colors"
             >
-              <Upload size={13} className="mr-1 sm:mr-1.5 text-slate-500" />
-              Bulk Import
+              <Upload size={12} className="mr-0.5 sm:mr-1.5 text-slate-500" />
+              <span className="hidden min-[380px]:inline">Bulk </span>Import
             </button>
           )}
 
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className={`inline-flex items-center justify-center gap-1 sm:gap-1.5 text-xs sm:text-sm font-semibold ${
+            className={`inline-flex items-center justify-center gap-0.5 sm:gap-1.5 text-[10.5px] sm:text-sm font-normal sm:font-semibold ${
               isPurchase 
-                ? 'text-purple-800 hover:text-purple-950 font-bold bg-amber-100/70 border border-amber-300/80 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg shadow-2xs' 
-                : 'text-[#0055a5] hover:text-blue-800 transition-colors py-1 sm:py-1.5 px-2 rounded-lg hover:bg-blue-50/50'
+                ? 'text-purple-800 hover:text-purple-950 font-medium sm:font-bold bg-amber-100/70 border border-amber-300/80 px-2 sm:px-3 py-0.5 sm:py-1.5 rounded-md sm:rounded-lg shadow-2xs' 
+                : 'text-[#0055a5] hover:text-blue-800 transition-colors py-0.5 sm:py-1.5 px-1.5 sm:px-2 rounded-md sm:rounded-lg hover:bg-blue-50/50'
             }`}
           >
-            <UserPlus size={15} />
-            <span>Add New {isPurchase ? 'Vendor' : 'Party'}</span>
+            <UserPlus size={13} />
+            <span>Add <span className="hidden min-[380px]:inline">New </span>{isPurchase ? 'Vendor' : 'Party'}</span>
           </button>
         </div>
       </div>
 
       {/* 3 Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-4">
         
         {/* Card 1: TOTAL REGISTERED PARTIES */}
-        <div className={`bg-white rounded-xl sm:rounded-2xl border ${isPurchase ? 'border-purple-200' : 'border-slate-200'} p-3.5 sm:p-6 shadow-2xs flex flex-col justify-between`}>
-          <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            {isPurchase ? "TOTAL REGISTERED VENDORS" : "TOTAL REGISTERED PARTIES"}
+        <div className={`bg-white rounded-lg sm:rounded-2xl border ${isPurchase ? 'border-purple-200' : 'border-slate-200'} p-1.5 min-[400px]:p-2.5 sm:p-6 shadow-2xs flex flex-col justify-between`}>
+          <span className="text-[8px] min-[400px]:text-[9px] sm:text-[11px] font-normal uppercase tracking-wider text-slate-500 truncate">
+            Parties
           </span>
-          <div className="mt-1.5 sm:mt-3">
-            <div className={`text-2xl sm:text-4xl font-bold ${isPurchase ? 'text-purple-800' : 'text-[#0055a5]'} tracking-tight`}>
+          <div className="mt-0.5 sm:mt-3">
+            <div className={`text-xs min-[400px]:text-sm sm:text-4xl font-normal sm:font-bold ${isPurchase ? 'text-purple-800' : 'text-[#0055a5]'} tracking-tight`}>
               {parties.length}
             </div>
-            <p className="text-[11px] sm:text-xs text-slate-500 mt-1 sm:mt-2">
-              {parties.filter(p => p.status === 'Active').length} Active Accounts
-            </p>
           </div>
         </div>
 
         {/* Card 2: TOTAL RECEIVABLES (DUES) */}
-        <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-3.5 sm:p-6 shadow-2xs flex flex-col justify-between">
-          <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            TOTAL RECEIVABLES (DUES)
+        <div className="bg-white rounded-lg sm:rounded-2xl border border-slate-200 p-1.5 min-[400px]:p-2.5 sm:p-6 shadow-2xs flex flex-col justify-between">
+          <span className="text-[8px] min-[400px]:text-[9px] sm:text-[11px] font-normal uppercase tracking-wider text-slate-500 truncate">
+            Receivables
           </span>
-          <div className="mt-1.5 sm:mt-3">
-            <div className="text-xl sm:text-3xl font-bold text-rose-600 tracking-tight tabular-nums flex items-baseline gap-1">
+          <div className="mt-0.5 sm:mt-3">
+            <div className="text-[10px] min-[400px]:text-xs sm:text-3xl font-normal sm:font-bold text-rose-600 tracking-tight tabular-nums flex items-baseline gap-0.5">
               <span>₹{totalReceivable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              <span className="text-[10px] sm:text-xs font-bold uppercase text-rose-600 ml-1">DR</span>
+              <span className="text-[8px] min-[400px]:text-[9px] sm:text-xs font-normal sm:font-bold uppercase text-rose-600">DR</span>
             </div>
-            <p className="text-[11px] sm:text-xs text-slate-500 mt-1 sm:mt-2">
-              {parties.filter(p => p.currentDue > 0).length} parties with pending dues
-            </p>
           </div>
         </div>
 
         {/* Card 3: TOTAL PAYABLES (ADVANCES) */}
-        <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-3.5 sm:p-6 shadow-2xs flex flex-col justify-between">
-          <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            TOTAL PAYABLES (ADVANCES)
+        <div className="bg-white rounded-lg sm:rounded-2xl border border-slate-200 p-1.5 min-[400px]:p-2.5 sm:p-6 shadow-2xs flex flex-col justify-between">
+          <span className="text-[8px] min-[400px]:text-[9px] sm:text-[11px] font-normal uppercase tracking-wider text-slate-500 truncate">
+            Payables
           </span>
-          <div className="mt-1.5 sm:mt-3">
-            <div className="text-xl sm:text-3xl font-bold text-emerald-600 tracking-tight tabular-nums flex items-baseline gap-1">
+          <div className="mt-0.5 sm:mt-3">
+            <div className="text-[10px] min-[400px]:text-xs sm:text-3xl font-normal sm:font-bold text-emerald-600 tracking-tight tabular-nums flex items-baseline gap-0.5">
               <span>₹{totalPayable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              <span className="text-[10px] sm:text-xs font-bold uppercase text-emerald-600 ml-1">CR</span>
+              <span className="text-[8px] min-[400px]:text-[9px] sm:text-xs font-normal sm:font-bold uppercase text-emerald-600">CR</span>
             </div>
-            <p className="text-[11px] sm:text-xs text-slate-500 mt-1 sm:mt-2">
-              {parties.filter(p => p.currentDue < 0).length} parties with advance credit
-            </p>
           </div>
         </div>
 
@@ -343,39 +331,39 @@ export default function PartyList() {
       <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
         
         {/* Search & Filter Toolbar */}
-        <div className="p-3 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-3 sm:gap-4 items-stretch lg:items-center justify-between">
+        <div className="p-2 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-2 sm:gap-4 items-stretch lg:items-center justify-between">
           
           {/* Search Field */}
           <div className="relative flex-1 max-w-md">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search party name, phone, email..."
+              placeholder="Search party name, phone..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full pl-8 pr-8 py-1.5 sm:py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#0055a5] transition-colors"
+              className="w-full pl-7.5 pr-7 py-1 sm:py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-md sm:rounded-lg text-[11px] min-[400px]:text-[11.5px] sm:text-sm font-normal text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#0055a5] transition-colors"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
-                <X size={14} />
+                <X size={13} />
               </button>
             )}
           </div>
 
           {/* Underline Tabs & Sort Dropdown */}
-          <div className="flex flex-wrap items-center justify-between lg:justify-end gap-3 sm:gap-5">
+          <div className="flex items-center justify-between lg:justify-end gap-2 sm:gap-5">
             {/* Status Tabs */}
-            <div className="flex items-center space-x-3 sm:space-x-6 text-xs sm:text-sm overflow-x-auto">
+            <div className="flex items-center space-x-2 min-[400px]:space-x-3 sm:space-x-6 text-[10.5px] min-[400px]:text-[11px] sm:text-sm overflow-x-auto">
               <button
                 type="button"
                 onClick={() => setStatusFilter('ALL')}
-                className={`py-1 whitespace-nowrap transition-all ${
+                className={`py-0.5 sm:py-1 whitespace-nowrap transition-all ${
                   statusFilter === 'ALL'
-                    ? 'border-b-2 border-[#0055a5] text-[#0055a5] font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 font-medium'
+                    ? 'border-b-2 border-[#0055a5] text-[#0055a5] font-medium sm:font-semibold'
+                    : 'text-slate-500 hover:text-slate-900 font-normal'
                 }`}
               >
                 All ({parties.length})
@@ -383,10 +371,10 @@ export default function PartyList() {
               <button
                 type="button"
                 onClick={() => setStatusFilter('DUE')}
-                className={`py-1 whitespace-nowrap transition-all ${
+                className={`py-0.5 sm:py-1 whitespace-nowrap transition-all ${
                   statusFilter === 'DUE'
-                    ? 'border-b-2 border-[#0055a5] text-[#0055a5] font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 font-medium'
+                    ? 'border-b-2 border-[#0055a5] text-[#0055a5] font-medium sm:font-semibold'
+                    : 'text-slate-500 hover:text-slate-900 font-normal'
                 }`}
               >
                 Debtors ({parties.filter(p => p.currentDue > 0).length})
@@ -394,10 +382,10 @@ export default function PartyList() {
               <button
                 type="button"
                 onClick={() => setStatusFilter('ADVANCE')}
-                className={`py-1 whitespace-nowrap transition-all ${
+                className={`py-0.5 sm:py-1 whitespace-nowrap transition-all ${
                   statusFilter === 'ADVANCE'
-                    ? 'border-b-2 border-[#0055a5] text-[#0055a5] font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 font-medium'
+                    ? 'border-b-2 border-[#0055a5] text-[#0055a5] font-medium sm:font-semibold'
+                    : 'text-slate-500 hover:text-slate-900 font-normal'
                 }`}
               >
                 Creditors ({parties.filter(p => p.currentDue < 0).length})
@@ -408,12 +396,12 @@ export default function PartyList() {
             <select
               value={sortOrder}
               onChange={e => setSortOrder(e.target.value as any)}
-              className="bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs sm:text-sm text-slate-700 font-medium focus:outline-none focus:border-[#0055a5] transition-colors cursor-pointer shrink-0"
+              className="bg-white border border-slate-200 hover:border-slate-300 rounded-md sm:rounded-lg px-2 py-0.5 sm:py-1.5 text-[10px] min-[400px]:text-[10.5px] sm:text-sm text-slate-600 font-normal sm:font-medium focus:outline-none focus:border-[#0055a5] transition-colors cursor-pointer shrink-0"
             >
-              <option value="recent">Recently Active</option>
-              <option value="name">Name (A - Z)</option>
-              <option value="due_desc">Due: High to Low</option>
-              <option value="due_asc">Due: Low to High</option>
+              <option value="recent">Recent</option>
+              <option value="name">Name (A-Z)</option>
+              <option value="due_desc">Due: High-Low</option>
+              <option value="due_asc">Due: Low-High</option>
             </select>
           </div>
         </div>
@@ -519,29 +507,29 @@ export default function PartyList() {
             <div 
               key={party.id} 
               onClick={() => navigate(`/parties/${party.id}`)}
-              className="p-3 hover:bg-slate-50 transition-colors flex items-center justify-between gap-2.5 cursor-pointer"
+              className="p-2 min-[400px]:p-2.5 hover:bg-slate-50 transition-colors flex items-center justify-between gap-2 cursor-pointer"
             >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-blue-50/80 border border-blue-100 text-[#0055a5] flex items-center justify-center font-bold text-xs shrink-0 uppercase">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-md bg-blue-50/80 border border-blue-100 text-[#0055a5] flex items-center justify-center font-normal text-[11px] shrink-0 uppercase">
                   {party.name.substring(0, 2).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <h4 className="font-bold text-slate-900 text-xs truncate">{party.name}</h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5 truncate">{party.phone || 'No phone'}</p>
+                  <h4 className="font-normal text-slate-800 text-[11.5px] min-[400px]:text-xs truncate">{party.name}</h4>
+                  <p className="text-[9.5px] min-[400px]:text-[10px] text-slate-400 mt-0.5 truncate">{party.phone || 'No phone'}</p>
                 </div>
               </div>
 
               <div className="text-right shrink-0">
-                <div className="font-bold text-xs tabular-nums">
-                  <span className={party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-900"}>
+                <div className="font-normal text-[11.5px] min-[400px]:text-xs tabular-nums">
+                  <span className={party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-700"}>
                     ₹{Math.abs(party.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
-                  <span className={`text-[9.5px] ml-1 uppercase font-bold ${party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-500"}`}>
+                  <span className={`text-[9px] ml-0.5 uppercase ${party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-500"}`}>
                     {party.currentDue > 0 ? 'DR' : party.currentDue < 0 ? 'CR' : ''}
                   </span>
                 </div>
                 {currentUser?.isAdmin && (
-                  <span className="inline-flex items-center gap-1 text-[9.5px] font-semibold text-emerald-600 uppercase mt-0.5">
+                  <span className="inline-flex items-center gap-1 text-[9px] font-normal text-emerald-600 uppercase mt-0.5">
                     <span className="w-1 h-1 rounded-full bg-emerald-500"></span>
                     {party.status || 'ACTIVE'}
                   </span>
