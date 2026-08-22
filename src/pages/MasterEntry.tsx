@@ -674,16 +674,16 @@ export default function MasterEntry() {
               </label>
 
               {partyLockedByInvoice && selectedParty ? (
-                <div className="p-2 sm:p-3 border rounded-lg sm:rounded-xl border-blue-200 bg-blue-50/50 flex flex-col space-y-1">
+                <div className="p-2 sm:p-2.5 border rounded-lg sm:rounded-xl border-slate-200 bg-transparent flex flex-col space-y-1">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="font-normal sm:font-bold text-slate-900 text-[11.5px] sm:text-sm">{selectedParty.name}</span>
-                      <span className="text-slate-500 text-[10px] sm:text-[11px] font-mono ml-2">{selectedParty.phone || 'No phone'}</span>
+                      <span className="font-normal sm:font-bold text-black text-[11.5px] sm:text-sm">{selectedParty.name}</span>
+                      <span className="text-black text-[10px] sm:text-[11px] font-mono ml-2">{selectedParty.phone || 'No phone'}</span>
                     </div>
-                    <Badge variant="navy" size="xs">Locked</Badge>
+                    <span className="text-[9.5px] font-normal uppercase px-1.5 py-0.2 rounded border border-slate-300 text-black">Locked</span>
                   </div>
                   {lockedInvoiceDetails && (
-                    <div className="text-[10px] sm:text-[11px] text-blue-700 font-normal flex justify-between pt-1 border-t border-blue-100">
+                    <div className="text-[10px] sm:text-[11px] text-black font-normal flex justify-between pt-1 border-t border-slate-100">
                       <span>Prior {lockedInvoiceDetails.type}: ₹{lockedInvoiceDetails.amount?.toFixed(2)}</span>
                       <span>Date: {lockedInvoiceDetails.date ? new Date(lockedInvoiceDetails.date).toLocaleDateString() : '-'}</span>
                     </div>
@@ -732,18 +732,20 @@ export default function MasterEntry() {
                   )}
                 </div>
               ) : (
-                <div className="flex items-center justify-between p-2 sm:p-3 border border-slate-200 rounded-lg sm:rounded-xl bg-slate-50">
+                <div className="flex items-center justify-between p-2 sm:p-2.5 border border-slate-200 rounded-lg sm:rounded-xl bg-transparent">
                   <div>
-                    <div className="font-normal sm:font-bold text-slate-900 text-[11.5px] sm:text-sm">{selectedParty.name}</div>
-                    <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5">
-                      <span>Current Due:</span>
-                      <AmountDisplay amount={selectedParty.currentDue} showDrCr={true} size="xs" />
+                    <div className="font-normal sm:font-bold text-black text-[11.5px] sm:text-sm">{selectedParty.name}</div>
+                    <div className="text-[10px] sm:text-[11px] text-black mt-0.5 flex items-center gap-1.5">
+                      <span className="text-black">Current Due:</span>
+                      <span className="text-black font-mono">
+                        ₹{Math.abs(selectedParty.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {selectedParty.currentDue > 0 ? 'DR' : selectedParty.currentDue < 0 ? 'CR' : ''}
+                      </span>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => { setSelectedParty(null); setTimeout(() => partySearchRef.current?.focus(), 10); }}
-                    className="text-[10.5px] sm:text-xs font-normal sm:font-bold text-blue-600 hover:text-blue-700 bg-white border border-slate-200 px-2 py-0.5 sm:py-1 rounded-md shadow-2xs transition-colors"
+                    className="text-[10.5px] sm:text-xs font-normal sm:font-medium text-black hover:text-slate-700 bg-transparent hover:bg-slate-100 border border-slate-300 px-2 py-0.5 sm:py-1 rounded-md transition-colors"
                   >
                     Change
                   </button>

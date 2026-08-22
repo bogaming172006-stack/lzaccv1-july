@@ -3,8 +3,8 @@ import { db, handleFirestoreError, OperationType, collection, getDocs, query, wh
 import { Transaction, Party } from '../types';
 import { useLedger } from '../LedgerContext';
 import { useAuth } from '../AuthContext';
-import { format } from 'date-fns';
-import { Search, Loader2, ArrowRight, Trash2, Printer, Calendar, TrendingDown, TrendingUp, DollarSign, X } from 'lucide-react';
+import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { Search, Loader2, ArrowRight, Trash2, Printer, Calendar, TrendingDown, TrendingUp, DollarSign, X, Filter } from 'lucide-react';
 import { getFilteredCacheItems } from '../lib/idbCache';
 import { syncCollection } from '../lib/syncCache';
 import { deleteTransaction } from '../lib/transactionService';
@@ -27,10 +27,40 @@ export default function Log() {
   const [parties, setParties] = useState<Record<string, Party>>({});
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'ALL' | 'DEBIT' | 'CREDIT'>('ALL');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  
+  // Default to today's date for Day Log
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const [startDate, setStartDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(todayStr);
+  const [datePreset, setDatePreset] = useState<'TODAY' | 'YESTERDAY' | 'THIS_MONTH' | 'ALL' | 'CUSTOM'>('TODAY');
+  const [showCustomDates, setShowCustomDates] = useState(false);
+  
   const [isLoading, setIsLoading] = useState(false);
   const [displayCount, setDisplayCount] = useState(BATCH_SIZE);
+
+  const applyDatePreset = (preset: 'TODAY' | 'YESTERDAY' | 'THIS_MONTH' | 'ALL') => {
+    setDatePreset(preset);
+    const now = new Date();
+    if (preset === 'TODAY') {
+      const t = format(now, 'yyyy-MM-dd');
+      setStartDate(t);
+      setEndDate(t);
+      setShowCustomDates(false);
+    } else if (preset === 'YESTERDAY') {
+      const y = format(subDays(now, 1), 'yyyy-MM-dd');
+      setStartDate(y);
+      setEndDate(y);
+      setShowCustomDates(false);
+    } else if (preset === 'THIS_MONTH') {
+      setStartDate(format(startOfMonth(now), 'yyyy-MM-dd'));
+      setEndDate(format(endOfMonth(now), 'yyyy-MM-dd'));
+      setShowCustomDates(false);
+    } else if (preset === 'ALL') {
+      setStartDate('');
+      setEndDate('');
+      setShowCustomDates(false);
+    }
+  };
 
   // Deletion States
   const [deletingTx, setDeletingTx] = useState<Transaction | null>(null);
@@ -184,6 +214,21 @@ export default function Log() {
       {/* Page Header */}
       <PageHeader
         title={activeLedger.type === 'PURCHASE' ? "Purchase Day Log" : "Day Log"}
+        subtitle={
+          datePreset === 'TODAY' 
+            ? `Showing today's activities • ${format(new Date(), 'dd MMMM yyyy')}`
+            : datePreset === 'YESTERDAY'
+            ? `Showing yesterday's activities • ${format(subDays(new Date(), 1), 'dd MMMM yyyy')}`
+            : datePreset === 'THIS_MONTH'
+            ? `Showing this month's activities • ${format(new Date(), 'MMMM yyyy')}`
+            : datePreset === 'ALL'
+            ? 'Showing all historical entries'
+            : startDate && endDate && startDate === endDate
+            ? `Showing entries for ${format(new Date(startDate), 'dd MMM yyyy')}`
+            : startDate || endDate
+            ? `Showing entries from ${startDate || 'beginning'} to ${endDate || 'present'}`
+            : 'Day transaction log'
+        }
       />
 
       {/* Filter Totals Metric Cards: Debit first, then Credit side-by-side */}
@@ -242,35 +287,114 @@ export default function Log() {
             </div>
           </div>
 
-          {/* Date Pickers */}
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-0.5">
-            <div className="flex items-center bg-white border border-slate-300 rounded-lg px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10.5px] sm:text-xs">
-              <span className="text-slate-400 font-normal sm:font-bold uppercase tracking-wider text-[9px] sm:text-[10px] mr-1">From:</span>
-              <input 
-                type="date" 
-                className="font-mono text-slate-700 bg-transparent focus:outline-none text-[10.5px] sm:text-xs font-normal"
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
-              />
-            </div>
-            <div className="flex items-center bg-white border border-slate-300 rounded-lg px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10.5px] sm:text-xs">
-              <span className="text-slate-400 font-normal sm:font-bold uppercase tracking-wider text-[9px] sm:text-[10px] mr-1">To:</span>
-              <input 
-                type="date" 
-                className="font-mono text-slate-700 bg-transparent focus:outline-none text-[10.5px] sm:text-xs font-normal"
-                value={endDate}
-                onChange={e => setEndDate(e.target.value)}
-              />
-            </div>
-            {(startDate || endDate) && (
-              <button 
-                onClick={() => { setStartDate(''); setEndDate(''); }}
-                className="text-[10px] sm:text-xs text-slate-600 hover:text-slate-900 font-normal px-2 py-0.5 sm:py-1 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-              >
-                Clear Dates
-              </button>
-            )}
+          {/* Quick Date Filters & Custom Date Range Picker */}
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-1 border-t border-slate-200/60">
+            <span className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider mr-0.5">
+              Date Filter:
+            </span>
+
+            <button
+              type="button"
+              onClick={() => applyDatePreset('TODAY')}
+              className={`px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-medium transition-colors cursor-pointer ${
+                datePreset === 'TODAY'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Today
+            </button>
+
+            <button
+              type="button"
+              onClick={() => applyDatePreset('YESTERDAY')}
+              className={`px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-medium transition-colors cursor-pointer ${
+                datePreset === 'YESTERDAY'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Yesterday
+            </button>
+
+            <button
+              type="button"
+              onClick={() => applyDatePreset('THIS_MONTH')}
+              className={`px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-medium transition-colors cursor-pointer ${
+                datePreset === 'THIS_MONTH'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              This Month
+            </button>
+
+            <button
+              type="button"
+              onClick={() => applyDatePreset('ALL')}
+              className={`px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-medium transition-colors cursor-pointer ${
+                datePreset === 'ALL'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              All Time
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowCustomDates(!showCustomDates);
+                if (!showCustomDates) setDatePreset('CUSTOM');
+              }}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-medium border transition-colors cursor-pointer ${
+                datePreset === 'CUSTOM' || showCustomDates
+                  ? 'bg-blue-50 border-blue-300 text-blue-700'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Calendar size={12} className={datePreset === 'CUSTOM' || showCustomDates ? "text-blue-600" : "text-slate-400"} />
+              <span>Custom Range</span>
+            </button>
           </div>
+
+          {/* Expandable Custom Date Inputs */}
+          {showCustomDates && (
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-2 border-t border-slate-200/60 bg-blue-50/40 p-2 rounded-lg">
+              <div className="flex items-center bg-white border border-slate-300 rounded-lg px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10.5px] sm:text-xs">
+                <span className="text-slate-400 font-normal sm:font-bold uppercase tracking-wider text-[9px] sm:text-[10px] mr-1">From:</span>
+                <input 
+                  type="date" 
+                  className="font-mono text-slate-700 bg-transparent focus:outline-none text-[10.5px] sm:text-xs font-normal"
+                  value={startDate}
+                  onChange={e => {
+                    setStartDate(e.target.value);
+                    setDatePreset('CUSTOM');
+                  }}
+                />
+              </div>
+              <div className="flex items-center bg-white border border-slate-300 rounded-lg px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10.5px] sm:text-xs">
+                <span className="text-slate-400 font-normal sm:font-bold uppercase tracking-wider text-[9px] sm:text-[10px] mr-1">To:</span>
+                <input 
+                  type="date" 
+                  className="font-mono text-slate-700 bg-transparent focus:outline-none text-[10.5px] sm:text-xs font-normal"
+                  value={endDate}
+                  onChange={e => {
+                    setEndDate(e.target.value);
+                    setDatePreset('CUSTOM');
+                  }}
+                />
+              </div>
+              {(startDate || endDate) && (
+                <button 
+                  onClick={() => applyDatePreset('ALL')}
+                  className="text-[10px] sm:text-xs text-rose-600 hover:text-rose-700 font-normal px-2 py-0.5 sm:py-1 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  Clear Range
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Desktop Table View */}
@@ -366,36 +490,73 @@ export default function Log() {
           </table>
         </div>
 
-        {/* Mobile View: High Density Compact List */}
-        <div className="block md:hidden divide-y divide-slate-100 bg-white">
-          {filtered.map(tx => {
-            const party = parties[tx.partyId];
-            return (
-              <div 
-                key={tx.id} 
-                onClick={() => setSelectedDetailTx(tx)}
-                className="p-2 min-[400px]:p-2.5 hover:bg-slate-50 flex items-center justify-between gap-2 cursor-pointer transition-colors"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1 text-[9px] min-[400px]:text-[9.5px] text-slate-400 font-mono">
-                    <span>{format(new Date(tx.timestamp), 'dd MMM, HH:mm')}</span>
-                    {tx.invoiceNo && <span className="text-blue-600 bg-blue-50/80 px-1 py-0.2 rounded font-normal">#{tx.invoiceNo}</span>}
-                  </div>
-                  <h4 className="font-normal text-slate-800 text-[11.5px] min-[400px]:text-xs mt-0.5 truncate">
-                    {party?.name || 'Unknown'}
-                  </h4>
-                  <p className="text-[9.5px] min-[400px]:text-[10px] text-slate-400 truncate mt-0.5 font-normal">{tx.notes || 'General entry'}</p>
-                </div>
+        {/* Mobile View: 3-Column Section (1st: Invoice, 2nd: Name, 3rd: Amount Dr/Cr) */}
+        <div className="block md:hidden bg-white">
+          {/* 3-Column Header */}
+          <div className="grid grid-cols-12 gap-1.5 px-2.5 py-1.5 bg-slate-100/90 border-b border-slate-200 text-[9.5px] font-bold text-slate-500 uppercase tracking-wider">
+            <div className="col-span-3">Invoice / Date</div>
+            <div className="col-span-5">Party / Notes</div>
+            <div className="col-span-4 text-right">Amount (Dr/Cr)</div>
+          </div>
 
-                <div className="text-right shrink-0">
-                  <span className={`text-[11.5px] min-[400px]:text-xs font-normal tabular-nums font-sans ${tx.type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
-                    ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    <span className="text-[9px] ml-0.5 uppercase opacity-90">{tx.type === 'DEBIT' ? 'Dr' : 'Cr'}</span>
-                  </span>
+          <div className="divide-y divide-slate-100">
+            {filtered.map(tx => {
+              const party = parties[tx.partyId];
+              return (
+                <div 
+                  key={tx.id} 
+                  onClick={() => setSelectedDetailTx(tx)}
+                  className="p-2 min-[400px]:p-2.5 hover:bg-slate-50 grid grid-cols-12 gap-1.5 items-center cursor-pointer transition-colors"
+                >
+                  {/* 1st Column: Invoice & Date */}
+                  <div className="col-span-3 min-w-0">
+                    {tx.invoiceNo ? (
+                      <span className="text-[10.5px] min-[400px]:text-[11.5px] font-semibold text-blue-600 inline-block truncate max-w-full font-mono">
+                        #{tx.invoiceNo}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-mono block">
+                        —
+                      </span>
+                    )}
+                    <span className="text-[8.5px] min-[400px]:text-[9px] text-slate-400 font-mono block mt-0.5 truncate">
+                      {format(new Date(tx.timestamp), 'dd MMM, HH:mm')}
+                    </span>
+                  </div>
+
+                  {/* 2nd Column: Party Name & Particulars */}
+                  <div className="col-span-5 min-w-0 pr-1">
+                    <h4 className="font-semibold text-slate-900 text-[11px] min-[400px]:text-[11.5px] leading-tight truncate">
+                      {party?.name || 'Unknown'}
+                    </h4>
+                    <p className="text-[9px] min-[400px]:text-[9.5px] text-slate-400 truncate mt-0.5 leading-tight">
+                      {tx.notes || 'General entry'}
+                    </p>
+                  </div>
+
+                  {/* 3rd Column: Amount Debit or Credit */}
+                  <div className="col-span-4 text-right shrink-0">
+                    <div className={`text-[11px] min-[400px]:text-xs font-bold tabular-nums tracking-tight ${tx.type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                      ₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </div>
+                    <span className={`text-[8.5px] min-[400px]:text-[9px] font-semibold uppercase inline-block mt-0.5 ${
+                      tx.type === 'DEBIT' 
+                        ? 'text-rose-600' 
+                        : 'text-emerald-600'
+                    }`}>
+                      {tx.type === 'DEBIT' ? 'Debit (Dr)' : 'Credit (Cr)'}
+                    </span>
+                  </div>
                 </div>
+              );
+            })}
+
+            {filtered.length === 0 && (
+              <div className="py-12 text-center text-xs font-semibold text-slate-400">
+                No transactions matching current filters.
               </div>
-            );
-          })}
+            )}
+          </div>
         </div>
 
         {/* Load More Button */}

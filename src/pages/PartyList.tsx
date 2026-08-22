@@ -262,9 +262,9 @@ export default function PartyList() {
             <button
               type="button"
               onClick={() => setShowImportModal(true)}
-              className="inline-flex items-center justify-center px-1.5 sm:px-3.5 py-0.5 sm:py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-normal sm:font-medium shadow-2xs transition-colors"
+              className="inline-flex items-center justify-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100/60 rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-normal transition-colors"
             >
-              <Upload size={12} className="mr-0.5 sm:mr-1.5 text-slate-500" />
+              <Upload size={12} className="mr-0.5 sm:mr-1 text-slate-500" />
               <span className="hidden min-[380px]:inline">Bulk </span>Import
             </button>
           )}
@@ -272,11 +272,7 @@ export default function PartyList() {
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className={`inline-flex items-center justify-center gap-0.5 sm:gap-1.5 text-[10.5px] sm:text-sm font-normal sm:font-semibold ${
-              isPurchase 
-                ? 'text-purple-800 hover:text-purple-950 font-medium sm:font-bold bg-amber-100/70 border border-amber-300/80 px-2 sm:px-3 py-0.5 sm:py-1.5 rounded-md sm:rounded-lg shadow-2xs' 
-                : 'text-[#0055a5] hover:text-blue-800 transition-colors py-0.5 sm:py-1.5 px-1.5 sm:px-2 rounded-md sm:rounded-lg hover:bg-blue-50/50'
-            }`}
+            className="inline-flex items-center justify-center gap-0.5 sm:gap-1 text-[10.5px] sm:text-sm font-normal text-[#0055a5] hover:text-blue-800 hover:bg-blue-50/50 transition-colors py-0.5 sm:py-1 px-1.5 sm:px-2 rounded-md sm:rounded-lg"
           >
             <UserPlus size={13} />
             <span>Add <span className="hidden min-[380px]:inline">New </span>{isPurchase ? 'Vendor' : 'Party'}</span>
