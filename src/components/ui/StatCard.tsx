@@ -50,7 +50,7 @@ export default function StatCard({
         </div>
 
         {Icon && (
-          <div className={`p-1 sm:p-2.5 rounded-md sm:rounded-lg ${iconBg} ${iconColor} shrink-0 border border-slate-200/60 hidden min-[440px]:flex items-center justify-center`}>
+          <div className={`p-1 sm:p-2 rounded-md sm:rounded-lg ${iconBg} ${iconColor} shrink-0 ${iconBg?.includes('bg-transparent') ? '' : 'border border-slate-200/60'} hidden min-[440px]:flex items-center justify-center`}>
             <Icon className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
           </div>
         )}

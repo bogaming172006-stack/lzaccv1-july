@@ -1,7 +1,7 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { X, Calendar, User, Hash, BookOpen, FileText, ArrowDownRight, ArrowUpRight, CreditCard, DollarSign } from 'lucide-react';
-import { Transaction } from '../types';
+import { X, Calendar, User, Hash, BookOpen, FileText, ArrowDownRight, ArrowUpRight, CreditCard, DollarSign, Printer, Download, Edit2, Trash2 } from 'lucide-react';
+import { Transaction, Ledger } from '../types';
 
 interface TransactionDetailModalProps {
   isOpen: boolean;
@@ -9,6 +9,11 @@ interface TransactionDetailModalProps {
   transaction: Transaction | null;
   partyName: string;
   ledgerName?: string;
+  ledgerType?: Ledger['type'];
+  isAdmin?: boolean;
+  onOpenReceipt?: (transaction: Transaction) => void;
+  onEdit?: (transaction: Transaction) => void;
+  onDelete?: (transaction: Transaction) => void;
 }
 
 export default function TransactionDetailModal({
@@ -16,11 +21,25 @@ export default function TransactionDetailModal({
   onClose,
   transaction,
   partyName,
-  ledgerName
+  ledgerName,
+  ledgerType,
+  isAdmin,
+  onOpenReceipt,
+  onEdit,
+  onDelete
 }: TransactionDetailModalProps) {
   if (!isOpen || !transaction) return null;
 
   const runningBalance = transaction.runningBalance;
+  const isExp = ledgerType === 'EXPENSE';
+
+  const partyLabel = isExp
+    ? (transaction.type === 'DEBIT' ? 'Paid To' : 'Received From')
+    : ledgerType === 'PURCHASE'
+    ? (transaction.type === 'DEBIT' ? 'Paid To (Vendor)' : 'Supplier / Vendor')
+    : ledgerType === 'SALE'
+    ? (transaction.type === 'CREDIT' ? 'Received From' : 'Customer / Bill To')
+    : (transaction.type === 'CREDIT' ? 'Received From' : 'Paid To / Party');
 
   // Helper to parse notes for Cash / AC breakdown
   const parseNotesBreakdown = (notesText: string) => {
@@ -66,14 +85,43 @@ export default function TransactionDetailModal({
             </span>
             <h3 className="font-normal text-slate-800 text-xs sm:text-sm tracking-tight">Transaction Details</h3>
           </div>
-          <button 
-            type="button" 
-            onClick={onClose} 
-            className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
-            id="close-detail-modal-btn"
-          >
-            <X size={15} />
-          </button>
+          <div className="flex items-center gap-1">
+            {isAdmin && onEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEdit(transaction);
+                }}
+                className="flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded border border-blue-200 transition-colors"
+                title="Edit Transaction"
+              >
+                <Edit2 size={12} />
+                <span>Edit</span>
+              </button>
+            )}
+            {isAdmin && onDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onDelete(transaction);
+                }}
+                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                title="Delete Transaction"
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+            <button 
+              type="button" 
+              onClick={onClose} 
+              className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+              id="close-detail-modal-btn"
+            >
+              <X size={15} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -90,12 +138,12 @@ export default function TransactionDetailModal({
 
           {/* Core Info list */}
           <div className="space-y-2 text-[11px] min-[400px]:text-[11.5px] sm:text-xs">
-            {/* Party */}
+            {/* Party / Payee / Head */}
             <div className="flex items-start gap-2">
               <User size={13} className="text-slate-400 mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1 flex items-center justify-between gap-1">
-                <span className="text-[9.5px] min-[400px]:text-[10px] text-slate-400 font-normal uppercase">Party</span>
-                <span className="font-normal text-slate-800 truncate">{partyName}</span>
+                <span className="text-[9.5px] min-[400px]:text-[10px] text-slate-400 font-normal uppercase">{partyLabel}</span>
+                <span className="font-semibold text-slate-800 truncate">{partyName}</span>
               </div>
             </div>
 
@@ -185,11 +233,25 @@ export default function TransactionDetailModal({
         </div>
 
         {/* Footer */}
-        <div className="px-3.5 py-2 sm:px-4 sm:py-2.5 border-t border-slate-100 bg-slate-50/80 flex justify-end">
+        <div className="px-3.5 py-2.5 sm:px-4 sm:py-3 border-t border-slate-100 bg-slate-50/90 flex items-center justify-between gap-2">
+          {onOpenReceipt ? (
+            <button 
+              type="button" 
+              onClick={() => {
+                onClose();
+                onOpenReceipt(transaction);
+              }} 
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md font-semibold text-[11px] sm:text-xs transition-colors cursor-pointer border border-blue-200"
+            >
+              <Printer size={13} />
+              <span>Download / Print Receipt</span>
+            </button>
+          ) : <div />}
+          
           <button 
             type="button" 
             onClick={onClose} 
-            className="px-3 py-1 bg-slate-800 hover:bg-slate-900 active:scale-98 text-white rounded-md font-normal text-[11px] sm:text-xs transition-all cursor-pointer shadow-2xs"
+            className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 active:scale-98 text-white rounded-md font-semibold text-[11px] sm:text-xs transition-all cursor-pointer shadow-2xs"
             id="ok-detail-modal-btn"
           >
             Close

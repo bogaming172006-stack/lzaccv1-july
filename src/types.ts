@@ -5,6 +5,21 @@ export interface User {
   deviceId: string;
   lastActivity: number;
   isAdmin: boolean;
+  lastAction?: string;
+  lastActionDetails?: string;
+  lastDevice?: string;
+}
+
+export interface UserActivity {
+  id: string;
+  userId: string;
+  userName: string;
+  action: string;
+  details?: string;
+  ledgerId?: string;
+  ledgerName?: string;
+  timestamp: number;
+  deviceId?: string;
 }
 
 // Company represents a ledger/company

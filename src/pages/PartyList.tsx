@@ -19,7 +19,10 @@ import {
   ArrowRight,
   Filter,
   FileSpreadsheet,
-  Download
+  Download,
+  CheckCircle2,
+  Copy,
+  Check
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../AuthContext';
@@ -28,6 +31,7 @@ import { syncCollection } from '../lib/syncCache';
 import { getFilteredCacheItems, setCacheItem } from '../lib/idbCache';
 import { updateDashboardPartiesCount } from '../lib/transactionService';
 import { formatContactWith91 } from '../lib/phoneUtils';
+import BulkImportPartiesModal from '../components/BulkImportPartiesModal';
 import PageHeader from '../components/ui/PageHeader';
 import StatCard from '../components/ui/StatCard';
 import AmountDisplay from '../components/ui/AmountDisplay';
@@ -58,7 +62,17 @@ export default function PartyList() {
 
   // Bulk Import State
   const [showImportModal, setShowImportModal] = useState(false);
-  const [importCsvContent, setImportCsvContent] = useState('');
+  const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopyPartyId = (e: React.MouseEvent, partyId: string) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(partyId);
+    setCopiedId(partyId);
+    setTimeout(() => {
+      setCopiedId(null);
+    }, 2000);
+  };
 
   // 1. Initial Load & Background Sync
   const loadParties = async () => {
@@ -112,7 +126,8 @@ export default function PartyList() {
         (p.name || '').toLowerCase().includes(q) ||
         (p.phone || '').includes(q) ||
         (p.email || '').toLowerCase().includes(q) ||
-        (p.address || '').toLowerCase().includes(q)
+        (p.address || '').toLowerCase().includes(q) ||
+        (p.id || '').toLowerCase().includes(q)
       );
     })
     .sort((a, b) => {
@@ -173,60 +188,13 @@ export default function PartyList() {
     }
   };
 
-  // 4. Bulk CSV Import Handler
-  const handleImportSubmit = async () => {
-    if (isSubmitting || !activeLedger?.id) return;
-    setIsSubmitting(true);
-    const lines = importCsvContent.split('\n');
-    let addedCount = 0;
-    const importedParties: Party[] = [];
-
-    try {
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const parts = line.split(',');
-        const nameStr = parts[0]?.trim();
-        const phoneStr = parts[1]?.trim() || '';
-        const balanceStr = parts[2]?.trim() || '0';
-        const emailStr = parts[3]?.trim() || '';
-        
-        if (nameStr) {
-          const id = uuidv4();
-          const balance = parseFloat(balanceStr) || 0;
-          const newParty: Party = {
-            id,
-            ledgerId: activeLedger.id,
-            name: nameStr,
-            phone: formatContactWith91(phoneStr),
-            address: '',
-            email: emailStr,
-            openingBalance: balance,
-            currentDue: balance,
-            lastTransaction: Date.now(),
-            status: 'Active'
-          };
-          
-          importedParties.push(newParty);
-          addedCount++;
-          
-          await setDoc(doc(db, 'parties', id), newParty).catch(e => console.error(e));
-          await setCacheItem<Party>('parties', newParty);
-        }
-      }
-
-      if (addedCount > 0) {
-        setParties([...importedParties, ...parties]);
-        await updateDashboardPartiesCount(activeLedger.id, addedCount);
-        window.dispatchEvent(new CustomEvent('database-synced'));
-      }
-
-      setShowImportModal(false);
-      setImportCsvContent('');
-    } catch (err) {
-      console.error("Bulk import failed:", err);
-    } finally {
-      setIsSubmitting(false);
-    }
+  // 4. Bulk CSV / Excel Import Callback
+  const handleImportSuccess = (importedCount: number) => {
+    loadParties();
+    setImportSuccessMsg(`Successfully imported ${importedCount} party account${importedCount === 1 ? '' : 's'}!`);
+    setTimeout(() => {
+      setImportSuccessMsg(null);
+    }, 4000);
   };
 
   const totalPages = Math.ceil(filteredParties.length / ITEMS_PER_PAGE);
@@ -239,6 +207,7 @@ export default function PartyList() {
   const totalPayable = parties.filter(p => p.currentDue < 0).reduce((acc, p) => acc + Math.abs(p.currentDue), 0);
 
   const isPurchase = activeLedger?.type === 'PURCHASE';
+  const isExpense = activeLedger?.type === 'EXPENSE';
 
   if (!activeLedger) {
     return <div className="p-8 text-center text-slate-500 font-medium">Please select a ledger.</div>;
@@ -247,35 +216,51 @@ export default function PartyList() {
   return (
     <div className="p-2 min-[400px]:p-3 sm:p-8 pt-1 min-[400px]:pt-1.5 sm:pt-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-2 sm:space-y-6">
       
+      {/* Import Success Banner */}
+      {importSuccessMsg && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center justify-between shadow-2xs animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+            <span>{importSuccessMsg}</span>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setImportSuccessMsg(null)}
+            className="text-emerald-600 hover:text-emerald-800 p-1"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="flex flex-row items-center justify-between gap-1.5 sm:gap-4">
         <div>
           <div className="flex items-center gap-1.5 sm:gap-3 flex-wrap">
             <h1 className="text-sm min-[400px]:text-base sm:text-3xl font-semibold sm:font-bold text-slate-900 tracking-tight">
-              {isPurchase ? "Purchases Parties" : "Party Ledgers"}
+              {isExpense ? "Expense Accounts & Payees" : isPurchase ? "Purchases Parties" : "Party Ledgers"}
             </h1>
           </div>
         </div>
 
         <div className="flex items-center gap-1 sm:gap-3 shrink-0">
-          {currentUser?.isAdmin && (
-            <button
-              type="button"
-              onClick={() => setShowImportModal(true)}
-              className="inline-flex items-center justify-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100/60 rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-normal transition-colors"
-            >
-              <Upload size={12} className="mr-0.5 sm:mr-1 text-slate-500" />
-              <span className="hidden min-[380px]:inline">Bulk </span>Import
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setShowImportModal(true)}
+            className="inline-flex items-center justify-center px-2 sm:px-3 py-1 sm:py-1.5 text-blue-700 bg-blue-50 hover:bg-blue-100/80 border border-blue-200/80 rounded-md sm:rounded-xl text-[11px] sm:text-xs font-bold transition shadow-2xs"
+            title="Bulk import party names and contacts from CSV or Excel files"
+          >
+            <Upload size={13} className="mr-1 text-blue-600" />
+            <span>Import CSV / Excel</span>
+          </button>
 
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center justify-center gap-0.5 sm:gap-1 text-[10.5px] sm:text-sm font-normal text-[#0055a5] hover:text-blue-800 hover:bg-blue-50/50 transition-colors py-0.5 sm:py-1 px-1.5 sm:px-2 rounded-md sm:rounded-lg"
+            className="inline-flex items-center justify-center gap-0.5 sm:gap-1 text-[10.5px] sm:text-sm font-semibold text-white bg-[#0055a5] hover:bg-blue-800 transition py-1 sm:py-1.5 px-2.5 sm:px-3.5 rounded-md sm:rounded-xl shadow-2xs"
           >
-            <UserPlus size={13} />
-            <span>Add <span className="hidden min-[380px]:inline">New </span>{isPurchase ? 'Vendor' : 'Party'}</span>
+            <UserPlus size={14} />
+            <span>Add <span className="hidden min-[380px]:inline">New </span>{isExpense ? 'Expense Head' : isPurchase ? 'Vendor' : 'Party'}</span>
           </button>
         </div>
       </div>
@@ -284,21 +269,21 @@ export default function PartyList() {
       <div className="grid grid-cols-3 gap-1.5 sm:gap-4">
         
         {/* Card 1: TOTAL REGISTERED PARTIES */}
-        <div className={`bg-white rounded-lg sm:rounded-2xl border ${isPurchase ? 'border-purple-200' : 'border-slate-200'} p-1.5 min-[400px]:p-2.5 sm:p-6 shadow-2xs flex flex-col justify-between`}>
+        <div className={`bg-white rounded-lg sm:rounded-2xl border ${isExpense ? 'border-rose-200' : isPurchase ? 'border-purple-200' : 'border-slate-200'} p-1.5 min-[400px]:p-2.5 sm:p-6 shadow-2xs flex flex-col justify-between`}>
           <span className="text-[8px] min-[400px]:text-[9px] sm:text-[11px] font-normal uppercase tracking-wider text-slate-500 truncate">
-            Parties
+            {isExpense ? "Expense Heads" : "Parties"}
           </span>
           <div className="mt-0.5 sm:mt-3">
-            <div className={`text-xs min-[400px]:text-sm sm:text-4xl font-normal sm:font-bold ${isPurchase ? 'text-purple-800' : 'text-[#0055a5]'} tracking-tight`}>
+            <div className={`text-xs min-[400px]:text-sm sm:text-4xl font-normal sm:font-bold ${isExpense ? 'text-rose-700' : isPurchase ? 'text-purple-800' : 'text-[#0055a5]'} tracking-tight`}>
               {parties.length}
             </div>
           </div>
         </div>
 
-        {/* Card 2: TOTAL RECEIVABLES (DUES) */}
+        {/* Card 2: TOTAL RECEIVABLES (DUES) / EXPENSES PAYABLE */}
         <div className="bg-white rounded-lg sm:rounded-2xl border border-slate-200 p-1.5 min-[400px]:p-2.5 sm:p-6 shadow-2xs flex flex-col justify-between">
           <span className="text-[8px] min-[400px]:text-[9px] sm:text-[11px] font-normal uppercase tracking-wider text-slate-500 truncate">
-            Receivables
+            {isExpense ? "Total Expenses (Payable)" : "Receivables"}
           </span>
           <div className="mt-0.5 sm:mt-3">
             <div className="text-[10px] min-[400px]:text-xs sm:text-3xl font-normal sm:font-bold text-rose-600 tracking-tight tabular-nums flex items-baseline gap-0.5">
@@ -311,7 +296,7 @@ export default function PartyList() {
         {/* Card 3: TOTAL PAYABLES (ADVANCES) */}
         <div className="bg-white rounded-lg sm:rounded-2xl border border-slate-200 p-1.5 min-[400px]:p-2.5 sm:p-6 shadow-2xs flex flex-col justify-between">
           <span className="text-[8px] min-[400px]:text-[9px] sm:text-[11px] font-normal uppercase tracking-wider text-slate-500 truncate">
-            Payables
+            {isExpense ? "Settled / Credit" : "Payables"}
           </span>
           <div className="mt-0.5 sm:mt-3">
             <div className="text-[10px] min-[400px]:text-xs sm:text-3xl font-normal sm:font-bold text-emerald-600 tracking-tight tabular-nums flex items-baseline gap-0.5">
@@ -443,6 +428,21 @@ export default function PartyList() {
                               {party.email}
                             </span>
                           )}
+                          {currentUser?.isAdmin && (
+                            <div 
+                              onClick={(e) => handleCopyPartyId(e, party.id)}
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 mt-1 rounded bg-slate-100/90 hover:bg-slate-200/90 text-slate-600 hover:text-slate-900 border border-slate-200/80 text-[10px] font-mono cursor-pointer transition select-all group max-w-fit"
+                              title="Click to copy database Document ID"
+                            >
+                              <span className="text-slate-400 font-sans font-bold text-[8.5px] uppercase tracking-wider">ID:</span>
+                              <span className="truncate max-w-[160px] sm:max-w-[220px]">{party.id}</span>
+                              {copiedId === party.id ? (
+                                <Check size={11} className="text-emerald-600 shrink-0" />
+                              ) : (
+                                <Copy size={11} className="text-slate-400 group-hover:text-slate-600 shrink-0" />
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -488,8 +488,28 @@ export default function PartyList() {
 
               {filteredParties.length === 0 && (
                 <tr>
-                  <td colSpan={currentUser?.isAdmin ? 5 : 4} className="py-12 text-center text-slate-400 text-sm font-medium">
-                    No parties found matching your search or filters.
+                  <td colSpan={currentUser?.isAdmin ? 5 : 4} className="py-12 text-center text-slate-500 text-sm font-medium">
+                    <div className="max-w-xs mx-auto space-y-3">
+                      <p>No parties found in this ledger.</p>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowImportModal(true)}
+                          className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+                        >
+                          <Upload size={13} />
+                          <span>Import CSV / Excel</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddModal(true)}
+                          className="px-3 py-1.5 bg-[#0055a5] text-white hover:bg-blue-800 rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+                        >
+                          <UserPlus size={13} />
+                          <span>Add Party</span>
+                        </button>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -512,6 +532,21 @@ export default function PartyList() {
                 <div className="min-w-0">
                   <h4 className="font-normal text-slate-800 text-[11.5px] min-[400px]:text-xs truncate">{party.name}</h4>
                   <p className="text-[9.5px] min-[400px]:text-[10px] text-slate-400 mt-0.5 truncate">{party.phone || 'No phone'}</p>
+                  {currentUser?.isAdmin && (
+                    <div 
+                      onClick={(e) => handleCopyPartyId(e, party.id)}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 mt-0.5 rounded bg-slate-100 text-slate-600 text-[9px] font-mono cursor-pointer transition select-all max-w-fit"
+                      title="Click to copy party ID"
+                    >
+                      <span className="text-slate-400 font-sans text-[8px] font-bold">ID:</span>
+                      <span className="truncate max-w-[100px]">{party.id}</span>
+                      {copiedId === party.id ? (
+                        <Check size={9} className="text-emerald-600 shrink-0" />
+                      ) : (
+                        <Copy size={9} className="text-slate-400 shrink-0" />
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -708,73 +743,16 @@ export default function PartyList() {
         </div>
       )}
 
-      {/* Bulk CSV Import Modal */}
-      {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-slate-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
-                  <Upload size={18} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Bulk Import Parties</h3>
-                  <p className="text-xs text-slate-500">Paste CSV data directly into {activeLedger.name}</p>
-                </div>
-              </div>
-              <button 
-                type="button" 
-                onClick={() => setShowImportModal(false)} 
-                className="text-slate-400 hover:text-slate-600 p-1"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs text-slate-600">
-                <p className="font-bold text-slate-800 mb-1">Expected CSV Format (One entry per line):</p>
-                <code className="font-mono text-blue-700 block bg-white p-2 rounded border border-slate-200">
-                  Party Name, Phone Number, Opening Balance, Email
-                </code>
-              </div>
-
-              <textarea
-                className="w-full h-44 p-3 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900 focus:border-blue-600 focus:outline-none"
-                value={importCsvContent}
-                onChange={e => setImportCsvContent(e.target.value)}
-                placeholder="Greenzar Distributors,9876543210,15000.00,sales@distributors.com&#10;Metro Stores,9812345678,-5000.00,accounts@metro.com"
-              />
-
-              <div className="pt-2 flex items-center justify-end gap-2.5">
-                <button 
-                  type="button" 
-                  disabled={isSubmitting} 
-                  onClick={() => setShowImportModal(false)} 
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="button" 
-                  disabled={isSubmitting} 
-                  onClick={handleImportSubmit} 
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-2 disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="animate-spin" size={14} />
-                      Importing Records...
-                    </>
-                  ) : (
-                    'Run Bulk Import'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Bulk CSV / Excel Import Modal */}
+      <BulkImportPartiesModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        ledgerId={activeLedger.id}
+        ledgerName={activeLedger.name}
+        ledgerType={activeLedger.type}
+        existingParties={parties}
+        onSuccess={handleImportSuccess}
+      />
 
     </div>
   );

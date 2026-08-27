@@ -30,7 +30,11 @@ import {
   TrendingUp,
   CreditCard,
   X,
-  Loader2
+  Loader2,
+  RefreshCw,
+  Calculator,
+  Wrench,
+  Sparkles
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import jsPDF from 'jspdf';
@@ -40,11 +44,12 @@ import { format } from 'date-fns';
 import { useLedger } from '../LedgerContext';
 import { useAuth } from '../AuthContext';
 
-import { createTransaction, editTransaction, deleteTransaction } from '../lib/transactionService';
+import { createTransaction, editTransaction, deleteTransaction, recalculatePartyBalance } from '../lib/transactionService';
 import { getCacheItem, getFilteredCacheItems, setCacheItem } from '../lib/idbCache';
 import { syncCollection } from '../lib/syncCache';
+import { logUserActivity } from '../lib/activityLogger';
 import ThermalReceiptModal from '../components/ThermalReceiptModal';
-import { loadImage } from '../components/CompanyLogo';
+import { loadImage, getOptimizedLogoData } from '../components/CompanyLogo';
 import TransactionDetailModal from '../components/TransactionDetailModal';
 import { formatContactWith91 } from '../lib/phoneUtils';
 import { exportEncryptedPdf, downloadPdfBlob } from '../lib/pdfEncrypt';
@@ -59,6 +64,7 @@ export default function PartyDetail() {
   const navigate = useNavigate();
   const { activeLedger } = useLedger();
   const isPurchaseStyle = activeLedger?.type === 'PURCHASE' || activeLedger?.type === 'LIABILITY' || activeLedger?.type === 'CAPITAL';
+  const isExpense = activeLedger?.type === 'EXPENSE';
   const { currentUser } = useAuth();
   const [party, setParty] = useState<Party | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -83,15 +89,37 @@ export default function PartyDetail() {
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deletePasswordError, setDeletePasswordError] = useState('');
+  const [editTxType, setEditTxType] = useState<'DEBIT' | 'CREDIT'>('DEBIT');
+  const [editTxDate, setEditTxDate] = useState('');
+  const [editTxTime, setEditTxTime] = useState('');
   const [editTxAmount, setEditTxAmount] = useState('');
   const [editTxInvoiceNo, setEditTxInvoiceNo] = useState('');
   const [editTxNotes, setEditTxNotes] = useState('');
   const [editTxError, setEditTxError] = useState('');
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const [recalcSummary, setRecalcSummary] = useState<{
+    openingBalance: number;
+    totalDebit: number;
+    totalCredit: number;
+    currentDue: number;
+    transactionCount: number;
+  } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showDateFilter, setShowDateFilter] = useState(false);
+
+  const handleOpenEditTx = (tx: Transaction) => {
+    setEditingTx(tx);
+    setEditTxType(tx.type);
+    setEditTxAmount(tx.amount.toString());
+    setEditTxDate(format(new Date(tx.timestamp), 'yyyy-MM-dd'));
+    setEditTxTime(format(new Date(tx.timestamp), 'HH:mm'));
+    setEditTxInvoiceNo(tx.invoiceNo || '');
+    setEditTxNotes(tx.notes || '');
+    setEditTxError('');
+  };
 
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [downloadStartDate, setDownloadStartDate] = useState(format(new Date(), 'yyyy-MM-01'));
@@ -109,6 +137,7 @@ export default function PartyDetail() {
   const [sharePdfPassword, setSharePdfPassword] = useState('');
   const [showSharePassText, setShowSharePassText] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [partyIdCopied, setPartyIdCopied] = useState(false);
 
   // Edit Party details state
   const [showEditPartyModal, setShowEditPartyModal] = useState(false);
@@ -292,7 +321,7 @@ export default function PartyDetail() {
 
   const buildPdf = async (startDate: string, endDate: string) => {
     if (!party) return null;
-    const doc = new jsPDF();
+    const doc = new jsPDF({ compress: true });
 
     const startTs = new Date(startDate).setHours(0, 0, 0, 0);
     const endTs = new Date(endDate).setHours(23, 59, 59, 999);
@@ -320,10 +349,8 @@ export default function PartyDetail() {
     
     let logoBottom = 26;
     try {
-      const img = await loadImage('/logo.png');
-      const imgWidth = img.naturalWidth || img.width || 100;
-      const imgHeight = img.naturalHeight || img.height || 100;
-      const aspectRatio = imgWidth / imgHeight;
+      const logoData = await getOptimizedLogoData('/logo.png', 500, 0.85);
+      const aspectRatio = logoData.width / logoData.height;
       
       let targetWidth = 95;
       let targetHeight = targetWidth / aspectRatio;
@@ -332,7 +359,7 @@ export default function PartyDetail() {
         targetWidth = targetHeight * aspectRatio;
       }
       const xPos = 105 - (targetWidth / 2);
-      doc.addImage(img, 'PNG', xPos, 10, targetWidth, targetHeight, undefined, 'FAST');
+      doc.addImage(logoData.dataUrl, logoData.format, xPos, 10, targetWidth, targetHeight, undefined, 'FAST');
       logoBottom = 10 + targetHeight;
     } catch (e) {
       doc.setTextColor(15, 23, 42);
@@ -743,6 +770,13 @@ export default function PartyDetail() {
 
     try {
       await createTransaction(newTx, party);
+      logUserActivity(
+        `Recorded ${showTxModal} Voucher`,
+        `₹${numAmount.toFixed(2)} for ${party.name}${txInvoiceNo ? ` (Inv #${txInvoiceNo})` : ''}`,
+        currentUser,
+        activeLedger?.name,
+        party.ledgerId
+      );
       fetchPartyAndTransactions();
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `transactions/${txId}`);
@@ -757,7 +791,7 @@ export default function PartyDetail() {
     
     const numAmount = parseFloat(editTxAmount);
     if (isNaN(numAmount) || numAmount <= 0) {
-      setEditTxError('Please enter a valid amount.');
+      setEditTxError('Please enter a valid positive amount.');
       setIsSubmitting(false);
       return;
     }
@@ -768,18 +802,45 @@ export default function PartyDetail() {
       return;
     }
 
+    let updatedTimestamp = editingTx.timestamp;
+    if (editTxDate) {
+      const [year, month, day] = editTxDate.split('-').map(Number);
+      let hours = 0;
+      let minutes = 0;
+      if (editTxTime) {
+        [hours, minutes] = editTxTime.split(':').map(Number);
+      } else {
+        const orig = new Date(editingTx.timestamp);
+        hours = orig.getHours();
+        minutes = orig.getMinutes();
+      }
+      const updatedDate = new Date(year, month - 1, day, hours || 0, minutes || 0);
+      if (!isNaN(updatedDate.getTime())) {
+        updatedTimestamp = updatedDate.getTime();
+      }
+    }
+
     try {
       const success = await editTransaction(
         editingTx.id,
         editingTx,
         {
           amount: numAmount,
+          type: editTxType,
+          timestamp: updatedTimestamp,
           invoiceNo: editTxInvoiceNo.toLowerCase().trim(),
           notes: editTxNotes
         },
         party
       );
       if (success) {
+        logUserActivity(
+          'Edited Voucher Entry',
+          `Updated ${editTxType} voucher for ${party.name} to ₹${numAmount.toFixed(2)}${editTxInvoiceNo ? ` (Inv #${editTxInvoiceNo})` : ''}`,
+          currentUser,
+          activeLedger?.name,
+          party.ledgerId
+        );
         setEditingTx(null);
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 1500);
@@ -789,6 +850,33 @@ export default function PartyDetail() {
       handleFirestoreError(err, OperationType.UPDATE, `transactions/${editingTx.id}`);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRecalculateBalance = async () => {
+    if (!party || !party.id || isRecalculating) return;
+    setIsRecalculating(true);
+    try {
+      const res = await recalculatePartyBalance(party.id, party.ledgerId);
+      if (res.success) {
+        setRecalcSummary(res);
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 2000);
+        await fetchPartyAndTransactions();
+        logUserActivity(
+          'Recalculated & Fixed Calculations',
+          `Verified & fixed running balances for ${party.name} (${res.transactionCount} vouchers, Balance: ₹${res.currentDue.toFixed(2)})`,
+          currentUser,
+          activeLedger?.name,
+          party.ledgerId
+        );
+      } else {
+        alert(`Calculation check completed with note: ${res.error || 'Failed'}`);
+      }
+    } catch (err) {
+      console.error('Error recalculating balance:', err);
+    } finally {
+      setIsRecalculating(false);
     }
   };
 
@@ -802,6 +890,13 @@ export default function PartyDetail() {
     try {
       const success = await deleteTransaction(deletingTx, party);
       if (success) {
+        logUserActivity(
+          'Deleted Voucher Entry',
+          `Removed ₹${deletingTx.amount.toFixed(2)} voucher from ${party.name}`,
+          currentUser,
+          activeLedger?.name,
+          party.ledgerId
+        );
         setShowDeleteConfirmModal(false);
         setDeletingTx(null);
         setDeletePassword('');
@@ -923,30 +1018,51 @@ export default function PartyDetail() {
           <button
             type="button"
             onClick={() => { setTxAmount(''); setTxInvoiceNo(''); setTxNotes(''); setTxError(''); setShowTxModal('DEBIT'); }}
-            className="inline-flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2.5 py-1 sm:py-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50/60 rounded-md sm:rounded-lg text-[10.5px] min-[400px]:text-[11px] sm:text-xs font-normal sm:font-medium transition-colors"
+            className={`inline-flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2.5 py-1 sm:py-1.5 ${
+              isExpense 
+                ? 'bg-rose-600 hover:bg-rose-700 text-white font-semibold shadow-2xs' 
+                : 'text-rose-600 hover:text-rose-800 hover:bg-rose-50/60 font-normal sm:font-medium'
+            } rounded-md sm:rounded-lg text-[10.5px] min-[400px]:text-[11px] sm:text-xs transition-colors`}
           >
             <Minus size={11} />
-            <span>Debit (Dr)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => { setTxAmount(''); setTxCashAmount(''); setTxAcAmount(''); setTxInvoiceNo(''); setTxNotes(''); setTxError(''); setShowTxModal('CREDIT'); }}
-            className="inline-flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2.5 py-1 sm:py-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50/60 rounded-md sm:rounded-lg text-[10.5px] min-[400px]:text-[11px] sm:text-xs font-normal sm:font-medium transition-colors"
-          >
-            <Plus size={11} />
-            <span>Credit (Cr)</span>
+            <span>{isExpense ? 'Pay Expense (Dr)' : 'Debit (Dr)'}</span>
           </button>
 
-          {currentUser?.isAdmin && (
+          {!isExpense && (
             <button
               type="button"
-              onClick={handleOpenEditParty}
-              className="inline-flex items-center gap-1 px-1.5 sm:px-2.5 py-1 sm:py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100/60 rounded-md sm:rounded-lg text-[10.5px] min-[400px]:text-[11px] sm:text-xs font-normal transition-colors"
-              title="Edit Profile"
+              onClick={() => { setTxAmount(''); setTxCashAmount(''); setTxAcAmount(''); setTxInvoiceNo(''); setTxNotes(''); setTxError(''); setShowTxModal('CREDIT'); }}
+              className="inline-flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2.5 py-1 sm:py-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50/60 rounded-md sm:rounded-lg text-[10.5px] min-[400px]:text-[11px] sm:text-xs font-normal sm:font-medium transition-colors"
             >
-              <Edit2 size={11} className="text-blue-600" />
-              <span className="hidden min-[380px]:inline">Edit</span>
+              <Plus size={11} />
+              <span>Credit (Cr)</span>
             </button>
+          )}
+
+          {currentUser?.isAdmin && (
+            <>
+              <button
+                type="button"
+                onClick={handleRecalculateBalance}
+                disabled={isRecalculating}
+                className="inline-flex items-center gap-1 px-1.5 sm:px-2.5 py-1 sm:py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-md sm:rounded-lg text-[10.5px] min-[400px]:text-[11px] sm:text-xs font-semibold transition-colors cursor-pointer"
+                title="Recalculate running balances and fix calculations from original entries"
+              >
+                <RefreshCw size={11} className={isRecalculating ? "animate-spin text-amber-700" : "text-amber-700"} />
+                <span className="hidden sm:inline">{isRecalculating ? 'Recalculating...' : 'Fix Calculation'}</span>
+                <span className="inline sm:hidden">{isRecalculating ? '...' : 'Fix'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenEditParty}
+                className="inline-flex items-center gap-1 px-1.5 sm:px-2.5 py-1 sm:py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100/60 rounded-md sm:rounded-lg text-[10.5px] min-[400px]:text-[11px] sm:text-xs font-normal transition-colors"
+                title="Edit Profile"
+              >
+                <Edit2 size={11} className="text-blue-600" />
+                <span className="hidden min-[380px]:inline">Edit</span>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -963,9 +1079,28 @@ export default function PartyDetail() {
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <h1 className="text-sm min-[400px]:text-base sm:text-2xl font-bold text-slate-900 tracking-tight truncate">{party.name}</h1>
                 {currentUser?.isAdmin && (
-                  <span className="px-1.5 py-0.5 rounded text-[9.5px] min-[400px]:text-[10px] sm:text-xs font-medium bg-emerald-50 text-emerald-600 border border-emerald-200/60">
-                    {party.status || 'Active'}
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="px-1.5 py-0.5 rounded text-[9.5px] min-[400px]:text-[10px] sm:text-xs font-medium bg-emerald-50 text-emerald-600 border border-emerald-200/60">
+                      {party.status || 'Active'}
+                    </span>
+                    <div 
+                      onClick={() => {
+                        navigator.clipboard.writeText(party.id);
+                        setPartyIdCopied(true);
+                        setTimeout(() => setPartyIdCopied(false), 2000);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100/90 hover:bg-slate-200/80 text-slate-700 hover:text-slate-900 border border-slate-200 text-[10px] sm:text-xs font-mono cursor-pointer transition select-all shadow-2xs group"
+                      title="Click to copy Firestore Database Document ID"
+                    >
+                      <span className="text-slate-400 font-sans font-bold text-[8.5px] sm:text-[9px] uppercase tracking-wider">ID:</span>
+                      <span className="truncate max-w-[140px] sm:max-w-none">{party.id}</span>
+                      {partyIdCopied ? (
+                        <Check size={12} className="text-emerald-600 shrink-0" />
+                      ) : (
+                        <Copy size={12} className="text-slate-400 group-hover:text-slate-600 shrink-0" />
+                      )}
+                    </div>
+                  </div>
                 )}
                 
                 {/* Export & Share buttons beside name */}
@@ -1015,14 +1150,14 @@ export default function PartyDetail() {
           {/* Current Ledger Balance Display */}
           <div className="flex flex-col items-start lg:items-end pt-2.5 lg:pt-0 border-t lg:border-t-0 border-slate-100 shrink-0">
             <span className="text-[9px] min-[400px]:text-[9.5px] sm:text-[11px] uppercase font-medium tracking-wider text-slate-400 mb-0.5">
-              CURRENT OUTSTANDING BALANCE
+              {isExpense ? 'TOTAL EXPENSES PAYABLE' : 'CURRENT OUTSTANDING BALANCE'}
             </span>
             <div className="text-base min-[400px]:text-lg sm:text-3xl font-bold tracking-tight tabular-nums flex items-baseline gap-1 select-all">
               <span className={party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-900"}>
                 ₹ {Math.abs(party.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
               <span className={`text-[10px] min-[400px]:text-[11px] sm:text-sm font-bold uppercase ${party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-500"}`}>
-                {party.currentDue > 0 ? 'DR' : party.currentDue < 0 ? 'CR' : ''}
+                {isExpense ? (party.currentDue !== 0 ? 'DR' : '') : (party.currentDue > 0 ? 'DR' : party.currentDue < 0 ? 'CR' : '')}
               </span>
             </div>
           </div>
@@ -1035,7 +1170,7 @@ export default function PartyDetail() {
         {/* Statement Toolbar */}
         <div className="p-2 min-[400px]:p-2.5 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-2 sm:gap-4 items-stretch lg:items-center justify-between">
           <div>
-            <h3 className="font-normal sm:font-bold text-slate-900 text-xs sm:text-base">Journal Statement</h3>
+            <h3 className="font-normal sm:font-bold text-slate-900 text-xs sm:text-base">Statement</h3>
             <p className="text-[9.5px] min-[400px]:text-[10px] sm:text-xs text-slate-400 font-normal mt-0.2 sm:mt-0.5">
               Showing 1 to {filteredTxs.length} of {transactions.length} entries
             </p>
@@ -1138,7 +1273,7 @@ export default function PartyDetail() {
                           {tx.notes || 'General ledger entry'}
                         </span>
                         {tx.invoiceNo && (
-                          <span className="text-[11px] font-medium text-blue-600 hover:underline inline-block mt-0.5">
+                          <span className="text-[11px] font-normal text-slate-800 inline-block mt-0.5 font-mono">
                             Inv #{tx.invoiceNo}
                           </span>
                         )}
@@ -1150,10 +1285,7 @@ export default function PartyDetail() {
                             type="button" 
                             onClick={(e) => {
                               e.stopPropagation();
-                              setEditingTx(tx);
-                              setEditTxAmount(tx.amount.toString());
-                              setEditTxInvoiceNo(tx.invoiceNo || '');
-                              setEditTxNotes(tx.notes || '');
+                              handleOpenEditTx(tx);
                             }} 
                             className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"
                             title="Edit Transaction"
@@ -1282,7 +1414,7 @@ export default function PartyDetail() {
                 {/* Invoice Ref */}
                 <div className="mt-0.5">
                   {tx.invoiceNo ? (
-                    <span className="text-[10.5px] font-semibold text-blue-600">
+                    <span className="text-[10.5px] font-normal text-slate-800 font-mono">
                       Inv #{tx.invoiceNo}
                     </span>
                   ) : (
@@ -1403,7 +1535,7 @@ export default function PartyDetail() {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 text-xs sm:text-sm leading-tight">
-                    {showTxModal === 'DEBIT' ? 'Record Debit Voucher (Dr)' : 'Record Credit Voucher (Cr)'}
+                    {isExpense ? 'Record Expense Payment (Dr)' : showTxModal === 'DEBIT' ? 'Record Debit Voucher (Dr)' : 'Record Credit Voucher (Cr)'}
                   </h3>
                   <p className="text-[10.5px] text-slate-500 leading-tight">{party.name}</p>
                 </div>
@@ -1627,34 +1759,166 @@ export default function PartyDetail() {
       {/* Edit Transaction Modal */}
       {editingTx && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/90">
-              <h3 className="font-bold text-slate-900 text-xs sm:text-sm">Edit Voucher Entry</h3>
+              <div className="flex items-center gap-1.5">
+                <Edit2 size={14} className="text-blue-600" />
+                <h3 className="font-bold text-slate-900 text-xs sm:text-sm">Edit Voucher Entry</h3>
+              </div>
               <button type="button" onClick={() => setEditingTx(null)} className="text-slate-400 hover:text-slate-600 p-1">
                 <X size={15} />
               </button>
             </div>
-            <form onSubmit={handleEditSubmit} className="p-4 space-y-3">
+
+            <form onSubmit={handleEditSubmit} className="p-4 space-y-3 overflow-y-auto flex-1">
+              {/* Type Selection */}
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Amount (₹)</label>
-                <input required type="number" step="0.01" min="0.01" value={editTxAmount} onChange={e => { setEditTxAmount(e.target.value); setEditTxError(''); }} className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md font-mono focus:border-blue-600 focus:outline-none" />
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                  Voucher Type
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setEditTxType('DEBIT'); setEditTxError(''); }}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold border transition flex items-center justify-center gap-1.5 ${
+                      editTxType === 'DEBIT'
+                        ? 'bg-rose-50 border-rose-500 text-rose-700 shadow-2xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Minus size={13} className="text-rose-600" />
+                    <span>Debit (Dr / Outgoing)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setEditTxType('CREDIT'); setEditTxError(''); }}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold border transition flex items-center justify-center gap-1.5 ${
+                      editTxType === 'CREDIT'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-2xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Plus size={13} className="text-emerald-600" />
+                    <span>Credit (Cr / Incoming)</span>
+                  </button>
+                </div>
               </div>
+
+              {/* Amount */}
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Invoice No.</label>
-                <input type="text" value={editTxInvoiceNo} onChange={e => { setEditTxInvoiceNo(e.target.value.toLowerCase()); setEditTxError(''); }} className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md font-mono focus:border-blue-600 focus:outline-none" />
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Amount (₹) <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
+                  <input
+                    required
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={editTxAmount}
+                    onChange={e => { setEditTxAmount(e.target.value); setEditTxError(''); }}
+                    className="w-full pl-6 pr-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md font-mono font-bold focus:border-blue-600 focus:outline-none"
+                    placeholder="0.00"
+                  />
+                </div>
               </div>
+
+              {/* Date & Time */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={editTxDate}
+                    onChange={e => { setEditTxDate(e.target.value); setEditTxError(''); }}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md font-mono focus:border-blue-600 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Time</label>
+                  <input
+                    type="time"
+                    value={editTxTime}
+                    onChange={e => { setEditTxTime(e.target.value); setEditTxError(''); }}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md font-mono focus:border-blue-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Invoice No. */}
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Particulars</label>
-                <textarea value={editTxNotes} onChange={e => { setEditTxNotes(e.target.value); setEditTxError(''); }} className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md focus:border-blue-600 focus:outline-none" rows={2} />
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Invoice / Receipt No.</label>
+                <input
+                  type="text"
+                  placeholder="e.g. INV-1002"
+                  value={editTxInvoiceNo}
+                  onChange={e => { setEditTxInvoiceNo(e.target.value.toLowerCase()); setEditTxError(''); }}
+                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md font-mono focus:border-blue-600 focus:outline-none"
+                />
               </div>
+
+              {/* Particulars / Notes */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Particulars / Description</label>
+                <textarea
+                  value={editTxNotes}
+                  onChange={e => { setEditTxNotes(e.target.value); setEditTxError(''); }}
+                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md focus:border-blue-600 focus:outline-none"
+                  rows={2}
+                  placeholder="Describe goods, payment details or notes"
+                />
+              </div>
+
+              {/* Balance Calculation Preview */}
+              {party && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-[11px] space-y-1">
+                  <div className="flex items-center justify-between text-slate-500 font-medium">
+                    <span>Original Entry:</span>
+                    <span className="font-mono">{editingTx.type} ₹{editingTx.amount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-800 font-semibold">
+                    <span>New Entry:</span>
+                    <span className={`font-mono ${editTxType === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                      {editTxType} ₹{parseFloat(editTxAmount || '0').toFixed(2)}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-200">
+                    * All running balances and party totals will be automatically recalculated upon saving.
+                  </p>
+                </div>
+              )}
+
               {editTxError && (
                 <div className="p-2 bg-rose-50 border border-rose-200 text-rose-700 rounded-md text-[11px] font-medium">
                   {editTxError}
                 </div>
               )}
+
               <div className="pt-2.5 border-t border-slate-100 flex justify-end gap-1.5">
-                <button type="button" onClick={() => setEditingTx(null)} disabled={isSubmitting} className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-md">Cancel</button>
-                <button type="submit" disabled={isSubmitting} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-md shadow-2xs">Save Changes</button>
+                <button
+                  type="button"
+                  onClick={() => setEditingTx(null)}
+                  disabled={isSubmitting}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-md"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-md shadow-2xs flex items-center gap-1.5"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 size={12} className="animate-spin" />
+                      <span>Recalculating...</span>
+                    </>
+                  ) : (
+                    <span>Save & Recalculate</span>
+                  )}
+                </button>
               </div>
             </form>
           </div>
@@ -1810,6 +2074,7 @@ export default function PartyDetail() {
           partyName={party.name}
           partyPhone={party.phone}
           ledgerName={activeLedger?.name || 'Ledger'}
+          ledgerType={activeLedger?.type}
           isPurchaseStyle={isPurchaseStyle}
         />
       )}
@@ -1821,7 +2086,78 @@ export default function PartyDetail() {
         transaction={selectedDetailTx}
         partyName={party?.name || ''}
         ledgerName={activeLedger?.name}
+        ledgerType={activeLedger?.type}
+        isAdmin={currentUser?.isAdmin}
+        onOpenReceipt={(tx) => setReceiptTx(tx)}
+        onEdit={(tx) => handleOpenEditTx(tx)}
+        onDelete={(tx) => {
+          setDeletingTx(tx);
+          setShowDeleteConfirmModal(true);
+        }}
       />
+
+      {/* Calculation Recalculation Summary Modal */}
+      {recalcSummary && party && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-amber-50/90">
+              <div className="flex items-center gap-1.5 text-amber-900 font-bold text-xs sm:text-sm">
+                <Calculator size={16} className="text-amber-600" />
+                <span>Calculation Verified & Fixed</span>
+              </div>
+              <button type="button" onClick={() => setRecalcSummary(null)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X size={15} />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-3 text-xs">
+              <p className="text-slate-600">
+                All chronological running balances for <strong>{party.name}</strong> have been recalculated from initial entries:
+              </p>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1.5 font-mono text-[11.5px]">
+                <div className="flex justify-between text-slate-600">
+                  <span>Opening Balance:</span>
+                  <span className="font-bold text-slate-800">₹{recalcSummary.openingBalance.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-rose-600">
+                  <span>Total Debit (+Dr):</span>
+                  <span className="font-bold">₹{recalcSummary.totalDebit.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-600">
+                  <span>Total Credit (-Cr):</span>
+                  <span className="font-bold">₹{recalcSummary.totalCredit.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-slate-500 text-[10.5px]">
+                  <span>Total Entries Processed:</span>
+                  <span className="font-bold">{recalcSummary.transactionCount} vouchers</span>
+                </div>
+                <div className="flex justify-between font-bold text-slate-900 border-t border-slate-200 pt-1.5 text-xs">
+                  <span>Net Ledger Balance:</span>
+                  <span className={recalcSummary.currentDue > 0 ? "text-rose-600" : recalcSummary.currentDue < 0 ? "text-emerald-600" : "text-slate-900"}>
+                    ₹{Math.abs(recalcSummary.currentDue).toFixed(2)} {recalcSummary.currentDue > 0 ? 'DR' : recalcSummary.currentDue < 0 ? 'CR' : ''}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-md text-[11px] text-emerald-800 flex items-center gap-1.5">
+                <Check size={13} className="text-emerald-600 shrink-0" />
+                <span>Running balances and dashboard summaries are in 100% sync.</span>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setRecalcSummary(null)}
+                  className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-xs transition"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Share Modal */}
       {showShareModal && (

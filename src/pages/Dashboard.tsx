@@ -254,6 +254,7 @@ export default function Dashboard() {
     );
   }
 
+  const isExpense = activeLedger?.type === 'EXPENSE';
   const totalOutstanding = summary?.totalReceivable ?? parties.filter(p => p.currentDue > 0).reduce((a, b) => a + b.currentDue, 0);
   const totalDebtorsCount = parties.filter(p => p.currentDue > 0).length;
   const totalAdvancePayables = summary?.totalPayable ?? parties.filter(p => p.currentDue < 0).reduce((a, b) => a + Math.abs(b.currentDue), 0);
@@ -293,10 +294,10 @@ export default function Dashboard() {
             <div className="space-y-0.5 sm:space-y-2.5">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-white text-[9px] min-[400px]:text-[10px] sm:text-[11px] font-normal sm:font-bold uppercase tracking-wider">
-                  Total Outstanding
+                  {isExpense ? 'Total Expenses (Payable)' : 'Total Outstanding'}
                 </span>
                 <span className="text-[9.5px] min-[400px]:text-[10.5px] sm:text-xs text-blue-100 font-normal">
-                  • {totalDebtorsCount} {totalDebtorsCount === 1 ? 'party' : 'parties'} with balance
+                  • {totalDebtorsCount} {totalDebtorsCount === 1 ? (isExpense ? 'expense head' : 'party') : (isExpense ? 'expense heads' : 'parties')} with balance
                 </span>
               </div>
 

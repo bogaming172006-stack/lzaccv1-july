@@ -4,8 +4,10 @@ import { Transaction, Party, Ledger, LEDGER_TYPE_LABELS } from '../types';
 import { useLedger } from '../LedgerContext';
 import { useAuth } from '../AuthContext';
 import { format } from 'date-fns';
-import { Activity, Search, Loader2, ArrowRight, Trash2, Calendar, TrendingDown, TrendingUp, DollarSign, Layers } from 'lucide-react';
+import { Activity, Search, Loader2, ArrowRight, Trash2, Calendar, TrendingDown, TrendingUp, DollarSign, Layers, Printer } from 'lucide-react';
 import { deleteTransaction } from '../lib/transactionService';
+import ThermalReceiptModal from '../components/ThermalReceiptModal';
+import TransactionDetailModal from '../components/TransactionDetailModal';
 import PageHeader from '../components/ui/PageHeader';
 import StatCard from '../components/ui/StatCard';
 import AmountDisplay from '../components/ui/AmountDisplay';
@@ -19,6 +21,8 @@ export default function Activities() {
   const { currentUser } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [parties, setParties] = useState<Record<string, Party>>({});
+  const [receiptTx, setReceiptTx] = useState<Transaction | null>(null);
+  const [selectedDetailTx, setSelectedDetailTx] = useState<Transaction | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [displayCount, setDisplayCount] = useState(BATCH_SIZE);
 
@@ -327,7 +331,8 @@ export default function Activities() {
                 <th className="w-44">Party Account</th>
                 <th>Particulars</th>
                 <th className="w-36 text-right">Amount</th>
-                {currentUser?.isAdmin && <th className="w-20 text-center">Actions</th>}
+                <th className="w-20 text-center">Receipt</th>
+                {currentUser?.isAdmin && <th className="w-16 text-center">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -335,7 +340,11 @@ export default function Activities() {
                 const party = parties[tx.partyId];
                 const ledger = ledgers.find(l => l.id === tx.ledgerId);
                 return (
-                  <tr key={tx.id} className="hover:bg-blue-50/40 transition-colors">
+                  <tr 
+                    key={tx.id} 
+                    onClick={() => setSelectedDetailTx(tx)}
+                    className="hover:bg-blue-50/40 cursor-pointer transition-colors"
+                  >
                     <td className="text-xs text-slate-600 whitespace-nowrap">
                       {format(new Date(tx.timestamp), 'dd MMM yyyy, HH:mm')}
                     </td>
@@ -355,7 +364,7 @@ export default function Activities() {
                     <td>
                       <span className="text-xs text-slate-700 block">{tx.notes || '-'}</span>
                       {tx.invoiceNo && (
-                        <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1 rounded inline-block mt-0.5">
+                        <span className="text-[10.5px] font-normal text-slate-800 inline-block mt-0.5 font-mono">
                           Inv #{tx.invoiceNo}
                         </span>
                       )}
@@ -366,8 +375,18 @@ export default function Activities() {
                         ₹{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </span>
                     </td>
+                    <td className="text-center" onClick={e => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => setReceiptTx(tx)}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        title="Download / Print Receipt"
+                      >
+                        <Printer size={14} />
+                      </button>
+                    </td>
                     {currentUser?.isAdmin && (
-                      <td className="text-center">
+                      <td className="text-center" onClick={e => e.stopPropagation()}>
                         <button
                           onClick={() => {
                             setDeletingTx(tx);
@@ -386,7 +405,7 @@ export default function Activities() {
 
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={currentUser?.isAdmin ? 6 : 5} className="py-12 text-center text-xs font-semibold text-slate-400">
+                  <td colSpan={currentUser?.isAdmin ? 7 : 6} className="py-12 text-center text-xs font-semibold text-slate-400">
                     No transactions matching current filters across ledgers.
                   </td>
                 </tr>
@@ -403,13 +422,14 @@ export default function Activities() {
             return (
               <div 
                 key={tx.id} 
-                className="p-2.5 sm:p-3 hover:bg-slate-50 flex items-center justify-between gap-2.5 transition-colors"
+                onClick={() => setSelectedDetailTx(tx)}
+                className="p-2.5 sm:p-3 hover:bg-slate-50 flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 text-[10.5px] text-slate-400 font-mono">
                     <span>{format(new Date(tx.timestamp), 'dd MMM, HH:mm')}</span>
                     {ledger && <span className="bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-semibold">{ledger.name}</span>}
-                    {tx.invoiceNo && <span className="text-blue-700 bg-blue-50 px-1 py-0.2 rounded font-semibold">#{tx.invoiceNo}</span>}
+                    {tx.invoiceNo && <span className="text-slate-700 font-normal font-mono">#{tx.invoiceNo}</span>}
                   </div>
                   <h4 className="font-bold text-slate-900 text-xs mt-0.5 truncate">
                     {party?.name || 'Unknown Party'}
@@ -417,10 +437,21 @@ export default function Activities() {
                   <p className="text-[10.5px] text-slate-500 truncate mt-0.5">{tx.notes || 'General entry'}</p>
                 </div>
 
-                <div className="text-right shrink-0">
+                <div className="text-right shrink-0 flex items-center gap-2">
                   <span className={`font-bold font-mono text-xs ${tx.type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
                     {tx.type === 'DEBIT' ? 'Dr ' : 'Cr '}₹{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setReceiptTx(tx);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                    title="Receipt"
+                  >
+                    <Printer size={13} />
+                  </button>
                 </div>
               </div>
             );
@@ -493,6 +524,31 @@ export default function Activities() {
           </div>
         </div>
       )}
+
+      {/* Thermal Receipt Modal */}
+      {receiptTx && (
+        <ThermalReceiptModal
+          isOpen={true}
+          onClose={() => setReceiptTx(null)}
+          transaction={receiptTx}
+          partyName={parties[receiptTx.partyId]?.name || 'Unknown Party'}
+          partyPhone={parties[receiptTx.partyId]?.phone}
+          ledgerName={ledgers.find(l => l.id === receiptTx.ledgerId)?.name || 'Ledger'}
+          ledgerType={ledgers.find(l => l.id === receiptTx.ledgerId)?.type}
+          isPurchaseStyle={ledgers.find(l => l.id === receiptTx.ledgerId)?.type === 'PURCHASE' || ledgers.find(l => l.id === receiptTx.ledgerId)?.type === 'LIABILITY' || ledgers.find(l => l.id === receiptTx.ledgerId)?.type === 'CAPITAL'}
+        />
+      )}
+
+      {/* Transaction Detail Popup */}
+      <TransactionDetailModal
+        isOpen={selectedDetailTx !== null}
+        onClose={() => setSelectedDetailTx(null)}
+        transaction={selectedDetailTx}
+        partyName={selectedDetailTx ? (parties[selectedDetailTx.partyId]?.name || 'Unknown') : ''}
+        ledgerName={selectedDetailTx ? ledgers.find(l => l.id === selectedDetailTx.ledgerId)?.name : undefined}
+        ledgerType={selectedDetailTx ? ledgers.find(l => l.id === selectedDetailTx.ledgerId)?.type : undefined}
+        onOpenReceipt={(tx) => setReceiptTx(tx)}
+      />
     </div>
   );
 }

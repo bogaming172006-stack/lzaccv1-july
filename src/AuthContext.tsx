@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { User } from './types';
 import { db, handleFirestoreError, OperationType, collection, onSnapshot, setDoc, doc, updateDoc } from './firebase';
 import { v4 as uuidv4 } from 'uuid';
+import { logUserActivity } from './lib/activityLogger';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -111,8 +112,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser(user);
       updateDoc(doc(db, 'users', user.id), {
         lastActivity: Date.now(),
+        lastAction: 'Logged into system',
+        lastActionDetails: 'Session authenticated with PIN',
+        lastDevice: deviceId,
         deviceId: deviceId
       }).catch(e => handleFirestoreError(e, OperationType.UPDATE, `users/${user.id}`));
+      
+      logUserActivity('User Login', 'Authenticated via 4-digit PIN', user);
       return true;
     }
     return false;
@@ -120,8 +126,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     if (currentUser) {
+      logUserActivity('User Logout', 'Signed out of session', currentUser);
       updateDoc(doc(db, 'users', currentUser.id), {
-        deviceId: ''
+        deviceId: '',
+        lastAction: 'Logged out'
       }).catch(console.error);
     }
     setCurrentUser(null);

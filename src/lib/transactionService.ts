@@ -1,5 +1,6 @@
-import { db, handleFirestoreError, OperationType, runTransaction, doc } from '../firebase';
+import { db, handleFirestoreError, OperationType, runTransaction, doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where } from '../firebase';
 import { Transaction, Party, DailySummary, DashboardSummary, Balance, CacheVersions } from '../types';
+import { setCacheItem } from './idbCache';
 import { format } from 'date-fns';
 
 // Helper to update high-level DashboardSummary totals inside a transaction
@@ -170,93 +171,40 @@ export async function createTransaction(newTx: Transaction, party: Party) {
   }
 }
 
+export interface EditTransactionFields {
+  amount: number;
+  type?: 'DEBIT' | 'CREDIT';
+  timestamp?: number;
+  invoiceNo?: string;
+  notes?: string;
+}
+
 export async function editTransaction(
   txId: string,
   oldTx: Transaction,
-  updatedTxFields: { amount: number; invoiceNo: string; notes: string },
+  updatedTxFields: EditTransactionFields,
   party: Party
 ) {
   try {
-    await runTransaction(db, async (transaction) => {
-      // 1. ALL READS FIRST
-      const partyRef = doc(db, 'parties', party.id);
-      const partySnap = await transaction.get(partyRef);
-      
-      let pData = party;
-      if (!partySnap.exists()) {
-        // Self-heal: If the party doesn't exist in the database (e.g. from local mode), write it first.
-        transaction.set(partyRef, party);
-      } else {
-        pData = partySnap.data() as Party;
-      }
+    const newType = updatedTxFields.type || oldTx.type;
+    const newAmount = updatedTxFields.amount;
+    const newTimestamp = updatedTxFields.timestamp || oldTx.timestamp;
+    const newInvoiceNo = updatedTxFields.invoiceNo !== undefined ? updatedTxFields.invoiceNo : (oldTx.invoiceNo || '');
+    const newNotes = updatedTxFields.notes !== undefined ? updatedTxFields.notes : (oldTx.notes || '');
 
-      const dateStr = format(new Date(oldTx.timestamp), 'yyyy-MM-dd');
-      const dailyRef = doc(db, 'daily_summaries', `${oldTx.ledgerId}_${dateStr}`);
-      const dailySnap = await transaction.get(dailyRef);
-
-      const summaryRef = doc(db, 'dashboard_summary', oldTx.ledgerId);
-      const summarySnap = await transaction.get(summaryRef);
-
-      // 2. CALCULATE VALUES
-      // Reverse old amount
-      const oldChange = oldTx.type === 'DEBIT' ? oldTx.amount : -oldTx.amount;
-      const baseDue = pData.currentDue - oldChange;
-      const baseDebit = (pData.totalDebit || 0) - (oldTx.type === 'DEBIT' ? oldTx.amount : 0);
-      const baseCredit = (pData.totalCredit || 0) - (oldTx.type === 'CREDIT' ? oldTx.amount : 0);
-
-      // Apply new amount
-      const newChange = oldTx.type === 'DEBIT' ? updatedTxFields.amount : -updatedTxFields.amount;
-      const newBalance = baseDue + newChange;
-      const newTotalDebit = baseDebit + (oldTx.type === 'DEBIT' ? updatedTxFields.amount : 0);
-      const newTotalCredit = baseCredit + (oldTx.type === 'CREDIT' ? updatedTxFields.amount : 0);
-
-      // 3. ALL WRITES AFTER
-      // Update transaction
-      const txRef = doc(db, 'transactions', txId);
-      transaction.update(txRef, {
-        amount: updatedTxFields.amount,
-        invoiceNo: updatedTxFields.invoiceNo,
-        notes: updatedTxFields.notes,
-        runningBalance: newBalance
-      });
-
-      // Update Party
-      transaction.update(partyRef, {
-        currentDue: newBalance,
-        totalDebit: newTotalDebit,
-        totalCredit: newTotalCredit,
-        lastTransaction: Date.now()
-      });
-
-      // Update Balances
-      const balanceRef = doc(db, 'balances', party.id);
-      transaction.update(balanceRef, {
-        currentDue: newBalance,
-        totalDebit: newTotalDebit,
-        totalCredit: newTotalCredit,
-        lastTransaction: Date.now()
-      });
-
-      // Update Daily Summary
-      if (dailySnap.exists()) {
-        const dData = dailySnap.data() as DailySummary;
-        const diffAmount = updatedTxFields.amount - oldTx.amount;
-        transaction.update(dailyRef, {
-          totalDebit: dData.totalDebit + (oldTx.type === 'DEBIT' ? diffAmount : 0),
-          totalCredit: dData.totalCredit + (oldTx.type === 'CREDIT' ? diffAmount : 0)
-        });
-      }
-
-      // Update Dashboard Summary O(1)
-      adjustDashboardSummaryNoRead(transaction, oldTx.ledgerId, pData.currentDue, newBalance, 0, summarySnap);
-
-      // Bump cache versions
-      bumpCacheVersion(transaction, oldTx.ledgerId, {
-        parties: Date.now(),
-        dashboard_summary: Date.now(),
-        transactions: Date.now()
-      });
+    // 1. Update the transaction document first
+    const txRef = doc(db, 'transactions', txId);
+    await updateDoc(txRef, {
+      amount: newAmount,
+      type: newType,
+      timestamp: newTimestamp,
+      invoiceNo: newInvoiceNo,
+      notes: newNotes
     });
+
+    // 2. Perform accurate chronological recalculation of all running balances for this party
+    await recalculatePartyBalance(party.id, oldTx.ledgerId);
+
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('database-synced'));
     }
@@ -269,75 +217,15 @@ export async function editTransaction(
 
 export async function deleteTransaction(oldTx: Transaction, party: Party) {
   try {
-    await runTransaction(db, async (transaction) => {
-      // 1. ALL READS FIRST
-      const partyRef = doc(db, 'parties', party.id);
-      const partySnap = await transaction.get(partyRef);
-      
-      let pData = party;
-      if (!partySnap.exists()) {
-        // Self-heal: If the party doesn't exist in the database (e.g. from local mode), write it first.
-        transaction.set(partyRef, party);
-      } else {
-        pData = partySnap.data() as Party;
-      }
+    // 1. Delete transaction doc
+    const txRef = doc(db, 'transactions', oldTx.id);
+    await updateDoc(txRef, { isDeleted: true }); // safety
+    const { deleteDoc } = await import('../firebase');
+    await deleteDoc(txRef);
 
-      const dateStr = format(new Date(oldTx.timestamp), 'yyyy-MM-dd');
-      const dailyRef = doc(db, 'daily_summaries', `${oldTx.ledgerId}_${dateStr}`);
-      const dailySnap = await transaction.get(dailyRef);
+    // 2. Perform accurate recalculation of all running balances and party due
+    await recalculatePartyBalance(party.id, oldTx.ledgerId);
 
-      const summaryRef = doc(db, 'dashboard_summary', oldTx.ledgerId);
-      const summarySnap = await transaction.get(summaryRef);
-
-      // 2. CALCULATE VALUES
-      // Reverse transaction effect
-      const change = oldTx.type === 'DEBIT' ? -oldTx.amount : oldTx.amount;
-      const newBalance = pData.currentDue + change;
-      const newTotalDebit = Math.max(0, (pData.totalDebit || 0) - (oldTx.type === 'DEBIT' ? oldTx.amount : 0));
-      const newTotalCredit = Math.max(0, (pData.totalCredit || 0) - (oldTx.type === 'CREDIT' ? oldTx.amount : 0));
-
-      // 3. ALL WRITES AFTER
-      // Delete transaction
-      const txRef = doc(db, 'transactions', oldTx.id);
-      transaction.delete(txRef);
-
-      // Update Party
-      transaction.update(partyRef, {
-        currentDue: newBalance,
-        totalDebit: newTotalDebit,
-        totalCredit: newTotalCredit,
-        lastTransaction: Date.now()
-      });
-
-      // Update Balances
-      const balanceRef = doc(db, 'balances', party.id);
-      transaction.update(balanceRef, {
-        currentDue: newBalance,
-        totalDebit: newTotalDebit,
-        totalCredit: newTotalCredit,
-        lastTransaction: Date.now()
-      });
-
-      // Update Daily Summary
-      if (dailySnap.exists()) {
-        const dData = dailySnap.data() as DailySummary;
-        transaction.update(dailyRef, {
-          totalDebit: Math.max(0, dData.totalDebit - (oldTx.type === 'DEBIT' ? oldTx.amount : 0)),
-          totalCredit: Math.max(0, dData.totalCredit - (oldTx.type === 'CREDIT' ? oldTx.amount : 0)),
-          transactionCount: Math.max(0, dData.transactionCount - 1)
-        });
-      }
-
-      // Update Dashboard Summary
-      adjustDashboardSummaryNoRead(transaction, oldTx.ledgerId, pData.currentDue, newBalance, -1, summarySnap);
-
-      // Bump cache versions
-      bumpCacheVersion(transaction, oldTx.ledgerId, {
-        parties: Date.now(),
-        dashboard_summary: Date.now(),
-        transactions: Date.now()
-      });
-    });
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('database-synced'));
     }
@@ -345,6 +233,238 @@ export async function deleteTransaction(oldTx: Transaction, party: Party) {
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `transactions/${oldTx.id}`);
     return false;
+  }
+}
+
+// Function to recalculate and fix calculations for a single party from scratch
+export async function recalculatePartyBalance(partyId: string, ledgerId: string): Promise<{
+  success: boolean;
+  openingBalance: number;
+  totalDebit: number;
+  totalCredit: number;
+  currentDue: number;
+  transactionCount: number;
+  error?: string;
+}> {
+  try {
+    const partyRef = doc(db, 'parties', partyId);
+    const partySnap = await getDoc(partyRef);
+    if (!partySnap.exists()) {
+      return { success: false, openingBalance: 0, totalDebit: 0, totalCredit: 0, currentDue: 0, transactionCount: 0, error: 'Party not found' };
+    }
+    const partyData = partySnap.data() as Party;
+    const openingBal = partyData.openingBalance || 0;
+
+    // Fetch all transactions for this party
+    const txQuery = query(
+      collection(db, 'transactions'),
+      where('partyId', '==', partyId)
+    );
+    const txSnap = await getDocs(txQuery);
+    const txs: Transaction[] = [];
+    txSnap.forEach(d => {
+      const data = d.data() as Transaction;
+      if (data && data.id) {
+        txs.push(data);
+      }
+    });
+
+    // Sort chronologically ascending
+    txs.sort((a, b) => a.timestamp - b.timestamp);
+
+    let runningBal = openingBal;
+    let sumDebit = 0;
+    let sumCredit = 0;
+    let latestTs = partyData.lastTransaction || Date.now();
+
+    for (const tx of txs) {
+      const isDebit = tx.type === 'DEBIT';
+      if (isDebit) {
+        sumDebit += tx.amount;
+        runningBal += tx.amount;
+      } else {
+        sumCredit += tx.amount;
+        runningBal -= tx.amount;
+      }
+      latestTs = Math.max(latestTs, tx.timestamp);
+
+      // Update transaction runningBalance if changed
+      const tRef = doc(db, 'transactions', tx.id);
+      await updateDoc(tRef, { runningBalance: runningBal });
+      await setCacheItem<Transaction>('transactions', { ...tx, runningBalance: runningBal });
+    }
+
+    const updatedParty: Party = {
+      ...partyData,
+      currentDue: runningBal,
+      totalDebit: sumDebit,
+      totalCredit: sumCredit,
+      lastTransaction: txs.length > 0 ? latestTs : partyData.lastTransaction
+    };
+
+    await updateDoc(partyRef, {
+      currentDue: runningBal,
+      totalDebit: sumDebit,
+      totalCredit: sumCredit,
+      lastTransaction: updatedParty.lastTransaction
+    });
+
+    const balRef = doc(db, 'balances', partyId);
+    await setDoc(balRef, {
+      id: partyId,
+      partyId,
+      ledgerId,
+      currentDue: runningBal,
+      totalDebit: sumDebit,
+      totalCredit: sumCredit,
+      lastTransaction: updatedParty.lastTransaction
+    }, { merge: true });
+
+    await setCacheItem<Party>('parties', updatedParty);
+    await setCacheItem<Balance>('balances', {
+      id: partyId,
+      partyId,
+      ledgerId,
+      currentDue: runningBal,
+      totalDebit: sumDebit,
+      totalCredit: sumCredit,
+      lastTransaction: updatedParty.lastTransaction
+    });
+
+    // Recalculate dashboard summary
+    await recalculateDashboardSummary(ledgerId);
+
+    return {
+      success: true,
+      openingBalance: openingBal,
+      totalDebit: sumDebit,
+      totalCredit: sumCredit,
+      currentDue: runningBal,
+      transactionCount: txs.length
+    };
+  } catch (err: any) {
+    console.error('Failed to recalculate party balance:', err);
+    return {
+      success: false,
+      openingBalance: 0,
+      totalDebit: 0,
+      totalCredit: 0,
+      currentDue: 0,
+      transactionCount: 0,
+      error: err.message || String(err)
+    };
+  }
+}
+
+// Function to recalculate dashboard summary totals for a ledger
+export async function recalculateDashboardSummary(ledgerId: string): Promise<DashboardSummary | null> {
+  try {
+    const partiesQuery = query(
+      collection(db, 'parties'),
+      where('ledgerId', '==', ledgerId)
+    );
+    const partiesSnap = await getDocs(partiesQuery);
+    let totalReceivable = 0;
+    let totalPayable = 0;
+    let partyCount = 0;
+
+    partiesSnap.forEach(d => {
+      const p = d.data() as Party;
+      partyCount++;
+      if (p.currentDue > 0) {
+        totalReceivable += p.currentDue;
+      } else if (p.currentDue < 0) {
+        totalPayable += Math.abs(p.currentDue);
+      }
+    });
+
+    const txQuery = query(
+      collection(db, 'transactions'),
+      where('ledgerId', '==', ledgerId)
+    );
+    const txSnap = await getDocs(txQuery);
+    const totalTransactions = txSnap.size;
+
+    const summaryRef = doc(db, 'dashboard_summary', ledgerId);
+    const summaryData: DashboardSummary = {
+      id: ledgerId,
+      ledgerId,
+      totalReceivable,
+      totalPayable,
+      totalTransactions,
+      totalParties: partyCount,
+      lastUpdated: Date.now()
+    };
+
+    await setDoc(summaryRef, summaryData, { merge: true });
+    await setCacheItem<DashboardSummary>('dashboard_summary', summaryData);
+
+    const versionRef = doc(db, 'cache_versions', ledgerId);
+    await setDoc(versionRef, {
+      id: ledgerId,
+      ledgerId,
+      parties: Date.now(),
+      dashboard_summary: Date.now(),
+      transactions: Date.now()
+    }, { merge: true });
+
+    return summaryData;
+  } catch (err) {
+    console.error('Failed to recalculate dashboard summary:', err);
+    return null;
+  }
+}
+
+// Function to recalculate all parties and summary across an entire ledger
+export async function recalculateLedgerBalances(ledgerId: string): Promise<{
+  success: boolean;
+  partiesFixed: number;
+  totalTransactions: number;
+  totalReceivable: number;
+  totalPayable: number;
+  error?: string;
+}> {
+  try {
+    const partiesQuery = query(
+      collection(db, 'parties'),
+      where('ledgerId', '==', ledgerId)
+    );
+    const partiesSnap = await getDocs(partiesQuery);
+    let partiesFixed = 0;
+    let totalTransactions = 0;
+
+    for (const pDoc of partiesSnap.docs) {
+      const p = pDoc.data() as Party;
+      const res = await recalculatePartyBalance(p.id, ledgerId);
+      if (res.success) {
+        partiesFixed++;
+        totalTransactions += res.transactionCount;
+      }
+    }
+
+    const summary = await recalculateDashboardSummary(ledgerId);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('database-synced'));
+    }
+
+    return {
+      success: true,
+      partiesFixed,
+      totalTransactions,
+      totalReceivable: summary?.totalReceivable || 0,
+      totalPayable: summary?.totalPayable || 0
+    };
+  } catch (err: any) {
+    console.error('Failed to recalculate all ledger balances:', err);
+    return {
+      success: false,
+      partiesFixed: 0,
+      totalTransactions: 0,
+      totalReceivable: 0,
+      totalPayable: 0,
+      error: err.message || String(err)
+    };
   }
 }
 
@@ -381,3 +501,4 @@ export async function updateDashboardPartiesCount(ledgerId: string, countChange:
     console.error("Error updating parties count", err);
   }
 }
+

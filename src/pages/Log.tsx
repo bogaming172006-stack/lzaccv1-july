@@ -4,7 +4,8 @@ import { Transaction, Party } from '../types';
 import { useLedger } from '../LedgerContext';
 import { useAuth } from '../AuthContext';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
-import { Search, Loader2, ArrowRight, Trash2, Printer, Calendar, TrendingDown, TrendingUp, DollarSign, X, Filter } from 'lucide-react';
+import { Search, Loader2, ArrowRight, Trash2, Printer, Calendar, TrendingDown, TrendingUp, DollarSign, X, Filter, FileSpreadsheet } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { getFilteredCacheItems } from '../lib/idbCache';
 import { syncCollection } from '../lib/syncCache';
 import { deleteTransaction } from '../lib/transactionService';
@@ -19,6 +20,7 @@ import { Card } from '../components/ui/Card';
 const BATCH_SIZE = 25;
 
 export default function Log() {
+  const navigate = useNavigate();
   const { activeLedger } = useLedger();
   const { currentUser } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -238,7 +240,7 @@ export default function Log() {
           value={<AmountDisplay amount={totalDebit} type="DEBIT" size="sm" />}
           icon={TrendingDown}
           iconColor="text-rose-600"
-          iconBg="bg-rose-50"
+          iconBg="bg-transparent"
           variant="debit"
         />
 
@@ -247,7 +249,7 @@ export default function Log() {
           value={<AmountDisplay amount={totalCredit} type="CREDIT" size="sm" />}
           icon={TrendingUp}
           iconColor="text-emerald-600"
-          iconBg="bg-emerald-50"
+          iconBg="bg-transparent"
           variant="credit"
         />
       </div>
@@ -319,30 +321,6 @@ export default function Log() {
 
             <button
               type="button"
-              onClick={() => applyDatePreset('THIS_MONTH')}
-              className={`px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-medium transition-colors cursor-pointer ${
-                datePreset === 'THIS_MONTH'
-                  ? 'bg-blue-600 text-white shadow-2xs'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              This Month
-            </button>
-
-            <button
-              type="button"
-              onClick={() => applyDatePreset('ALL')}
-              className={`px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-medium transition-colors cursor-pointer ${
-                datePreset === 'ALL'
-                  ? 'bg-blue-600 text-white shadow-2xs'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              All Time
-            </button>
-
-            <button
-              type="button"
               onClick={() => {
                 setShowCustomDates(!showCustomDates);
                 if (!showCustomDates) setDatePreset('CUSTOM');
@@ -407,7 +385,8 @@ export default function Log() {
                 <th>Particulars / Notes</th>
                 <th className="w-36 text-right">Debit (Dr)</th>
                 <th className="w-36 text-right">Credit (Cr)</th>
-                {currentUser?.isAdmin && <th className="w-20 text-center">Actions</th>}
+                <th className="w-20 text-center">Receipt</th>
+                {currentUser?.isAdmin && <th className="w-16 text-center">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -437,7 +416,7 @@ export default function Log() {
                         {tx.notes || '-'}
                       </span>
                       {tx.invoiceNo && (
-                        <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded inline-block mt-0.5">
+                        <span className="text-[11px] font-normal text-slate-800 inline-block mt-0.5 font-mono">
                           Inv #{tx.invoiceNo}
                         </span>
                       )}
@@ -460,6 +439,16 @@ export default function Log() {
                         <span className="text-slate-400">-</span>
                       )}
                     </td>
+                    <td className="text-center" onClick={e => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => setReceiptTx(tx)}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        title="Download / Print Receipt"
+                      >
+                        <Printer size={14} />
+                      </button>
+                    </td>
                     {currentUser?.isAdmin && (
                       <td className="text-center" onClick={e => e.stopPropagation()}>
                         <button
@@ -481,7 +470,7 @@ export default function Log() {
 
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={currentUser?.isAdmin ? 6 : 5} className="py-12 text-center text-xs font-semibold text-slate-400">
+                  <td colSpan={currentUser?.isAdmin ? 7 : 6} className="py-12 text-center text-xs font-semibold text-slate-400">
                     No transactions matching current filters.
                   </td>
                 </tr>
@@ -620,6 +609,20 @@ export default function Log() {
         </div>
       )}
 
+      {/* Thermal Receipt Modal */}
+      {receiptTx && (
+        <ThermalReceiptModal
+          isOpen={true}
+          onClose={() => setReceiptTx(null)}
+          transaction={receiptTx}
+          partyName={parties[receiptTx.partyId]?.name || 'Unknown Party'}
+          partyPhone={parties[receiptTx.partyId]?.phone}
+          ledgerName={activeLedger?.name || 'Ledger'}
+          ledgerType={activeLedger?.type}
+          isPurchaseStyle={activeLedger?.type === 'PURCHASE' || activeLedger?.type === 'LIABILITY' || activeLedger?.type === 'CAPITAL'}
+        />
+      )}
+
       {/* Transaction Detail Popup */}
       <TransactionDetailModal
         isOpen={selectedDetailTx !== null}
@@ -627,6 +630,8 @@ export default function Log() {
         transaction={selectedDetailTx}
         partyName={selectedDetailTx ? (parties[selectedDetailTx.partyId]?.name || 'Unknown') : ''}
         ledgerName={activeLedger?.name || 'Ledger'}
+        ledgerType={activeLedger?.type}
+        onOpenReceipt={(tx) => setReceiptTx(tx)}
       />
     </div>
   );

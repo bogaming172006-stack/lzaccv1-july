@@ -16,13 +16,15 @@ import {
   Info,
   AlertTriangle,
   Receipt,
-  FileCheck
+  FileCheck,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { createTransaction } from '../lib/transactionService';
 import { getFilteredCacheItems } from '../lib/idbCache';
 import { syncCollection } from '../lib/syncCache';
+import { logUserActivity } from '../lib/activityLogger';
 import ThermalReceiptModal from '../components/ThermalReceiptModal';
 import PageHeader from '../components/ui/PageHeader';
 import { Card, CardHeader, CardBody } from '../components/ui/Card';
@@ -58,6 +60,14 @@ export default function MasterEntry() {
   const [lockedInvoiceDetails, setLockedInvoiceDetails] = useState<{amount?: number, date?: number, type: 'DEBIT'|'CREDIT'} | null>(null);
 
   const isSaleLedger = activeLedger?.type === 'SALE';
+  const isExpenseLedger = activeLedger?.type === 'EXPENSE';
+
+  useEffect(() => {
+    if (isExpenseLedger) {
+      setType('DEBIT');
+      setSeparateCredit(false);
+    }
+  }, [isExpenseLedger, activeLedger?.id]);
 
   useEffect(() => {
     const loadParties = async () => {
@@ -119,11 +129,15 @@ export default function MasterEntry() {
 
       if (e.key === 'F2') {
         e.preventDefault();
-        handleTypeChange(type === 'DEBIT' ? 'CREDIT' : 'DEBIT');
+        if (!isExpenseLedger) {
+          handleTypeChange(type === 'DEBIT' ? 'CREDIT' : 'DEBIT');
+        }
       }
       if (e.key === 'F3' || (e.altKey && e.key.toLowerCase() === 's')) {
         e.preventDefault();
-        setSeparateCredit(prev => !prev);
+        if (!isExpenseLedger) {
+          setSeparateCredit(prev => !prev);
+        }
       }
       if (e.altKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
@@ -131,7 +145,9 @@ export default function MasterEntry() {
       }
       if (e.altKey && e.key.toLowerCase() === 'c') {
         e.preventDefault();
-        handleTypeChange('CREDIT');
+        if (!isExpenseLedger) {
+          handleTypeChange('CREDIT');
+        }
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -292,6 +308,7 @@ export default function MasterEntry() {
   };
 
   const handleTypeChange = (newType: 'DEBIT' | 'CREDIT') => {
+    if (isExpenseLedger && newType === 'CREDIT') return;
     setType(newType);
     if (newType === 'CREDIT') {
       if (separateCredit) {
@@ -584,7 +601,15 @@ export default function MasterEntry() {
       setShowSuccess(true);
       setIsSubmitting(false);
 
-      createTransaction(newTx, selectedParty).catch(e => {
+      createTransaction(newTx, selectedParty).then(() => {
+        logUserActivity(
+          `Recorded ${type} Voucher`,
+          `₹${numAmount.toFixed(2)} for ${selectedParty.name}${invoiceNo ? ` (Inv #${invoiceNo})` : ''}`,
+          currentUser,
+          activeLedger.name,
+          activeLedger.id
+        );
+      }).catch(e => {
         handleFirestoreError(e, OperationType.CREATE, 'transactions');
       });
       return;
@@ -601,7 +626,23 @@ export default function MasterEntry() {
     <div className="p-2 min-[400px]:p-3 sm:p-8 pt-1 min-[400px]:pt-1.5 sm:pt-8 max-w-3xl mx-auto w-full pb-20 sm:pb-8 space-y-2 sm:space-y-6">
       {/* Page Header */}
       <PageHeader
-        title={activeLedger.type === 'PURCHASE' ? "Purchase Voucher Entry" : "Journal Voucher Entry"}
+        title={
+          activeLedger.type === 'EXPENSE' 
+            ? "Expense Payment Voucher" 
+            : activeLedger.type === 'PURCHASE' 
+            ? "Purchase Voucher Entry" 
+            : "Journal Voucher Entry"
+        }
+        actions={
+          <button
+            type="button"
+            onClick={() => navigate('/excel')}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-xs transition-colors"
+          >
+            <FileSpreadsheet size={15} />
+            <span>Excel Sheet Input</span>
+          </button>
+        }
       />
 
       {/* Main Voucher Entry Card */}
@@ -613,39 +654,53 @@ export default function MasterEntry() {
               <div>
                 <label className="block text-[10px] sm:text-xs font-normal sm:font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center justify-between">
                   <span>Voucher Type</span>
-                  <span className="text-[9px] sm:text-[10px] text-slate-400 font-normal hidden min-[400px]:inline">Press F2 to toggle</span>
+                  {!isExpenseLedger && (
+                    <span className="text-[9px] sm:text-[10px] text-slate-400 font-normal hidden min-[400px]:inline">Press F2 to toggle</span>
+                  )}
                 </label>
-                <div className="grid grid-cols-2 gap-1 sm:gap-2 bg-slate-100 p-0.5 sm:p-1 rounded-lg sm:rounded-xl border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => handleTypeChange('DEBIT')}
-                    className={`py-1.5 sm:py-2 px-2 sm:px-3 text-[11px] sm:text-xs font-normal sm:font-bold rounded-md sm:rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-1.5 ${
-                      type === 'DEBIT' 
-                        ? 'bg-rose-600 text-white shadow-2xs font-medium sm:font-bold' 
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <Minus size={12} />
-                    Debit (Dr)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleTypeChange('CREDIT')}
-                    className={`py-1.5 sm:py-2 px-2 sm:px-3 text-[11px] sm:text-xs font-normal sm:font-bold rounded-md sm:rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-1.5 ${
-                      type === 'CREDIT' 
-                        ? 'bg-emerald-600 text-white shadow-2xs font-medium sm:font-bold' 
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <Plus size={12} />
-                    Credit (Cr)
-                  </button>
-                </div>
+                {isExpenseLedger ? (
+                  <div className="py-2 px-0 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-rose-700 font-bold text-xs sm:text-sm">
+                      <Minus size={14} className="text-rose-600 stroke-[2.5]" />
+                      <span>Expense Payment / Payable (Dr)</span>
+                    </div>
+                    <span className="text-[10px] font-semibold bg-rose-100/90 px-2 py-0.5 rounded text-rose-800 uppercase tracking-wider">
+                      Pay Expense
+                    </span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-1 sm:gap-2 p-0">
+                    <button
+                      type="button"
+                      onClick={() => handleTypeChange('DEBIT')}
+                      className={`py-1.5 sm:py-2 px-2 sm:px-3 text-[11px] sm:text-xs font-normal sm:font-bold rounded-md sm:rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-1.5 ${
+                        type === 'DEBIT' 
+                          ? 'bg-rose-600 text-white shadow-2xs font-medium sm:font-bold' 
+                          : 'text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200'
+                      }`}
+                    >
+                      <Minus size={12} />
+                      Debit (Dr)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTypeChange('CREDIT')}
+                      className={`py-1.5 sm:py-2 px-2 sm:px-3 text-[11px] sm:text-xs font-normal sm:font-bold rounded-md sm:rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-1.5 ${
+                        type === 'CREDIT' 
+                          ? 'bg-emerald-600 text-white shadow-2xs font-medium sm:font-bold' 
+                          : 'text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200'
+                      }`}
+                    >
+                      <Plus size={12} />
+                      Credit (Cr)
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
                 <label className="block text-[10px] sm:text-xs font-normal sm:font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  {isSaleLedger ? 'Invoice Number' : 'Reference / Bill No.'}
+                  {isSaleLedger ? 'Invoice Number' : isExpenseLedger ? 'Expense Bill / Voucher Ref No.' : 'Reference / Bill No.'}
                 </label>
                 <div className="relative">
                   <input
@@ -656,7 +711,7 @@ export default function MasterEntry() {
                     onBlur={handleInvoiceBlur}
                     onChange={e => { setInvoiceNo(e.target.value.toLowerCase()); setPartyLockedByInvoice(false); setLockedInvoiceDetails(null); }}
                     className="w-full px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-white border border-slate-300 rounded-lg focus:border-blue-600 text-[11.5px] sm:text-sm font-mono font-normal sm:font-semibold text-slate-900 placeholder:text-slate-400"
-                    placeholder="e.g. 1045 or INV-009"
+                    placeholder={isExpenseLedger ? "e.g. EXP-101, Bill #, Rent Oct" : "e.g. 1045 or INV-009"}
                   />
                   {isCheckingInvoice && (
                     <div className="absolute right-2.5 top-2 flex items-center justify-center">
@@ -670,7 +725,7 @@ export default function MasterEntry() {
             {/* Party Selection Section */}
             <div className="space-y-1">
               <label className="block text-[10px] sm:text-xs font-normal sm:font-bold uppercase tracking-wider text-slate-500">
-                Account Party <span className="text-rose-500">*</span>
+                {isExpenseLedger ? 'Expense Head / Payee Account' : 'Account Party'} <span className="text-rose-500">*</span>
               </label>
 
               {partyLockedByInvoice && selectedParty ? (
@@ -966,6 +1021,7 @@ export default function MasterEntry() {
           partyName={receiptPartyName}
           partyPhone={receiptPartyPhone}
           ledgerName={activeLedger?.name || 'Ledger'}
+          ledgerType={activeLedger?.type}
           isPurchaseStyle={activeLedger?.type === 'PURCHASE' || activeLedger?.type === 'LIABILITY' || activeLedger?.type === 'CAPITAL'}
           autoPrint={autoPrintReceipt}
         />
@@ -982,6 +1038,23 @@ export default function MasterEntry() {
               <h3 className="font-extrabold text-slate-900 text-base">Voucher Posted!</h3>
               <p className="text-xs text-slate-500 mt-0.5">Recorded in {activeLedger?.name}</p>
             </div>
+
+            {lastSavedTx && (
+              <button
+                type="button"
+                onClick={() => {
+                  setReceiptTx(lastSavedTx.transaction);
+                  setReceiptPartyName(lastSavedTx.partyName);
+                  setReceiptPartyPhone(lastSavedTx.partyPhone);
+                  setShowSuccess(false);
+                }}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+              >
+                <Printer size={15} />
+                Download / Print Receipt
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => {
@@ -990,7 +1063,7 @@ export default function MasterEntry() {
                   invoiceRef.current.focus();
                 }
               }}
-              className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold"
+              className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold cursor-pointer"
             >
               Post Next Voucher (Enter)
             </button>

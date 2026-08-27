@@ -14,14 +14,15 @@ import {
   Activity,
   Play,
   UserPlus,
-  Download
+  Download,
+  ShoppingCart
 } from 'lucide-react';
 import { useLedger } from '../LedgerContext';
 import { useAuth } from '../AuthContext';
 import { getFilteredCacheItems, setCacheItem } from '../lib/idbCache';
 import { syncCollection } from '../lib/syncCache';
-import { Party, Transaction } from '../types';
-import { db, setDoc, doc } from '../firebase';
+import { Party, Transaction, Ledger } from '../types';
+import { db, setDoc, doc, getDocs, collection } from '../firebase';
 import { updateDashboardPartiesCount } from '../lib/transactionService';
 import { v4 as uuidv4 } from 'uuid';
 import { formatContactWith91 } from '../lib/phoneUtils';
@@ -42,7 +43,7 @@ const APPS_SCRIPT_CODE = `function doGet(e) {
     initializeSheetWithHeaders();
     return ContentService.createTextOutput(JSON.stringify({
       status: "info",
-      message: "The Apps Script is active and working! Google Sheets headers have been verified/created. Please avoid clicking 'Run' manually in the script editor. To connect this script to your ledger app, click 'Deploy' -> 'New deployment', select 'Web app', set who has access to 'Anyone', and paste the Web App URL into your Ledger configuration!"
+      message: "The Apps Script is active and working! Google Sheets tabs (Sales Ledger and Purchases Ledger) have been verified/created. Please avoid clicking 'Run' manually in the script editor. To connect this script to your ledger app, click 'Deploy' -> 'New deployment', select 'Web app', set who has access to 'Anyone', and paste the Web App URL into your Ledger configuration!"
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
@@ -50,11 +51,14 @@ const APPS_SCRIPT_CODE = `function doGet(e) {
   if (e.parameter.action === "ping") {
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
-      version: "1.6",
-      capabilities: ["preserve_custom_columns", "in_place_row_mapping", "non_destructive_merge", "clear_i_j_on_f_update_unconditional"],
-      message: "Ping successful! Apps Script is running version 1.6 supporting automatic clearing of custom columns I and J whenever Column F (Current Balance) is updated or edited."
+      version: "1.8",
+      capabilities: ["preserve_custom_columns", "in_place_row_mapping", "non_destructive_merge", "purchases_ledger_tab", "multi_sheet_support"],
+      message: "Ping successful! Apps Script is running version 1.8 supporting Sales Ledger and Purchases Ledger multi-tab sync with custom column preservation."
     })).setMimeType(ContentService.MimeType.JSON);
   }
+
+  // Always initialize both default tabs (Sales Ledger & Purchases Ledger)
+  initializeSheetWithHeaders();
 
   var sheetName = e.parameter.sheet || "Sheet1";
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -62,10 +66,8 @@ const APPS_SCRIPT_CODE = `function doGet(e) {
   
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
+    ensureHeadersExist(sheet);
   }
-  
-  // Auto-create headers if the sheet is empty
-  ensureHeadersExist(sheet);
 
   var data = sheet.getDataRange().getValues();
   return ContentService.createTextOutput(JSON.stringify(data))
@@ -92,47 +94,58 @@ function doPost(e) {
       sheet = ss.insertSheet(sheetName);
     }
     
+    // Explicit create_tab or init action
+    if (action === "create_tab" || action === "init") {
+      ensureHeadersExist(sheet);
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        message: "Tab '" + sheetName + "' created and initialized successfully."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (action === "sync" || action === "write") {
-      if (rows && rows.length > 0) {
-        // 1. Read existing sheet data to map and preserve custom columns (I, J, K, etc.) and other existing rows
-        var existingData = [];
-        try {
-          existingData = sheet.getDataRange().getValues();
-        } catch (err) {}
+      var defaultHeaders = ["Party Name", "Address", "Opening Balance", "Recent Debit", "Recent Credit", "Current Balance", "Email ID", "Contact Number"];
+      var headers = (rows && rows.length > 0 && rows[0] && rows[0].length > 0) ? rows[0].slice(0, 8) : defaultHeaders;
 
-        // Ensure headers exist
-        if (existingData.length === 0) {
-          ensureHeadersExist(sheet);
-          try {
-            existingData = sheet.getDataRange().getValues();
-          } catch (err) {}
-        }
+      var existingData = [];
+      try {
+        existingData = sheet.getDataRange().getValues();
+      } catch (err) {}
 
-        // We copy the existing data as our starting base to avoid destroying any user-added rows or data
-        var mergedData = [];
+      // Check if existing sheet already has valid headers
+      var hasValidExistingHeaders = existingData.length > 0 && 
+                                    existingData[0] && 
+                                    String(existingData[0][0] || '').trim() !== "";
+
+      var mergedData = [];
+      if (hasValidExistingHeaders) {
         for (var r = 0; r < existingData.length; r++) {
           mergedData.push(existingData[r].slice());
         }
+      } else {
+        mergedData.push(headers.slice());
+      }
 
-        // Map existing party names (column A, case-insensitive, trimmed) to their indices in mergedData
-        var partyRowMap = {};
-        for (var r = 1; r < mergedData.length; r++) {
-          var partyName = String(mergedData[r][0] || '').trim().toLowerCase();
-          if (partyName) {
-            partyRowMap[partyName] = r;
-          }
+      // Map existing party names (column A, case-insensitive, trimmed) to their indices in mergedData
+      var partyRowMap = {};
+      for (var r = 1; r < mergedData.length; r++) {
+        var partyName = String(mergedData[r][0] || '').trim().toLowerCase();
+        if (partyName) {
+          partyRowMap[partyName] = r;
         }
+      }
 
-        // Helper to normalize amount comparisons safely (handles currency, formatting, and null/empty)
-        function getNormalizedAmount(val) {
-          if (val === undefined || val === null) return 0;
-          var str = String(val).trim();
-          if (str === "") return 0;
-          var clean = str.replace(/[^\d.-]/g, '');
-          var num = parseFloat(clean);
-          return isNaN(num) ? 0 : num;
-        }
+      // Helper to normalize amount comparisons safely
+      function getNormalizedAmount(val) {
+        if (val === undefined || val === null) return 0;
+        var str = String(val).trim();
+        if (str === "") return 0;
+        var clean = str.replace(/[^\\d.-]/g, '');
+        var num = parseFloat(clean);
+        return isNaN(num) ? 0 : num;
+      }
 
+      if (rows && rows.length > 1) {
         // Process incoming rows (skipping the header incoming row at index 0)
         for (var i = 1; i < rows.length; i++) {
           var incomingRow = rows[i];
@@ -146,25 +159,22 @@ function doPost(e) {
           }
 
           if (partyRowMap.hasOwnProperty(incomingPartyName)) {
-            // Party already exists in the sheet. Overwrite standard columns (A-H, i.e., index 0-7)
             var targetIndex = partyRowMap[incomingPartyName];
             var targetRow = mergedData[targetIndex];
             
-            // Get Column F (index 5) and compare with existing F to only clear I/J if balance actually changed
             var incomingF = standardCols[5];
             var existingF = targetRow[5];
             
-            // Overwrite columns A-H (indices 0-7) of targetRow, keeping index 8 (Column I) and onwards untouched!
+            // Overwrite columns A-H (indices 0-7) of targetRow, keeping index 8 (Column I) and onwards untouched
             for (var c = 0; c < 8; c++) {
               targetRow[c] = standardCols[c];
             }
             
-            // Check if Column F has actually changed using robust normalization
+            // Check if Column F has actually changed
             var incomingFNum = getNormalizedAmount(incomingF);
             var existingFNum = getNormalizedAmount(existingF);
             
             if (incomingFNum !== existingFNum) {
-              // Ensure row array has enough space for columns I and J
               while (targetRow.length < 10) {
                 targetRow.push("");
               }
@@ -172,33 +182,33 @@ function doPost(e) {
               targetRow[9] = ""; // Clear Column J (index 9)
             }
           } else {
-            // New party name. Append a brand new row to mergedData
-            // and avoid overwriting any rows that might contain manual data in columns I, J, K, etc.
             mergedData.push(standardCols);
             partyRowMap[incomingPartyName] = mergedData.length - 1;
           }
         }
-
-        // 2. Pad all rows to have the same length (required by setValues)
-        var maxCols = 0;
-        for (var k = 0; k < mergedData.length; k++) {
-          if (mergedData[k].length > maxCols) {
-            maxCols = mergedData[k].length;
-          }
-        }
-        for (var k = 0; k < mergedData.length; k++) {
-          while (mergedData[k].length < maxCols) {
-            mergedData[k].push("");
-          }
-        }
-
-        // 3. Write everything back in-place starting from A1
-        sheet.getRange(1, 1, mergedData.length, maxCols).setValues(mergedData);
-      } else {
-        ensureHeadersExist(sheet);
       }
-      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Synchronized " + (rows ? rows.length : 0) + " rows successfully in-place, keeping all custom columns, extra rows, and manual values untouched." }))
-                           .setMimeType(ContentService.MimeType.JSON);
+
+      // Pad all rows to have the same length
+      var maxCols = 8;
+      for (var k = 0; k < mergedData.length; k++) {
+        if (mergedData[k].length > maxCols) {
+          maxCols = mergedData[k].length;
+        }
+      }
+      for (var k = 0; k < mergedData.length; k++) {
+        while (mergedData[k].length < maxCols) {
+          mergedData[k].push("");
+        }
+      }
+
+      // Write everything back in-place starting from A1
+      sheet.getRange(1, 1, mergedData.length, maxCols).setValues(mergedData);
+      formatHeaderRow(sheet);
+
+      return ContentService.createTextOutput(JSON.stringify({ 
+        status: "success", 
+        message: "Synchronized " + (rows ? rows.length : 0) + " rows successfully in sheet '" + sheetName + "'." 
+      })).setMimeType(ContentService.MimeType.JSON);
     }
     
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Invalid action." }))
@@ -216,10 +226,20 @@ function onOpen() {
 
 function initializeSheetWithHeaders() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheets = ss.getSheets();
-  for (var i = 0; i < sheets.length; i++) {
-    ensureHeadersExist(sheets[i]);
+  
+  // 1. Check or initialize Sales Ledger / Sheet1 tab
+  var salesSheet = ss.getSheetByName("Sales Ledger") || ss.getSheetByName("Sheet1");
+  if (!salesSheet) {
+    salesSheet = ss.getSheets()[0] || ss.insertSheet("Sales Ledger");
   }
+  ensureHeadersExist(salesSheet);
+  
+  // 2. Check or initialize Purchases Ledger tab
+  var purchaseSheet = ss.getSheetByName("Purchases Ledger") || ss.getSheetByName("Purchase Ledger");
+  if (!purchaseSheet) {
+    purchaseSheet = ss.insertSheet("Purchases Ledger");
+  }
+  ensureHeadersExist(purchaseSheet);
 }
 
 function ensureHeadersExist(sheet) {
@@ -229,17 +249,25 @@ function ensureHeadersExist(sheet) {
   if (lastRow === 0 || lastColumn === 0) {
     var headers = ["Party Name", "Address", "Opening Balance", "Recent Debit", "Recent Credit", "Current Balance", "Email ID", "Contact Number"];
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    
-    // Apply elegant styling to headers matching Ledger theme
-    var headerRange = sheet.getRange(1, 1, 1, headers.length);
-    headerRange.setFontWeight("bold");
+    formatHeaderRow(sheet);
+  }
+}
+
+function formatHeaderRow(sheet) {
+  var colCount = Math.max(8, sheet.getLastColumn());
+  var headerRange = sheet.getRange(1, 1, 1, colCount);
+  headerRange.setFontWeight("bold");
+  var sName = sheet.getName().toLowerCase();
+  if (sName.includes("purchase")) {
+    headerRange.setBackground("#FEF3C7"); // Soft amber bg
+    headerRange.setFontColor("#92400E"); // Dark amber text
+  } else {
     headerRange.setBackground("#E6F4EA"); // Soft emerald bg
     headerRange.setFontColor("#137333"); // Dark green text
-    headerRange.setBorder(true, true, true, true, true, true);
-    sheet.setFrozenRows(1);
-    
-    sheet.autoResizeColumns(1, headers.length);
   }
+  headerRange.setBorder(true, true, true, true, true, true);
+  sheet.setFrozenRows(1);
+  sheet.autoResizeColumns(1, 8);
 }
 
 // Automatically clear columns I (9) and J (10) when Column F (6) is edited directly in Google Sheets
@@ -267,7 +295,7 @@ function onEdit(e) {
 
 export default function AccountsMail() {
   const { currentUser } = useAuth();
-  const { activeLedger } = useLedger();
+  const { activeLedger, ledgers, createLedger } = useLedger();
 
   // If not admin, show access denied
   if (!currentUser?.isAdmin) {
@@ -297,11 +325,15 @@ export default function AccountsMail() {
   const [v4Range, setV4Range] = useState('Sheet1!A2:H');
 
   // Business States
-  const [v4Parties, setV4Parties] = useState<{ partyName: string; outstandingAmount: number; email: string; phone: string; rawOutstanding: string }[]>([]);
+  const [v4Parties, setV4Parties] = useState<{ partyName: string; outstandingAmount: number; email: string; phone: string; rawOutstanding: string; address?: string }[]>([]);
   const [rawSheetData, setRawSheetData] = useState<any[][]>([]);
   const [showRawGrid, setShowRawGrid] = useState(false);
   const [localParties, setLocalParties] = useState<Party[]>([]);
-  const [activeTab, setActiveTab] = useState<'local' | 'spreadsheet'>('local');
+  const [purchaseParties, setPurchaseParties] = useState<Party[]>([]);
+  const [purchaseLedgers, setPurchaseLedgers] = useState<Ledger[]>([]);
+  const [selectedPurchaseLedgerId, setSelectedPurchaseLedgerId] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<'local' | 'spreadsheet' | 'purchases'>('local');
+  const [spreadsheetViewTab, setSpreadsheetViewTab] = useState<'sales' | 'purchases'>('sales');
   const [isAutoSyncing, setIsAutoSyncing] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
@@ -343,6 +375,49 @@ export default function AccountsMail() {
       setLocalParties(cachedParties);
     } catch (e) {
       console.error('Failed to load local parties:', e);
+    }
+  };
+
+  const fetchPurchaseData = async () => {
+    try {
+      const pLedgers = ledgers.filter(l => l.type === 'PURCHASE');
+      setPurchaseLedgers(pLedgers);
+
+      let allParties: Party[] = [];
+      for (const pLedger of pLedgers) {
+        try {
+          await syncCollection<Party>('parties', pLedger.id, 'parties');
+          const list = await getFilteredCacheItems<Party>('parties', p => p.ledgerId === pLedger.id && p.status !== 'Inactive');
+          allParties.push(...list);
+        } catch (err) {
+          console.warn('Sync cache fallback for ledger', pLedger.id, err);
+        }
+      }
+
+      // Fallback: If cache didn't return any but ledgers exist, load from Firestore
+      if (allParties.length === 0 && pLedgers.length > 0) {
+        const snapshot = await getDocs(collection(db, 'parties'));
+        const purchaseLedgerIds = new Set(pLedgers.map(l => l.id));
+        snapshot.forEach(docSnap => {
+          const data = docSnap.data() as Party;
+          if (data.status !== 'Inactive' && purchaseLedgerIds.has(data.ledgerId)) {
+            allParties.push({ ...data, id: docSnap.id });
+          }
+        });
+      }
+
+      // If activeLedger is of type PURCHASE and not already in pLedgers, also include its parties
+      if (activeLedger?.type === 'PURCHASE' && !pLedgers.some(l => l.id === activeLedger.id)) {
+        try {
+          await syncCollection<Party>('parties', activeLedger.id, 'parties');
+          const list = await getFilteredCacheItems<Party>('parties', p => p.ledgerId === activeLedger.id && p.status !== 'Inactive');
+          allParties.push(...list);
+        } catch (e) {}
+      }
+
+      setPurchaseParties(allParties);
+    } catch (e) {
+      console.error('Failed to load purchase parties and ledgers:', e);
     }
   };
 
@@ -400,10 +475,13 @@ export default function AccountsMail() {
   }, []);
 
   // Fetch spreadsheet data from either Apps Script read-proxy or Google Sheets API v4 via backend proxy
-  const fetchV4Data = async (silent = false) => {
+  const fetchV4Data = async (silent = false, targetSheet?: 'sales' | 'purchases') => {
     const sId = extractSpreadsheetId(v4SpreadsheetId);
     const key = v4ApiKey.trim();
-    const rng = v4Range.trim();
+    const currentTarget = targetSheet || spreadsheetViewTab;
+    const isTargetPurchase = currentTarget === 'purchases';
+    const targetSheetName = isTargetPurchase ? 'Purchases Ledger' : (sheetTitle.trim() || 'Sheet1');
+    const rng = isTargetPurchase ? "'Purchases Ledger'!A2:H" : v4Range.trim();
     const scriptUrl = appsScriptUrl.trim();
 
     if (!scriptUrl && (!sId || !key)) {
@@ -426,8 +504,8 @@ export default function AccountsMail() {
     // Method A: Try Apps Script read-proxy first if available
     if (scriptUrl) {
       try {
-        console.log('[Sync] Attempting to fetch data via Apps Script read-proxy...');
-        const fetchUrl = `/api/sheets/read-proxy?appsScriptUrl=${encodeURIComponent(scriptUrl)}&sheet=${encodeURIComponent(sheetTitle.trim())}`;
+        console.log(`[Sync] Attempting to fetch data for tab '${targetSheetName}' via Apps Script read-proxy...`);
+        const fetchUrl = `/api/sheets/read-proxy?appsScriptUrl=${encodeURIComponent(scriptUrl)}&sheet=${encodeURIComponent(targetSheetName)}`;
         const res = await fetch(fetchUrl);
         if (!res.ok) {
           throw new Error(`Apps Script proxy responded with status ${res.status}`);
@@ -447,7 +525,7 @@ export default function AccountsMail() {
           rawRows = resData.parties;
         }
 
-        // Store whatever raw structure we got for the UI raw inspector
+        // Store raw structure for the UI raw inspector
         setRawSheetData(rawRows);
 
         if (rawRows.length > 0) {
@@ -467,10 +545,10 @@ export default function AccountsMail() {
           } else {
             // It is a 2D array of cells (rows of columns)
             let nameIdx = 0;
-            let addressIdx = -1;
-            let outstandingIdx = 1;
-            let emailIdx = 2;
-            let phoneIdx = 3; // Default fallback to 4th column
+            let addressIdx = 1;
+            let outstandingIdx = 5;
+            let emailIdx = 6;
+            let phoneIdx = 7;
 
             const firstRow = rawRows[0];
             const firstCol = String(firstRow[0] || '').toLowerCase();
@@ -479,7 +557,7 @@ export default function AccountsMail() {
             if (isHeader) {
               firstRow.forEach((col: any, idx: number) => {
                 const text = String(col).toLowerCase();
-                // 1. Check phone/contact first to prevent "Contact No." or "Phone No." matching "no."
+                // 1. Check phone/contact first
                 if (text.includes('phone') || text.includes('contact') || text.includes('mob') || text.includes('tel') || text.includes('number')) {
                   phoneIdx = idx;
                 }
@@ -495,7 +573,7 @@ export default function AccountsMail() {
                 else if (text.includes('address') || text.includes('location') || text.includes('addr')) {
                   addressIdx = idx;
                 }
-                // 5. Check outstanding/balance (current due/current balance)
+                // 5. Check outstanding/balance
                 else if ((text.includes('outstanding') || text.includes('amount') || text.includes('due') || text.includes('balance') || text.includes('no.')) && !text.includes('opening')) {
                   outstandingIdx = idx;
                 }
@@ -527,7 +605,6 @@ export default function AccountsMail() {
           }
           fetchMethodUsed = 'Apps Script';
         } else {
-          // If connection returns empty array, it still contacted successfully!
           didFetchSucceed = true;
           fetchMethodUsed = 'Apps Script';
         }
@@ -540,7 +617,7 @@ export default function AccountsMail() {
     // Method B: Fallback to direct Sheets API v4 via proxy
     if (!didFetchSucceed && sId && key) {
       try {
-        console.log('[Sync] Attempting to fetch data via Sheets API v4 proxy...');
+        console.log(`[Sync] Attempting to fetch data via Sheets API v4 proxy for range '${rng}'...`);
         const fetchUrl = `/api/parties/live?spreadsheetId=${encodeURIComponent(sId)}&apiKey=${encodeURIComponent(key)}&range=${encodeURIComponent(rng)}`;
         const res = await fetch(fetchUrl);
         if (!res.ok) {
@@ -572,17 +649,17 @@ export default function AccountsMail() {
       // Read-only logic: Update local balances if matching local party exists
       if (isReadOnlyMode) {
         console.log('[Sync] Spreadsheet Read-Only Mode is active. Skipping automatic database overwrite to keep app data secure.');
-      } else if (activeLedger?.id && parsedParties.length > 0) {
+      } else if (activeLedger?.id && parsedParties.length > 0 && !isTargetPurchase) {
         await syncCollection<Party>('parties', activeLedger.id, 'parties');
-        const localParties = await getFilteredCacheItems<Party>('parties', p => p.ledgerId === activeLedger.id);
+        const localPartiesList = await getFilteredCacheItems<Party>('parties', p => p.ledgerId === activeLedger.id);
         let hasChanges = false;
 
         for (const sheetParty of parsedParties) {
-          const sheetName = String(sheetParty.partyName || '').trim();
-          if (!sheetName) continue;
+          const sheetPartyName = String(sheetParty.partyName || '').trim();
+          if (!sheetPartyName) continue;
 
-          const matchedLocal = localParties.find(
-            p => p.name.trim().toLowerCase() === sheetName.toLowerCase()
+          const matchedLocal = localPartiesList.find(
+            p => p.name.trim().toLowerCase() === sheetPartyName.toLowerCase()
           );
 
           if (matchedLocal) {
@@ -627,15 +704,15 @@ export default function AccountsMail() {
 
       if (!silent) {
         if (parsedParties.length === 0) {
-          setSuccessMsg(`Connected to Google Sheets successfully! However, no active customer records were found below the headers. Add party rows in your sheet and click Sync Now.`);
+          setSuccessMsg(`Connected to Google Sheets tab "${targetSheetName}"! However, no active records were found below the headers.`);
         } else {
-          setSuccessMsg(`Successfully loaded ${parsedParties.length} records via ${fetchMethodUsed}!`);
+          setSuccessMsg(`Successfully loaded ${parsedParties.length} records from tab "${targetSheetName}" via ${fetchMethodUsed}!`);
         }
         setTimeout(() => setSuccessMsg(null), 4000);
       }
     } else {
       if (!silent) {
-        setErrorMsg(lastError || 'Could not fetch records. Check your settings, sheet name, or Apps Script authorization.');
+        setErrorMsg(lastError || `Could not fetch records from tab "${targetSheetName}". Check your settings or Apps Script authorization.`);
       }
     }
 
@@ -727,7 +804,7 @@ export default function AccountsMail() {
     }
   };
 
-  // Push all local parties and current calculated balances to Google Sheet
+  // Push all local parties and current calculated balances to Google Sheet (Sales / Active Ledger tab)
   const handlePushAppToSheet = async () => {
     if (!activeLedger?.id) {
       alert('Please select an active ledger first.');
@@ -738,7 +815,7 @@ export default function AccountsMail() {
       return;
     }
 
-    const confirmPush = window.confirm(`This will export and overwrite your Google Sheet with all active parties and their calculated outstanding dues from ledger "${activeLedger.name}". Proceed?`);
+    const confirmPush = window.confirm(`This will export and overwrite your Google Sheet tab "${sheetTitle}" with all active parties and calculated balances from ledger "${activeLedger.name}". Proceed?`);
     if (!confirmPush) return;
 
     setIsPushing(true);
@@ -838,17 +915,279 @@ export default function AccountsMail() {
         throw new Error(resJson.message || 'Apps Script sync returned error.');
       }
 
-      setSuccessMsg(`Successfully exported and pushed ${activeParties.length} parties to your Google Sheet!`);
-      alert(`Successfully exported and pushed ${activeParties.length} parties to your Google Sheet!`);
+      setSuccessMsg(`Successfully exported and pushed ${activeParties.length} parties to sheet tab "${sheetTitle}" in Google Sheets!`);
+      alert(`Successfully exported and pushed ${activeParties.length} parties to sheet tab "${sheetTitle}" in Google Sheets!`);
       setTimeout(() => setSuccessMsg(null), 4000);
 
       // Trigger silent fetch to sync visual list
-      await fetchV4Data(true);
+      await fetchV4Data(true, 'sales');
     } catch (err: any) {
       console.error(err);
       const errMsg = err.message || String(err);
       setErrorMsg(`Failed to push app data to Google Sheet: ${errMsg}`);
       alert(`Failed to push app data to Google Sheet: ${errMsg}`);
+    } finally {
+      setIsPushing(false);
+    }
+  };
+
+  // Push all purchase parties and current calculated dues to Google Sheet (Tab: "Purchases Ledger")
+  const handlePushPurchasesToSheet = async () => {
+    if (!appsScriptUrl) {
+      alert('Please configure your Google Apps Script Web App URL first in Settings.');
+      setIsConfigOpen(true);
+      return;
+    }
+
+    const pLedgers = ledgers.filter(l => l.type === 'PURCHASE');
+    const targetParties = selectedPurchaseLedgerId === 'all'
+      ? purchaseParties
+      : purchaseParties.filter(p => p.ledgerId === selectedPurchaseLedgerId);
+
+    const message = targetParties.length > 0
+      ? `This will export ${targetParties.length} purchase parties to the "Purchases Ledger" tab in your Google Sheet. If the tab does not exist, it will be automatically created. Proceed?`
+      : `No purchase parties found in the app yet. Would you like to create and initialize the "Purchases Ledger" tab in your Google Sheet with all 8 formatted columns?`;
+
+    const confirmPush = window.confirm(message);
+    if (!confirmPush) return;
+
+    setIsPushing(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    try {
+      let allPurchaseTransactions: Transaction[] = [];
+      for (const pLedger of pLedgers) {
+        try {
+          await syncCollection<Transaction>('transactions', pLedger.id, 'transactions');
+          const txList = await getFilteredCacheItems<Transaction>('transactions', t => t.ledgerId === pLedger.id);
+          allPurchaseTransactions.push(...txList);
+        } catch (e) {}
+      }
+
+      const headers = [
+        'Party Name',
+        'Address',
+        'Opening Balance',
+        'Recent Debit',
+        'Recent Credit',
+        'Current Balance',
+        'Email ID',
+        'Contact Number'
+      ];
+
+      const txByPartyMap = new Map<string, Transaction[]>();
+      for (const t of allPurchaseTransactions) {
+        if (!txByPartyMap.has(t.partyId)) {
+          txByPartyMap.set(t.partyId, []);
+        }
+        txByPartyMap.get(t.partyId)!.push(t);
+      }
+
+      for (const [_, txList] of txByPartyMap.entries()) {
+        txList.sort((a, b) => b.timestamp - a.timestamp);
+      }
+
+      const updatedRows = targetParties.map(party => {
+        const partyTx = txByPartyMap.get(party.id) || [];
+        let openingBalance = party.openingBalance || 0;
+        let recentDebit = 0;
+        let recentCredit = 0;
+        const currentBalance = party.currentDue || 0;
+
+        if (partyTx.length > 0) {
+          const latestTx = partyTx[0];
+          if (latestTx.type === 'DEBIT') {
+            recentDebit = latestTx.amount || 0;
+            openingBalance = currentBalance - recentDebit;
+          } else {
+            recentCredit = latestTx.amount || 0;
+            openingBalance = currentBalance + recentCredit;
+          }
+        } else {
+          openingBalance = currentBalance;
+        }
+
+        return [
+          party.name,
+          party.address || '',
+          String(openingBalance),
+          String(recentDebit),
+          String(recentCredit),
+          String(currentBalance),
+          party.email || '',
+          formatContactWith91(party.phone)
+        ];
+      });
+
+      const finalPayload = [headers, ...updatedRows];
+
+      const res = await fetch('/api/sheets/sync-proxy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          appsScriptUrl: appsScriptUrl.trim(),
+          action: 'sync',
+          sheet: 'Purchases Ledger',
+          rows: finalPayload
+        })
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Apps Script proxy responded with status ${res.status}`);
+      }
+
+      const resJson = await res.json();
+      if (resJson.status === 'error') {
+        throw new Error(resJson.message || 'Apps Script sync returned error.');
+      }
+
+      setSuccessMsg(`Successfully created/updated the "Purchases Ledger" tab in your Google Sheet with ${targetParties.length} purchase parties!`);
+      alert(`Success! The "Purchases Ledger" tab has been created/updated in your Google Sheet with ${targetParties.length} purchase parties.`);
+      setTimeout(() => setSuccessMsg(null), 4000);
+      
+      // Update preview if currently on spreadsheet view
+      if (activeTab === 'spreadsheet' && spreadsheetViewTab === 'purchases') {
+        await fetchV4Data(true, 'purchases');
+      }
+    } catch (err: any) {
+      console.error(err);
+      const errMsg = err.message || String(err);
+      setErrorMsg(`Failed to push Purchases Ledger to Google Sheet: ${errMsg}`);
+      alert(`Failed to push Purchases Ledger to Google Sheet: ${errMsg}`);
+    } finally {
+      setIsPushing(false);
+    }
+  };
+
+  // Push BOTH Sales Ledger and Purchases Ledger tabs to Google Sheet in one go
+  const handlePushAllLedgersToSheet = async () => {
+    if (!appsScriptUrl) {
+      alert('Please configure your Google Apps Script Web App URL first in Settings.');
+      setIsConfigOpen(true);
+      return;
+    }
+
+    const confirmPush = window.confirm(`This will export BOTH your Sales Ledger (to tab "${sheetTitle}") and your Purchases Ledger (to tab "Purchases Ledger") in your Google Sheet. Proceed?`);
+    if (!confirmPush) return;
+
+    setIsPushing(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    try {
+      // 1. Push Sales Ledger
+      if (activeLedger?.id) {
+        await syncCollection<Party>('parties', activeLedger.id, 'parties');
+        const activeParties = await getFilteredCacheItems<Party>('parties', p => p.ledgerId === activeLedger.id && p.status !== 'Inactive');
+        await syncCollection<Transaction>('transactions', activeLedger.id, 'transactions');
+        const activeTransactions = await getFilteredCacheItems<Transaction>('transactions', t => t.ledgerId === activeLedger.id);
+
+        const headers = ['Party Name', 'Address', 'Opening Balance', 'Recent Debit', 'Recent Credit', 'Current Balance', 'Email ID', 'Contact Number'];
+        const txByPartyMap = new Map<string, Transaction[]>();
+        for (const t of activeTransactions) {
+          if (!txByPartyMap.has(t.partyId)) txByPartyMap.set(t.partyId, []);
+          txByPartyMap.get(t.partyId)!.push(t);
+        }
+        for (const [_, txList] of txByPartyMap.entries()) {
+          txList.sort((a, b) => b.timestamp - a.timestamp);
+        }
+
+        const salesRows = activeParties.map(party => {
+          const partyTx = txByPartyMap.get(party.id) || [];
+          let openingBalance = party.openingBalance || 0;
+          let recentDebit = 0;
+          let recentCredit = 0;
+          const currentBalance = party.currentDue || 0;
+          if (partyTx.length > 0) {
+            const latestTx = partyTx[0];
+            if (latestTx.type === 'DEBIT') {
+              recentDebit = latestTx.amount || 0;
+              openingBalance = currentBalance - recentDebit;
+            } else {
+              recentCredit = latestTx.amount || 0;
+              openingBalance = currentBalance + recentCredit;
+            }
+          } else {
+            openingBalance = currentBalance;
+          }
+          return [party.name, party.address || '', String(openingBalance), String(recentDebit), String(recentCredit), String(currentBalance), party.email || '', formatContactWith91(party.phone)];
+        });
+
+        await fetch('/api/sheets/sync-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            appsScriptUrl: appsScriptUrl.trim(),
+            action: 'sync',
+            sheet: sheetTitle.trim(),
+            rows: [headers, ...salesRows]
+          })
+        });
+      }
+
+      // 2. Push Purchases Ledger
+      const pLedgers = ledgers.filter(l => l.type === 'PURCHASE');
+      let allPurchaseTransactions: Transaction[] = [];
+      for (const pLedger of pLedgers) {
+        await syncCollection<Transaction>('transactions', pLedger.id, 'transactions');
+        const txList = await getFilteredCacheItems<Transaction>('transactions', t => t.ledgerId === pLedger.id);
+        allPurchaseTransactions.push(...txList);
+      }
+
+      const pHeaders = ['Party Name', 'Address', 'Opening Balance', 'Recent Debit', 'Recent Credit', 'Current Balance', 'Email ID', 'Contact Number'];
+      const pTxByPartyMap = new Map<string, Transaction[]>();
+      for (const t of allPurchaseTransactions) {
+        if (!pTxByPartyMap.has(t.partyId)) pTxByPartyMap.set(t.partyId, []);
+        pTxByPartyMap.get(t.partyId)!.push(t);
+      }
+      for (const [_, txList] of pTxByPartyMap.entries()) {
+        txList.sort((a, b) => b.timestamp - a.timestamp);
+      }
+
+      const purchaseRows = purchaseParties.map(party => {
+        const partyTx = pTxByPartyMap.get(party.id) || [];
+        let openingBalance = party.openingBalance || 0;
+        let recentDebit = 0;
+        let recentCredit = 0;
+        const currentBalance = party.currentDue || 0;
+        if (partyTx.length > 0) {
+          const latestTx = partyTx[0];
+          if (latestTx.type === 'DEBIT') {
+            recentDebit = latestTx.amount || 0;
+            openingBalance = currentBalance - recentDebit;
+          } else {
+            recentCredit = latestTx.amount || 0;
+            openingBalance = currentBalance + recentCredit;
+          }
+        } else {
+          openingBalance = currentBalance;
+        }
+        return [party.name, party.address || '', String(openingBalance), String(recentDebit), String(recentCredit), String(currentBalance), party.email || '', formatContactWith91(party.phone)];
+      });
+
+      await fetch('/api/sheets/sync-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appsScriptUrl: appsScriptUrl.trim(),
+          action: 'sync',
+          sheet: 'Purchases Ledger',
+          rows: [pHeaders, ...purchaseRows]
+        })
+      });
+
+      setSuccessMsg(`All ledgers exported! Google Sheet now contains both "${sheetTitle}" (Sales) and "Purchases Ledger" tabs.`);
+      alert(`Success! Both the Sales Ledger ("${sheetTitle}") and Purchases Ledger ("Purchases Ledger") tabs have been pushed to your Google Sheet.`);
+      setTimeout(() => setSuccessMsg(null), 4000);
+      await fetchV4Data(true);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(`Failed to push all ledgers: ${err.message || String(err)}`);
+      alert(`Failed to push all ledgers: ${err.message || String(err)}`);
     } finally {
       setIsPushing(false);
     }
@@ -984,11 +1323,11 @@ export default function AccountsMail() {
           pingParsed = JSON.parse(pingText);
         } catch (e) {}
 
-        if (pingRes.ok && pingParsed && pingParsed.version === "1.5") {
-          log('success', '✓ Apps Script Web App is running the LATEST version (v1.5) with non-destructive row merging and custom column preservation! Everything is set up perfectly.');
-        } else if (pingRes.ok && pingParsed && (pingParsed.version === "1.4" || pingParsed.version === "1.3" || pingParsed.version === "1.2" || pingParsed.version === "1.1")) {
-          log('error', `⚠️ WARNING: Your Apps Script is running an OLD version (v${pingParsed.version}). Please upgrade to v1.5 to prevent extra rows or manual data in columns I/J from being deleted during synchronization!`);
-          log('error', '👉 HOW TO FIX: Scroll down to the "Paste this Apps Script Code" section, click "Copy Script Code", and redeploy with a "New version" (Version 1.5).');
+        if (pingRes.ok && pingParsed && pingParsed.version === "1.8") {
+          log('success', '✓ Apps Script Web App is running the LATEST version (v1.8) with Sales Ledger & Purchases Ledger multi-tab sync, non-destructive row merging, and custom column preservation! Everything is set up perfectly.');
+        } else if (pingRes.ok && pingParsed && pingParsed.version) {
+          log('error', `⚠️ WARNING: Your Apps Script is running an OLD version (v${pingParsed.version}). Please upgrade to v1.8 to ensure the "Purchases Ledger" tab and custom columns are automatically created and maintained!`);
+          log('error', '👉 HOW TO FIX: Scroll down to the "Paste this Apps Script Code" section, click "Copy Script Code", and redeploy with a "New version" (Version 1.8).');
         } else if (pingRes.ok && (Array.isArray(pingParsed) || (pingParsed && !pingParsed.version))) {
           log('error', '⚠️ WARNING: Your Google Sheet Web App is running an OLD version of the script code!');
           log('error', '👉 WHY IT MATTERS: Old script versions delete extra rows, clear custom columns, or misalign data during synchronization.');
@@ -1034,12 +1373,14 @@ export default function AccountsMail() {
   // Initial fetch on mount
   useEffect(() => {
     fetchLocalParties();
+    fetchPurchaseData();
     if (v4SpreadsheetId && v4ApiKey) {
       fetchV4Data(true);
     }
 
     const handleSync = () => {
       fetchLocalParties();
+      fetchPurchaseData();
     };
 
     const handleGoogleSheetSynced = () => {
@@ -1055,7 +1396,7 @@ export default function AccountsMail() {
       window.removeEventListener('database-synced', handleSync);
       window.removeEventListener('google-sheet-synced', handleGoogleSheetSynced);
     };
-  }, [activeLedger?.id]);
+  }, [activeLedger?.id, ledgers]);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
@@ -1108,7 +1449,7 @@ export default function AccountsMail() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-stretch sm:self-auto">
+          <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto">
             <button
               onClick={() => setIsConfigOpen(!isConfigOpen)}
               className="flex-1 sm:flex-none px-3.5 py-2 border border-gray-200 hover:bg-gray-50 bg-white text-gray-700 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5"
@@ -1120,15 +1461,35 @@ export default function AccountsMail() {
             <button
               onClick={handlePushAppToSheet}
               disabled={isPushing || isFetching || !appsScriptUrl}
-              className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center justify-center gap-1.5"
-              title="Push local data to Google Sheet"
+              className="flex-1 sm:flex-none px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center justify-center gap-1.5"
+              title={`Push Sales Ledger data to Tab 1: "${sheetTitle}"`}
             >
               {isPushing ? <Loader2 size={14} className="animate-spin" /> : <CloudLightning size={14} />}
-              <span>Push to Sheet</span>
+              <span>Push Tab 1 (Sales)</span>
             </button>
 
             <button
-              onClick={() => fetchV4Data()}
+              onClick={handlePushPurchasesToSheet}
+              disabled={isPushing || isFetching || !appsScriptUrl}
+              className="flex-1 sm:flex-none px-3.5 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center justify-center gap-1.5"
+              title="Push Purchases Ledger data to Tab 2: 'Purchases Ledger'"
+            >
+              {isPushing ? <Loader2 size={14} className="animate-spin" /> : <ShoppingCart size={14} />}
+              <span>Push Tab 2 (Purchases)</span>
+            </button>
+
+            <button
+              onClick={handlePushAllLedgersToSheet}
+              disabled={isPushing || isFetching || !appsScriptUrl}
+              className="flex-1 sm:flex-none px-3.5 py-2 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-500 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center justify-center gap-1.5"
+              title="Export both Sales and Purchases ledgers into 2 distinct tabs in your Google Sheet"
+            >
+              {isPushing ? <Loader2 size={14} className="animate-spin" /> : <CloudLightning size={14} />}
+              <span>Push Both (2 Separate Tabs)</span>
+            </button>
+
+            <button
+              onClick={() => fetchV4Data(false)}
               disabled={isFetching || isPushing}
               className="flex-1 sm:flex-none px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:bg-sky-400 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center justify-center gap-1.5"
             >
@@ -1405,6 +1766,17 @@ export default function AccountsMail() {
             )}
           </button>
           <button
+            onClick={() => setActiveTab('purchases')}
+            className={`flex-1 sm:flex-none px-6 py-3 font-semibold text-xs sm:text-sm border-b-2 transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'purchases'
+                ? 'border-emerald-600 text-emerald-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <ShoppingCart size={16} />
+            <span>Purchases Ledger ({purchaseParties.length})</span>
+          </button>
+          <button
             onClick={() => setActiveTab('spreadsheet')}
             className={`flex-1 sm:flex-none px-6 py-3 font-semibold text-xs sm:text-sm border-b-2 transition-all flex items-center justify-center gap-2 ${
               activeTab === 'spreadsheet'
@@ -1508,10 +1880,247 @@ export default function AccountsMail() {
               </div>
             </div>
           </div>
+        ) : activeTab === 'purchases' ? (
+          /* Purchases Ledger View */
+          <div className="space-y-4 animate-in fade-in duration-150">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/50 p-4 rounded-xl border border-amber-100">
+              <div className="flex items-start gap-2.5 text-amber-900 text-xs sm:text-sm font-medium">
+                <ShoppingCart className="text-amber-600 shrink-0 mt-0.5" size={18} />
+                <div>
+                  <span className="font-bold">Purchase Parties Ledger:</span>
+                  <p className="text-[11px] text-amber-700 font-normal mt-0.5">
+                    Listing all supplier and vendor accounts. Click <strong>"Push Purchases to Sheet"</strong> to create and populate the <strong>"Purchases Ledger"</strong> tab in your Google Sheet.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+                {purchaseLedgers.length > 1 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-gray-600">Filter:</span>
+                    <select
+                      value={selectedPurchaseLedgerId}
+                      onChange={(e) => setSelectedPurchaseLedgerId(e.target.value)}
+                      className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 font-semibold text-gray-700 shadow-2xs focus:ring-1 focus:ring-amber-500 focus:outline-hidden"
+                    >
+                      <option value="all">All Purchase Ledgers ({purchaseLedgers.length})</option>
+                      {purchaseLedgers.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handlePushPurchasesToSheet}
+                  disabled={isPushing || isFetching || !appsScriptUrl}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 shadow-xs"
+                  title="Push Purchases Ledger to dedicated Google Sheet tab"
+                >
+                  {isPushing ? <Loader2 size={13} className="animate-spin" /> : <ShoppingCart size={13} />}
+                  <span>Push Purchases to Sheet</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-xs sm:text-sm text-gray-900 flex items-center gap-1.5">
+                <ShoppingCart size={16} className="text-amber-600" />
+                <span>
+                  Purchase Suppliers & Parties (
+                  {selectedPurchaseLedgerId === 'all'
+                    ? purchaseParties.length
+                    : purchaseParties.filter((p) => p.ledgerId === selectedPurchaseLedgerId).length}
+                  )
+                </span>
+              </h3>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  Google Sheet Tab: "Purchases Ledger"
+                </span>
+                <button
+                  type="button"
+                  onClick={fetchPurchaseData}
+                  className="text-xs text-amber-700 hover:text-amber-800 font-bold inline-flex items-center gap-1 hover:underline"
+                >
+                  <RefreshCw size={12} />
+                  <span>Refresh</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="border border-gray-100 rounded-xl overflow-hidden bg-white">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse table-fixed min-w-[500px]">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-400 bg-gray-50/50 font-bold">
+                      <th className="p-3 pl-5 font-semibold w-2/5">Supplier / Party Name</th>
+                      <th className="p-3 font-semibold w-2/5">Contact Details</th>
+                      <th className="p-3 text-center font-semibold w-1/5">Sheet Sync</th>
+                      <th className="p-3 text-right font-semibold w-1/5 pr-5">Payable / Due (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 text-xs sm:text-sm">
+                    {purchaseParties.filter(
+                      (p) => selectedPurchaseLedgerId === 'all' || p.ledgerId === selectedPurchaseLedgerId
+                    ).length > 0 ? (
+                      purchaseParties
+                        .filter((p) => selectedPurchaseLedgerId === 'all' || p.ledgerId === selectedPurchaseLedgerId)
+                        .map((p, idx) => {
+                          const sync = getPartySyncStatus(p);
+                          const ledgerInfo = purchaseLedgers.find((l) => l.id === p.ledgerId);
+                          return (
+                            <tr key={p.id || idx} className="hover:bg-amber-50/20 transition-colors">
+                              <td className="p-3 pl-5 font-medium text-gray-900 truncate">
+                                <div className="flex flex-col">
+                                  <span className="truncate font-bold text-gray-900">{p.name}</span>
+                                  {ledgerInfo && (
+                                    <span className="text-[10px] text-gray-400 font-medium truncate">
+                                      {ledgerInfo.name}
+                                    </span>
+                                  )}
+                                </div>
+                                {p.status === 'Inactive' && (
+                                  <span className="ml-1.5 px-1.5 py-0.5 bg-gray-100 text-gray-400 text-[9px] font-semibold rounded-md">
+                                    Inactive
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-gray-500 text-[11px] space-y-1">
+                                {p.email ? (
+                                  <div className="flex items-center gap-1.5 font-mono truncate">
+                                    <Mail size={12} className="text-gray-400 shrink-0" />
+                                    <span className="truncate">{p.email}</span>
+                                  </div>
+                                ) : (
+                                  <div className="text-gray-300 italic">No email</div>
+                                )}
+                                {p.phone ? (
+                                  <div className="flex items-center gap-1.5 font-mono truncate font-semibold text-slate-700">
+                                    <span className="text-xs text-gray-400 font-bold">📞</span>
+                                    <span className="truncate">{p.phone}</span>
+                                  </div>
+                                ) : (
+                                  <div className="text-gray-300 italic">No phone</div>
+                                )}
+                              </td>
+                              <td className="p-3 text-center">
+                                <span
+                                  className={`inline-flex items-center px-2.5 py-0.5 border text-[10px] font-bold rounded-full ${sync.style}`}
+                                >
+                                  {sync.label}
+                                </span>
+                              </td>
+                              <td className="p-3 text-right pr-5 font-bold text-amber-700">
+                                ₹{' '}
+                                {(p.currentDue || 0).toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </td>
+                            </tr>
+                          );
+                        })
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="p-8 text-center text-gray-500 text-xs">
+                          <div className="max-w-md mx-auto space-y-3">
+                            <div className="w-10 h-10 mx-auto rounded-full bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                              <ShoppingCart size={20} />
+                            </div>
+                            <div className="space-y-1">
+                              <p className="font-bold text-gray-800 text-sm">No Purchase Parties / Suppliers Found</p>
+                              <p className="text-gray-500 text-[11px]">
+                                {purchaseLedgers.length === 0
+                                  ? 'You do not have any Purchase Ledger books created in your app yet.'
+                                  : 'Your purchase ledgers do not have any active suppliers yet.'}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                              {purchaseLedgers.length === 0 && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      await createLedger('Purchases Ledger', 'PURCHASE');
+                                      setSuccessMsg('Created "Purchases Ledger" book successfully!');
+                                      setTimeout(() => setSuccessMsg(null), 3000);
+                                      await fetchPurchaseData();
+                                    } catch (err: any) {
+                                      setErrorMsg(`Failed to create ledger: ${err.message || String(err)}`);
+                                    }
+                                  }}
+                                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition shadow-2xs inline-flex items-center gap-1.5"
+                                >
+                                  <span>+ Create Purchase Ledger Book</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={handlePushPurchasesToSheet}
+                                disabled={isPushing || !appsScriptUrl}
+                                className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-lg transition inline-flex items-center gap-1.5"
+                              >
+                                {isPushing ? <Loader2 size={12} className="animate-spin" /> : <FileSpreadsheet size={12} />}
+                                <span>Create "Purchases Ledger" Tab on Google Sheet Now</span>
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         ) : (
           /* Live Records Viewer (Read-only representation) */
           <div className="space-y-4 animate-in fade-in duration-150">
-            {v4Parties.length > 0 && (
+            {/* Tab Selector for Google Sheets Preview: Sales Ledger vs Purchases Ledger */}
+            <div className="flex items-center justify-between bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSpreadsheetViewTab('sales');
+                    fetchV4Data(false, 'sales');
+                  }}
+                  className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                    spreadsheetViewTab === 'sales'
+                      ? 'bg-white text-emerald-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Users size={14} />
+                  <span>Sales Ledger Tab ("{sheetTitle}")</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSpreadsheetViewTab('purchases');
+                    fetchV4Data(false, 'purchases');
+                  }}
+                  className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                    spreadsheetViewTab === 'purchases'
+                      ? 'bg-white text-amber-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <ShoppingCart size={14} />
+                  <span>Purchases Ledger Tab ("Purchases Ledger")</span>
+                </button>
+              </div>
+
+              <div className="text-[11px] text-slate-500 font-semibold px-2">
+                Viewing Sheet Tab: <strong className="text-slate-800">{spreadsheetViewTab === 'sales' ? sheetTitle : 'Purchases Ledger'}</strong>
+              </div>
+            </div>
+
+            {v4Parties.length > 0 && spreadsheetViewTab === 'sales' && (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-sky-50/50 p-4 rounded-xl border border-sky-100">
                 <div className="space-y-1">
                   <p className="text-xs sm:text-sm font-bold text-sky-950 flex items-center gap-1.5">
