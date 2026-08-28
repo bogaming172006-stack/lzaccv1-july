@@ -244,15 +244,17 @@ export default function PartyList() {
         </div>
 
         <div className="flex items-center gap-1 sm:gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowImportModal(true)}
-            className="inline-flex items-center justify-center px-2 sm:px-3 py-1 sm:py-1.5 text-blue-700 bg-blue-50 hover:bg-blue-100/80 border border-blue-200/80 rounded-md sm:rounded-xl text-[11px] sm:text-xs font-bold transition shadow-2xs"
-            title="Bulk import party names and contacts from CSV or Excel files"
-          >
-            <Upload size={13} className="mr-1 text-blue-600" />
-            <span>Import CSV / Excel</span>
-          </button>
+          {currentUser?.isAdmin && (
+            <button
+              type="button"
+              onClick={() => setShowImportModal(true)}
+              className="inline-flex items-center justify-center px-2 sm:px-3 py-1 sm:py-1.5 text-blue-700 bg-blue-50 hover:bg-blue-100/80 border border-blue-200/80 rounded-md sm:rounded-xl text-[11px] sm:text-xs font-bold transition shadow-2xs"
+              title="Bulk import party names and contacts from CSV or Excel files"
+            >
+              <Upload size={13} className="mr-1 text-blue-600" />
+              <span>Import CSV / Excel</span>
+            </button>
+          )}
 
           <button
             type="button"

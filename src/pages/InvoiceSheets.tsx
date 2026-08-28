@@ -35,11 +35,13 @@ export default function InvoiceSheets() {
   const [alertInfo, setAlertInfo] = useState<{message: string; isError: boolean} | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [highlightedInvoice, setHighlightedInvoice] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'DEBIT' | 'CREDIT'>('DEBIT');
 
   const debitListRef = useRef<VirtuosoHandle>(null);
   const creditListRef = useRef<VirtuosoHandle>(null);
   const isSyncingRef = useRef<'DEBIT' | 'CREDIT' | null>(null);
   const hasAutoScrolledRef = useRef<boolean>(false);
+  const currentVisibleIndexRef = useRef<number>(0);
 
   const loadInvoiceSheetsDataset = async () => {
     if (!activeLedger?.id) return;
@@ -163,6 +165,7 @@ export default function InvoiceSheets() {
   const scrollToInvoice = useCallback((invoiceNum: number, align: 'center' | 'start' = 'center', behavior: 'smooth' | 'auto' = 'smooth') => {
     if (invoiceNum < START_INVOICE || invoiceNum > END_INVOICE) return;
     const index = invoiceNum - START_INVOICE;
+    currentVisibleIndexRef.current = index;
     setHighlightedInvoice(invoiceNum.toString());
 
     debitListRef.current?.scrollToIndex({ index, align, behavior });
@@ -182,6 +185,7 @@ export default function InvoiceSheets() {
         const num = parseInvoiceNum(target.invoiceNo);
         if (num) {
           hasAutoScrolledRef.current = true;
+          currentVisibleIndexRef.current = num - START_INVOICE;
           const timer = setTimeout(() => {
             scrollToInvoice(num, 'center', 'smooth');
           }, 350);
@@ -190,6 +194,19 @@ export default function InvoiceSheets() {
       }
     }
   }, [recentOverall, recentDebit, recentCredit, scrollToInvoice]);
+
+  // Synchronize scroll position when switching between Debit and Credit tabs
+  useEffect(() => {
+    const targetRef = activeTab === 'DEBIT' ? debitListRef : creditListRef;
+    const timer = setTimeout(() => {
+      targetRef.current?.scrollToIndex({
+        index: currentVisibleIndexRef.current,
+        align: 'start',
+        behavior: 'auto'
+      });
+    }, 30);
+    return () => clearTimeout(timer);
+  }, [activeTab]);
 
   const handleSearch = (e: React.FormEvent, type: 'DEBIT' | 'CREDIT') => {
     e.preventDefault();
@@ -283,61 +300,39 @@ export default function InvoiceSheets() {
     const isExplicitlyHighlighted = highlightedInvoice === invoiceNum;
 
     return (
-      <div className={`flex items-center justify-between px-3 py-2.5 border-b border-slate-100 transition-all text-xs ${
+      <div className={`flex items-center justify-between px-2 sm:px-3 py-1.5 sm:py-2 transition-all text-xs ${
+        type === 'DEBIT' ? 'border-b border-rose-100/70' : 'border-b border-emerald-100/70'
+      } ${
         isExplicitlyHighlighted 
           ? 'bg-blue-100/80 ring-2 ring-blue-500/80 ring-inset shadow-xs' 
           : isMostRecentOverall 
-            ? (type === 'DEBIT' ? 'bg-rose-100/60 border-l-4 border-l-rose-500 font-medium' : 'bg-emerald-100/60 border-l-4 border-l-emerald-500 font-medium')
+            ? (type === 'DEBIT' ? 'bg-rose-200/70 border-l-4 border-l-rose-600 font-medium' : 'bg-emerald-200/70 border-l-4 border-l-emerald-600 font-medium')
             : isTracked 
-              ? (type === 'DEBIT' ? 'bg-rose-50/50' : 'bg-emerald-50/50') 
-              : 'bg-white'
-      } hover:bg-blue-50/40`}>
-        <div className="flex items-center space-x-2.5 flex-1 select-none min-w-0">
-          <span className={`font-mono font-bold text-xs ${isTracked ? 'text-slate-900' : 'text-slate-400'}`}>
+              ? (type === 'DEBIT' ? 'bg-rose-100/60 hover:bg-rose-100/90' : 'bg-emerald-100/60 hover:bg-emerald-100/90') 
+              : (type === 'DEBIT' ? 'bg-rose-50/30 hover:bg-rose-100/40' : 'bg-emerald-50/30 hover:bg-emerald-100/40')
+      }`}>
+        <div className="flex items-center space-x-1.5 sm:space-x-2.5 flex-1 select-none min-w-0 pr-1">
+          <span className={`font-mono font-bold text-[11px] sm:text-xs shrink-0 ${
+            isTracked 
+              ? (type === 'DEBIT' ? 'text-rose-950' : 'text-emerald-950') 
+              : (type === 'DEBIT' ? 'text-rose-900/45' : 'text-emerald-900/45')
+          }`}>
             #{invoiceNum}
           </span>
-          {isMostRecentOverall && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-600 text-white animate-pulse">
-              <Zap size={10} />
-              Recent
-            </span>
-          )}
-          {!isMostRecentOverall && isMostRecentType && (
-            <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${type === 'DEBIT' ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}`}>
-              Latest {type === 'DEBIT' ? 'Dr' : 'Cr'}
-            </span>
-          )}
-          {isTracked && !isTx && (
-            <Badge variant={type === 'DEBIT' ? 'debit' : 'credit'} size="xs">
-              Direct Entry
-            </Badge>
-          )}
           {isTx && tx && party && (
-             <div className="hidden sm:flex items-center gap-2.5 text-[11px] text-slate-600 truncate">
-               <span className="font-semibold text-slate-800 truncate max-w-[130px]">{party.name}</span>
-               <span className="text-slate-400 font-mono">{new Date(tx.timestamp).toLocaleDateString()}</span>
-               <span className="font-mono font-bold text-slate-900">₹{tx.amount.toFixed(2)}</span>
+             <div className="flex items-center gap-1 sm:gap-2 text-[9.5px] sm:text-[11px] text-slate-600 truncate min-w-0">
+               <span className="font-medium text-slate-800 truncate max-w-[70px] min-[380px]:max-w-[100px] sm:max-w-[140px]" title={party.name}>
+                 {party.name}
+               </span>
+               <span className="text-slate-400 font-mono text-[9px] sm:text-[10px] shrink-0">
+                 {new Date(tx.timestamp).toLocaleDateString([], { month: 'numeric', day: 'numeric' })}
+               </span>
+               <span className={`font-mono font-semibold text-[9.5px] sm:text-xs shrink-0 ${type === 'DEBIT' ? 'text-rose-700' : 'text-emerald-700'}`}>
+                 ₹{tx.amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+               </span>
              </div>
           )}
         </div>
-        {isTracked ? (
-          <button 
-            disabled={isTx} 
-            onClick={() => !isTx && handleDelete(entry.id)} 
-            className={`p-1 transition-colors shrink-0 ${isTx ? 'text-slate-300 cursor-not-allowed' : 'text-slate-400 hover:text-rose-600'}`} 
-            title={isTx ? 'Master Journal Transaction' : 'Delete Entry'}
-          >
-            <Trash2 size={14} />
-          </button>
-        ) : (
-          <button 
-            onClick={() => handleMark(invoiceNum, type)} 
-            className={`p-1 transition-colors shrink-0 text-slate-300 ${type === 'DEBIT' ? 'hover:text-rose-600' : 'hover:text-emerald-600'}`} 
-            title="Mark Entered"
-          >
-            <CheckCircle2 size={15} />
-          </button>
-        )}
       </div>
     );
   };
@@ -353,169 +348,129 @@ export default function InvoiceSheets() {
 
   return (
     <div className="p-3 min-[400px]:p-4 sm:p-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-3.5 sm:space-y-5">
-      {/* Page Header */}
-      <PageHeader
-        title="Dual Invoice Sequence Sheets"
-        subtitle={`Live synchronized tracking ledger for Invoice #${START_INVOICE} through #${END_INVOICE}`}
-      />
+      {/* Page Header with View Tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+        <PageHeader
+          title="Dual Invoice Sequence Sheets"
+        />
 
-      {/* Live Recent Activity Highlight & Quick Navigation Bar */}
-      <div className="bg-white border border-slate-200/90 rounded-xl p-3 sm:p-4 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5 sm:gap-3">
-        <div className="flex items-center gap-2.5 sm:gap-3">
-          <div className="p-2 sm:p-2.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 shrink-0">
-            <Clock size={16} />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
-                Recent Activity
-              </span>
-              {recentOverallNum && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[10.5px] font-bold bg-blue-100 text-blue-800 font-mono">
-                  #{recentOverallNum}
-                </span>
-              )}
-            </div>
-            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-              {recentOverall ? (
-                <>
-                  Latest {recentOverall.type === 'DEBIT' ? 'Debit (Sale)' : 'Credit (Receipt)'} invoice #{recentOverallNum} ({renderRecentPartyName(recentOverall)})
-                  {recentOverall.timestamp ? ` • ${new Date(recentOverall.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
-                </>
-              ) : (
-                'No recent invoice activity recorded yet in this ledger'
-              )}
-            </p>
-          </div>
-        </div>
+        {/* Top Header Mode Options (Small Debit / Credit Tabs) */}
+        <div className="inline-flex p-0.5 sm:p-1 bg-slate-100/90 border border-slate-200/90 rounded-lg shadow-2xs self-start sm:self-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('DEBIT')}
+            className={`px-2.5 sm:px-3 py-1 rounded-md text-[11px] sm:text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'DEBIT'
+                ? 'bg-white text-rose-700 shadow-xs border border-rose-200/60'
+                : 'text-slate-600 hover:text-rose-700'
+            }`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+            <span>Debit</span>
+            <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-bold ${
+              activeTab === 'DEBIT' ? 'bg-rose-100 text-rose-800' : 'bg-slate-200/70 text-slate-600'
+            }`}>
+              {debitCount}
+            </span>
+          </button>
 
-        {/* Quick Focus / Jump Buttons */}
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap w-full md:w-auto justify-start md:justify-end">
-          {recentOverallNum && (
-            <button
-              onClick={() => scrollToInvoice(recentOverallNum, 'center', 'smooth')}
-              className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs transition-colors"
-            >
-              <Zap size={12} />
-              Scroll to Recent (#{recentOverallNum})
-            </button>
-          )}
-
-          {recentDebitNum && (
-            <button
-              onClick={() => scrollToInvoice(recentDebitNum, 'center', 'smooth')}
-              className="px-2 py-1 sm:px-2.5 sm:py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
-            >
-              <ArrowDown size={11} />
-              Debit (#{recentDebitNum})
-            </button>
-          )}
-
-          {recentCreditNum && (
-            <button
-              onClick={() => scrollToInvoice(recentCreditNum, 'center', 'smooth')}
-              className="px-2 py-1 sm:px-2.5 sm:py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
-            >
-              <ArrowUp size={11} />
-              Credit (#{recentCreditNum})
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setActiveTab('CREDIT')}
+            className={`px-2.5 sm:px-3 py-1 rounded-md text-[11px] sm:text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'CREDIT'
+                ? 'bg-white text-emerald-700 shadow-xs border border-emerald-200/60'
+                : 'text-slate-600 hover:text-emerald-700'
+            }`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span>Credit</span>
+            <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-bold ${
+              activeTab === 'CREDIT' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200/70 text-slate-600'
+            }`}>
+              {creditCount}
+            </span>
+          </button>
         </div>
       </div>
 
-      {/* Synchronized Columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-6">
-        {/* Debit Sheet */}
-        <Card className="flex flex-col h-[65vh] sm:h-[70vh]">
-          <div className="p-3 sm:p-4 border-b border-rose-100 bg-rose-50/60 flex items-center justify-between">
-            <h2 className="font-bold text-rose-900 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5 sm:gap-2">
-              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-              Debit Sequence (Sales Billing)
-            </h2>
-            <Badge variant="debit" size="xs">{debitCount} entered</Badge>
-          </div>
-          <div className="p-2.5 sm:p-3 border-b border-slate-100 bg-slate-50/40">
-            <form onSubmit={e => handleSearch(e, 'DEBIT')} className="flex gap-1.5 sm:gap-2">
-              <input 
-                type="number" 
-                value={debitInput} 
-                onChange={e => setDebitInput(e.target.value)} 
-                placeholder={`Locate Invoice # (e.g. ${START_INVOICE})...`} 
-                className="flex-1 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900 focus:border-rose-600"
-              />
-              <button 
-                type="submit" 
-                className="px-3 py-1 sm:px-3.5 sm:py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors"
-              >
-                Jump
-              </button>
-            </form>
-          </div>
-          <div className="flex-1 bg-slate-50/20 min-h-0 relative">
-            <div className="absolute inset-0">
-              <Virtuoso
-                ref={debitListRef}
-                data={visibleInvoices}
-                itemContent={(index, invoiceNum) => renderRow(index, invoiceNum, debitMap, 'DEBIT')}
-                style={{ height: '100%', width: '100%' }}
-                className="custom-scrollbar"
-                onScroll={(e) => {
-                  if (isSyncingRef.current === 'CREDIT') return;
-                  isSyncingRef.current = 'DEBIT';
-                  const target = e.target as HTMLElement;
-                  creditListRef.current?.scrollTo({ top: target.scrollTop });
-                  setTimeout(() => { if (isSyncingRef.current === 'DEBIT') isSyncingRef.current = null; }, 50);
-                }}
-              />
+      {/* Invoice Sequence Column (Single Full-Page Debit or Credit View) */}
+      <div className="grid grid-cols-1 gap-3.5 sm:gap-6">
+        {/* Debit Sheet (Sales Billing) */}
+        {activeTab === 'DEBIT' && (
+          <Card className="flex flex-col h-[75vh] sm:h-[80vh] border-rose-200/90 bg-rose-50/40 shadow-xs overflow-hidden">
+            <div className="p-2.5 sm:p-3 border-b border-rose-100/80 bg-rose-50/80">
+              <form onSubmit={e => handleSearch(e, 'DEBIT')} className="flex gap-1.5 sm:gap-2">
+                <input 
+                  type="number" 
+                  value={debitInput} 
+                  onChange={e => setDebitInput(e.target.value)} 
+                  placeholder={`Locate Debit Invoice # (e.g. ${START_INVOICE})...`} 
+                  className="flex-1 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-white border border-rose-200 rounded-lg text-xs font-mono text-slate-900 focus:border-rose-600 focus:ring-2 focus:ring-rose-500/20"
+                />
+                <button 
+                  type="submit" 
+                  className="px-3 py-1 sm:px-3.5 sm:py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer"
+                >
+                  Jump
+                </button>
+              </form>
             </div>
-          </div>
-        </Card>
+            <div className="flex-1 bg-rose-50/20 min-h-0 relative">
+              <div className="absolute inset-0">
+                <Virtuoso
+                  ref={debitListRef}
+                  data={visibleInvoices}
+                  initialTopMostItemIndex={currentVisibleIndexRef.current}
+                  rangeChanged={(range) => {
+                    currentVisibleIndexRef.current = range.startIndex;
+                  }}
+                  itemContent={(index, invoiceNum) => renderRow(index, invoiceNum, debitMap, 'DEBIT')}
+                  style={{ height: '100%', width: '100%' }}
+                  className="custom-scrollbar"
+                />
+              </div>
+            </div>
+          </Card>
+        )}
 
-        {/* Credit Sheet */}
-        <Card className="flex flex-col h-[65vh] sm:h-[70vh]">
-          <div className="p-3 sm:p-4 border-b border-emerald-100 bg-emerald-50/60 flex items-center justify-between">
-            <h2 className="font-bold text-emerald-900 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5 sm:gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              Credit Sequence (Collections & Receipts)
-            </h2>
-            <Badge variant="credit" size="xs">{creditCount} entered</Badge>
-          </div>
-          <div className="p-2.5 sm:p-3 border-b border-slate-100 bg-slate-50/40">
-            <form onSubmit={e => handleSearch(e, 'CREDIT')} className="flex gap-1.5 sm:gap-2">
-              <input 
-                type="number" 
-                value={creditInput} 
-                onChange={e => setCreditInput(e.target.value)} 
-                placeholder={`Locate Invoice # (e.g. ${START_INVOICE})...`} 
-                className="flex-1 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900 focus:border-emerald-600"
-              />
-              <button 
-                type="submit" 
-                className="px-3 py-1 sm:px-3.5 sm:py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors"
-              >
-                Jump
-              </button>
-            </form>
-          </div>
-          <div className="flex-1 bg-slate-50/20 min-h-0 relative">
-            <div className="absolute inset-0">
-              <Virtuoso
-                ref={creditListRef}
-                data={visibleInvoices}
-                itemContent={(index, invoiceNum) => renderRow(index, invoiceNum, creditMap, 'CREDIT')}
-                style={{ height: '100%', width: '100%' }}
-                className="custom-scrollbar"
-                onScroll={(e) => {
-                  if (isSyncingRef.current === 'DEBIT') return;
-                  isSyncingRef.current = 'CREDIT';
-                  const target = e.target as HTMLElement;
-                  debitListRef.current?.scrollTo({ top: target.scrollTop });
-                  setTimeout(() => { if (isSyncingRef.current === 'CREDIT') isSyncingRef.current = null; }, 50);
-                }}
-              />
+        {/* Credit Sheet (Collections & Receipts) */}
+        {activeTab === 'CREDIT' && (
+          <Card className="flex flex-col h-[75vh] sm:h-[80vh] border-emerald-200/90 bg-emerald-50/40 shadow-xs overflow-hidden">
+            <div className="p-2.5 sm:p-3 border-b border-emerald-100/80 bg-emerald-50/80">
+              <form onSubmit={e => handleSearch(e, 'CREDIT')} className="flex gap-1.5 sm:gap-2">
+                <input 
+                  type="number" 
+                  value={creditInput} 
+                  onChange={e => setCreditInput(e.target.value)} 
+                  placeholder={`Locate Credit Invoice # (e.g. ${START_INVOICE})...`} 
+                  className="flex-1 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-white border border-emerald-200 rounded-lg text-xs font-mono text-slate-900 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20"
+                />
+                <button 
+                  type="submit" 
+                  className="px-3 py-1 sm:px-3.5 sm:py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer"
+                >
+                  Jump
+                </button>
+              </form>
             </div>
-          </div>
-        </Card>
+            <div className="flex-1 bg-emerald-50/20 min-h-0 relative">
+              <div className="absolute inset-0">
+                <Virtuoso
+                  ref={creditListRef}
+                  data={visibleInvoices}
+                  initialTopMostItemIndex={currentVisibleIndexRef.current}
+                  rangeChanged={(range) => {
+                    currentVisibleIndexRef.current = range.startIndex;
+                  }}
+                  itemContent={(index, invoiceNum) => renderRow(index, invoiceNum, creditMap, 'CREDIT')}
+                  style={{ height: '100%', width: '100%' }}
+                  className="custom-scrollbar"
+                />
+              </div>
+            </div>
+          </Card>
+        )}
       </div>
 
       {/* Alert Notice Modal */}

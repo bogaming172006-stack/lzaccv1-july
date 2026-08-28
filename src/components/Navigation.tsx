@@ -622,10 +622,20 @@ export default function Navigation() {
       {/* ========================================================================= */}
       <header className="sm:hidden fixed top-0 left-0 right-0 h-13 bg-white border-b border-slate-200 flex items-center px-3 justify-between z-40 shadow-2xs text-slate-900">
         <div className="flex items-center gap-2">
-          <div className="p-0.5 bg-white border border-slate-200 rounded-md shadow-2xs">
-            <CompanyLogo className="h-6 w-auto object-contain" variant="color" />
+          <div className="w-7 h-7 bg-white border border-slate-200/90 rounded-lg shadow-2xs overflow-hidden flex items-center justify-center shrink-0">
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="auto"
+              className="w-full h-full object-cover pointer-events-none select-none"
+            >
+              <source src="/loading.webm" type="video/webm" />
+              <source src="/loading.mp4" type="video/mp4" />
+            </video>
           </div>
-          <span className="font-semibold text-xs tracking-tight text-slate-900">Greenzar ERP</span>
+          <span className="font-medium text-xs tracking-tight text-slate-900">Greenzar Acc</span>
         </div>
 
         <div className="flex items-center gap-1.5">
