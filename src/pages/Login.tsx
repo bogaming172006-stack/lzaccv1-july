@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
-import { LogIn, UserPlus, Database, Lock, User as UserIcon } from 'lucide-react';
+import { LogIn, UserPlus, Database, Lock, User as UserIcon, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CompanyLogo from '../components/CompanyLogo';
 import { db, doc, setDoc, handleFirestoreError, OperationType } from '../firebase';
 import { v4 as uuidv4 } from 'uuid';
 import { User } from '../types';
+import { motion } from 'motion/react';
 
 export default function Login() {
   const { users, login, currentUser, isLoading } = useAuth();
@@ -81,78 +82,158 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f0f2f5] p-3 sm:p-4 font-sans antialiased">
-      <div className="w-full max-w-[390px] bg-white rounded-2xl shadow-[0_12px_36px_-8px_rgba(0,0,0,0.1)] border border-slate-100/90 p-5 sm:p-7 transition-all">
+    <div className="relative min-h-screen w-full flex items-center justify-center bg-[#f8fafc] p-4 font-sans text-slate-800 antialiased overflow-hidden select-none">
+      
+      {/* ── Background Animations & Decorative Layer ── */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {/* Subtle Geometric Background Dot Grid */}
+        <div 
+          className="absolute inset-0 opacity-[0.45]"
+          style={{
+            backgroundImage: `radial-gradient(#94a3b8 1px, transparent 1px)`,
+            backgroundSize: '28px 28px',
+            maskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, #000 70%, transparent 100%)',
+            WebkitMaskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, #000 70%, transparent 100%)'
+          }}
+        />
+
+        {/* Animated Gradient Ambient Orb 1 - Emerald / Greenzar Theme */}
+        <motion.div
+          animate={{
+            x: [0, 60, -40, 0],
+            y: [0, -50, 40, 0],
+            scale: [1, 1.15, 0.95, 1],
+          }}
+          transition={{
+            duration: 18,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute -top-20 -left-20 w-[380px] sm:w-[480px] h-[380px] sm:h-[480px] rounded-full bg-gradient-to-br from-emerald-200/40 via-teal-100/30 to-transparent blur-3xl"
+        />
+
+        {/* Animated Gradient Ambient Orb 2 - Sky / Soft Cyan Tone */}
+        <motion.div
+          animate={{
+            x: [0, -70, 50, 0],
+            y: [0, 60, -30, 0],
+            scale: [1, 0.9, 1.12, 1],
+          }}
+          transition={{
+            duration: 22,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute -bottom-24 -right-24 w-[420px] sm:w-[520px] h-[420px] sm:h-[520px] rounded-full bg-gradient-to-tl from-sky-200/35 via-emerald-100/25 to-transparent blur-3xl"
+        />
+
+        {/* Animated Ambient Orb 3 - Center subtle light pulse */}
+        <motion.div
+          animate={{
+            opacity: [0.35, 0.6, 0.35],
+            scale: [0.95, 1.05, 0.95],
+          }}
+          transition={{
+            duration: 12,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] sm:w-[750px] h-[600px] sm:h-[750px] rounded-full bg-emerald-50/40 blur-[100px]"
+        />
+
+        {/* Subtle Animated Floating Rings / Wave Lines */}
+        <motion.div
+          animate={{
+            rotate: [0, 360]
+          }}
+          transition={{
+            duration: 90,
+            repeat: Infinity,
+            ease: "linear"
+          }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[620px] h-[620px] rounded-full border border-slate-200/40 pointer-events-none"
+        />
+        <motion.div
+          animate={{
+            rotate: [360, 0]
+          }}
+          transition={{
+            duration: 120,
+            repeat: Infinity,
+            ease: "linear"
+          }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[820px] h-[820px] rounded-full border border-dashed border-slate-200/30 pointer-events-none"
+        />
+      </div>
+
+      {/* ── Main Login Container Card ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="relative z-10 w-full max-w-[380px] bg-white/95 backdrop-blur-md rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/90 p-6 sm:p-8 transition-all"
+      >
         
         {/* Brand Header */}
         <div className="text-center">
-          <div className="flex justify-center mb-2.5">
-            <CompanyLogo className="h-20 min-[400px]:h-24 sm:h-28 w-auto max-w-[240px] object-contain" />
+          <div className="flex justify-center mb-3">
+            <CompanyLogo className="h-16 sm:h-20 w-auto max-w-[200px] object-contain" />
           </div>
           
-          <h1 className="text-lg sm:text-[21px] font-bold text-[#082f1d] tracking-tight leading-snug">
+          <h1 className="text-base sm:text-lg font-medium text-slate-900 tracking-tight">
             Greenzar Food & Beverage
           </h1>
-          
-          {/* Subtle Green Pill Accent */}
-          <div className="w-8 h-0.5 bg-[#148348] rounded-full mx-auto mt-2"></div>
-        </div>
-
-        {/* Thin Divider Line */}
-        <div className="w-full h-px bg-slate-100 my-4 sm:my-5"></div>
-
-        {/* Accounts Operator Authentication Section */}
-        <div className="mb-4 sm:mb-5">
-          <h2 className="font-bold text-slate-900 text-sm sm:text-[15px] tracking-tight">
-            Accounts Operator Authentication
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Enter authorized credentials to access
+          <p className="text-xs text-slate-500 mt-1 font-normal flex items-center justify-center gap-1.5">
+            <ShieldCheck size={13} className="text-emerald-600" />
+            <span>Accounts Ledger Portal</span>
           </p>
         </div>
 
+        {/* Subtle Divider */}
+        <div className="w-full h-px bg-slate-100 my-5"></div>
+
         {!isLoading && users.length === 0 ? (
-          <form onSubmit={handleCreateInitialUser} className="space-y-3.5 sm:space-y-4">
-            <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs flex items-start gap-2">
-              <Database size={15} className="text-emerald-700 shrink-0 mt-0.5" />
+          <form onSubmit={handleCreateInitialUser} className="space-y-4">
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 text-xs flex items-start gap-2.5">
+              <Database size={15} className="text-slate-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold text-[11px]">Initial System Bootstrap</p>
-                <p className="mt-0.5 text-[10.5px] text-emerald-800 leading-relaxed">
-                  No operator accounts found. Create master Admin account.
+                <p className="font-medium text-slate-800 text-xs">Initial Setup Required</p>
+                <p className="mt-0.5 text-[11.5px] text-slate-500 leading-relaxed font-normal">
+                  No accounts found. Create master administrator.
                 </p>
               </div>
             </div>
 
             {error && (
-              <div className="p-2.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl font-semibold">
+              <div className="p-2.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg font-normal">
                 {error}
               </div>
             )}
 
             <div>
-              <label className="block text-[10.5px] font-bold uppercase tracking-wider text-[#0e633d] mb-1.5">
-                OPERATOR USERNAME
+              <label className="block text-xs font-normal text-slate-600 mb-1.5">
+                Operator Username
               </label>
               <div className="relative">
-                <UserIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0e633d]" />
+                <UserIcon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   required
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
                   disabled={isCreating}
-                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-[#0e633d] focus:ring-3 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-2xs"
-                  placeholder="Enter registered username"
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-sm font-normal text-slate-800 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/20 focus:outline-none transition"
+                  placeholder="Enter username"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-[10.5px] font-bold uppercase tracking-wider text-[#0e633d] mb-1.5">
-                4-DIGIT SECURITY PIN
+              <label className="block text-xs font-normal text-slate-600 mb-1.5">
+                4-Digit Security PIN
               </label>
               <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0e633d]" />
+                <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="password"
                   required
@@ -160,7 +241,7 @@ export default function Login() {
                   value={createPin}
                   onChange={(e) => setCreatePin(e.target.value.replace(/[^0-9]/g, ''))}
                   disabled={isCreating}
-                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium tracking-widest text-slate-900 placeholder:text-slate-400 focus:border-[#0e633d] focus:ring-3 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-2xs"
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-sm font-normal tracking-widest text-slate-800 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/20 focus:outline-none transition"
                   placeholder="••••"
                 />
               </div>
@@ -169,50 +250,50 @@ export default function Login() {
             <button
               type="submit"
               disabled={isCreating}
-              className="w-full py-2.5 sm:py-3 px-4 bg-[#0e633d] hover:bg-[#0a4e2f] active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-md shadow-emerald-950/15 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-1"
+              className="w-full py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-lg text-xs sm:text-sm font-medium transition disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-2"
             >
-              <UserPlus size={16} />
-              <span>{isCreating ? 'Provisioning Master...' : 'Provision Master Account & Enter'}</span>
+              <UserPlus size={15} />
+              <span>{isCreating ? 'Creating Master Account...' : 'Create Master Account'}</span>
             </button>
           </form>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="p-2.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl font-semibold">
+              <div className="p-2.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg font-normal">
                 {error}
               </div>
             )}
             
             <div>
-              <label className="block text-[10.5px] font-bold uppercase tracking-wider text-[#0e633d] mb-1.5">
-                OPERATOR USERNAME
+              <label className="block text-xs font-normal text-slate-600 mb-1.5">
+                Operator Username
               </label>
               <div className="relative">
-                <UserIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0e633d]" />
+                <UserIcon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={isLoading}
-                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-[#0e633d] focus:ring-3 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-2xs"
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-sm font-normal text-slate-800 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/20 focus:outline-none transition"
                   placeholder="Enter registered username"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-[10.5px] font-bold uppercase tracking-wider text-[#0e633d] mb-1.5">
-                4-DIGIT SECURITY PIN
+              <label className="block text-xs font-normal text-slate-600 mb-1.5">
+                4-Digit Security PIN
               </label>
               <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0e633d]" />
+                <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="password"
                   maxLength={4}
                   value={pin}
                   onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))}
                   disabled={isLoading}
-                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium tracking-widest text-slate-900 placeholder:text-slate-400 focus:border-[#0e633d] focus:ring-3 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-2xs"
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-sm font-normal tracking-widest text-slate-800 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/20 focus:outline-none transition"
                   placeholder="••••"
                 />
               </div>
@@ -221,14 +302,15 @@ export default function Login() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-2.5 sm:py-3 px-4 bg-[#0e633d] hover:bg-[#0a4e2f] active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-md shadow-emerald-950/15 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-1"
+              className="w-full py-2.5 px-4 bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 text-white rounded-lg text-xs sm:text-sm font-medium transition disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-2"
             >
-              <LogIn size={16} className="stroke-[2.2]" />
+              <LogIn size={15} />
               <span>{isLoading ? 'Authenticating...' : 'Sign In to Ledger'}</span>
             </button>
           </form>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }
+
