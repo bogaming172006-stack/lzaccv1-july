@@ -31,17 +31,17 @@ export default function Login() {
     setError('');
     
     if (!username.trim()) {
-      setError('Please enter your operator username');
+      setError('Please enter your username');
       return;
     }
-    if (pin.length !== 4) {
-      setError('Security PIN must be exactly 4 digits');
+    if (!pin.trim()) {
+      setError('Please enter your password / PIN');
       return;
     }
 
     const success = login(username, pin);
     if (!success) {
-      setError('Invalid operator username or security PIN');
+      setError('Invalid username or password');
     }
   };
 
@@ -54,8 +54,8 @@ export default function Login() {
       setError('Please enter a username');
       return;
     }
-    if (createPin.length !== 4) {
-      setError('Security PIN must be exactly 4 digits');
+    if (!createPin.trim()) {
+      setError('Please enter a password / PIN');
       return;
     }
 
@@ -64,6 +64,7 @@ export default function Login() {
     const newUser: User = {
       id: userId,
       name: createName.trim(),
+      username: createName.trim().toLowerCase(),
       pin: createPin.trim(),
       isAdmin: true,
       deviceId: '',
@@ -283,18 +284,17 @@ export default function Login() {
 
             <div>
               <label className="block text-xs font-normal text-slate-600 mb-1.5">
-                4-Digit Security PIN
+                Password / PIN
               </label>
               <div className="relative">
                 <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="password"
-                  maxLength={4}
                   value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))}
+                  onChange={(e) => setPin(e.target.value)}
                   disabled={isLoading}
-                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-sm font-normal tracking-widest text-slate-800 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/20 focus:outline-none transition"
-                  placeholder="••••"
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-sm font-normal text-slate-800 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/20 focus:outline-none transition"
+                  placeholder="Enter password or PIN"
                 />
               </div>
             </div>

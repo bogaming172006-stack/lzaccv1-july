@@ -81,40 +81,56 @@ interface AddUserModalProps {
 function AddUserModal({ onClose }: AddUserModalProps) {
   const { currentUser } = useAuth();
   const [name, setName] = useState('');
-  const [pin, setPin] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
-  const [masterPass, setMasterPass] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (masterPass !== 'greenzarthing6211') {
-      setError('Invalid master admin password');
+    setError('');
+
+    const cleanName = name.trim();
+    const cleanUsername = username.trim();
+    const cleanPassword = password.trim();
+
+    if (!cleanName) {
+      setError('Please enter a name');
       return;
     }
-    if (pin.length !== 4) {
-      setError('PIN must be exactly 4 numeric digits');
+    if (!cleanUsername) {
+      setError('Please enter a username');
+      return;
+    }
+    if (!cleanPassword) {
+      setError('Please enter a password');
       return;
     }
 
+    setIsSubmitting(true);
     const id = uuidv4();
     const newUser: User = {
       id,
-      name,
-      pin,
+      name: cleanName,
+      username: cleanUsername.toLowerCase(),
+      pin: cleanPassword,
       isAdmin,
       deviceId: '',
       lastActivity: Date.now(),
       lastAction: 'Account Created',
-      lastActionDetails: 'Provisioned by Executive Admin'
+      lastActionDetails: `Created by ${currentUser?.name || 'Administrator'}`
     };
 
     try {
-      onClose();
       await setDoc(doc(db, 'users', id), newUser);
-      logUserActivity('Created User Account', `Provisioned new operator account: ${name} (${isAdmin ? 'Admin' : 'Standard'})`, currentUser);
-    } catch (err) {
+      logUserActivity('Created User Account', `Added new user: ${cleanName} (@${cleanUsername}) - ${isAdmin ? 'Admin' : 'Standard User'}`, currentUser);
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to create user account');
       handleFirestoreError(err, OperationType.CREATE, `users/${id}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -122,7 +138,7 @@ function AddUserModal({ onClose }: AddUserModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 className="font-bold text-slate-900 text-sm">Provision System User</h3>
+          <h3 className="font-bold text-slate-900 text-sm">Add New User</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={18}/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
@@ -132,31 +148,54 @@ function AddUserModal({ onClose }: AddUserModalProps) {
               {error}
             </div>
           )}
+
+          {/* 1. Name */}
           <div>
-            <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1.5">User Full Name / Label</label>
+            <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              Name
+            </label>
             <input 
               required 
               type="text" 
               value={name} 
               onChange={e => setName(e.target.value)} 
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-blue-600 text-slate-900 text-sm font-semibold" 
-              placeholder="e.g. Finance Officer"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-blue-600 focus:ring-1 focus:ring-blue-600 text-slate-900 text-sm font-semibold" 
+              placeholder="e.g. John Doe"
             />
           </div>
+
+          {/* 2. Username (below Name) */}
           <div>
-            <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1.5">4-Digit Security PIN</label>
+            <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              Username
+            </label>
+            <input 
+              required 
+              type="text" 
+              value={username} 
+              onChange={e => setUsername(e.target.value)} 
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-blue-600 focus:ring-1 focus:ring-blue-600 text-slate-900 text-sm font-semibold" 
+              placeholder="e.g. johndoe"
+            />
+          </div>
+
+          {/* 3. Password (below Username) */}
+          <div>
+            <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              Password
+            </label>
             <input 
               required 
               type="password" 
-              maxLength={4} 
-              value={pin} 
-              onChange={e => setPin(e.target.value.replace(/[^0-9]/g, ''))} 
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-blue-600 text-center tracking-widest font-mono text-sm font-bold" 
-              placeholder="••••"
+              value={password} 
+              onChange={e => setPassword(e.target.value)} 
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-blue-600 focus:ring-1 focus:ring-blue-600 text-slate-900 text-sm font-semibold" 
+              placeholder="Enter password or PIN"
             />
           </div>
           
-          <div className="flex items-center gap-2 pt-1">
+          {/* 4. Tick mark (Admin or not) */}
+          <div className="flex items-center gap-2.5 pt-2 pb-1 bg-slate-50 p-3 rounded-lg border border-slate-200">
             <input 
               type="checkbox" 
               id="isAdmin" 
@@ -164,36 +203,28 @@ function AddUserModal({ onClose }: AddUserModalProps) {
               onChange={e => setIsAdmin(e.target.checked)} 
               className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
             />
-            <label htmlFor="isAdmin" className="font-bold text-slate-800 cursor-pointer select-none">
-              Grant Executive Admin Privileges
+            <label htmlFor="isAdmin" className="font-bold text-slate-800 cursor-pointer select-none text-xs flex items-center gap-1.5">
+              <span>Admin</span>
+              <span className="text-[11px] font-normal text-slate-500">({isAdmin ? 'Full administrative access' : 'Standard operator access'})</span>
             </label>
           </div>
 
-          <div className="pt-4 border-t border-slate-100">
-            <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1.5">Master Authorisation Key</label>
-            <input 
-              required 
-              type="password" 
-              value={masterPass} 
-              onChange={e => setMasterPass(e.target.value)} 
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-blue-600 font-mono text-sm" 
-              placeholder="Required to provision account" 
-            />
-          </div>
-
-          <div className="pt-4 flex justify-end gap-2">
+          <div className="pt-4 flex justify-end gap-2 border-t border-slate-100">
             <button 
               type="button" 
               onClick={onClose} 
+              disabled={isSubmitting}
               className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-semibold cursor-pointer"
             >
               Cancel
             </button>
             <button 
               type="submit" 
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-xs cursor-pointer"
+              disabled={isSubmitting}
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5"
             >
-              Create Account
+              <UserPlus size={14} />
+              <span>{isSubmitting ? 'Adding...' : 'Add User'}</span>
             </button>
           </div>
         </form>
@@ -514,11 +545,18 @@ export default function Users() {
                           {(u.name || 'U').charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <span className="font-bold text-slate-900 text-xs sm:text-sm block">
-                            {u.name || 'Unnamed Operator'}
-                          </span>
-                          {u.id === currentUser.id && (
-                            <Badge variant="navy" size="xs">Current Session</Badge>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 text-xs sm:text-sm block">
+                              {u.name || 'Unnamed Operator'}
+                            </span>
+                            {u.id === currentUser.id && (
+                              <Badge variant="navy" size="xs">Current Session</Badge>
+                            )}
+                          </div>
+                          {u.username && (
+                            <span className="text-[11px] text-slate-400 font-mono block">
+                              @{u.username}
+                            </span>
                           )}
                         </div>
                       </div>

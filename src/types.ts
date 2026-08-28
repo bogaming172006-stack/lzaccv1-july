@@ -1,6 +1,7 @@
 export interface User {
   id: string;
   name: string;
+  username?: string;
   pin: string;
   deviceId: string;
   lastActivity: number;

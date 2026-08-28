@@ -101,11 +101,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = (usernameOrId: string, pin: string) => {
-    const searchStr = usernameOrId.trim();
+    const searchStr = usernameOrId.trim().toLowerCase();
+    const pinStr = pin.trim();
     const user = users.find(u => 
-      (((u?.name || '').trim() === searchStr) ||
-       ((u?.id || '').trim() === searchStr)) &&
-      String(u?.pin || '').trim() === pin.trim()
+      (((u?.username || '').trim().toLowerCase() === searchStr) ||
+       ((u?.name || '').trim().toLowerCase() === searchStr) ||
+       ((u?.id || '').trim() === usernameOrId.trim())) &&
+      String(u?.pin || '').trim() === pinStr
     );
     if (user) {
       const deviceId = getDeviceId();
@@ -113,12 +115,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateDoc(doc(db, 'users', user.id), {
         lastActivity: Date.now(),
         lastAction: 'Logged into system',
-        lastActionDetails: 'Session authenticated with PIN',
+        lastActionDetails: 'Session authenticated',
         lastDevice: deviceId,
         deviceId: deviceId
       }).catch(e => handleFirestoreError(e, OperationType.UPDATE, `users/${user.id}`));
       
-      logUserActivity('User Login', 'Authenticated via 4-digit PIN', user);
+      logUserActivity('User Login', 'Authenticated session', user);
       return true;
     }
     return false;

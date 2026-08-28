@@ -605,15 +605,13 @@ export default function Navigation() {
             </button>
           </div>
 
-          <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[10px] text-slate-500">
-            <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              Live Database Connected
-            </span>
-            <span className={isPurchase ? "text-amber-700 font-bold" : "text-slate-400"}>
-              {isPurchase ? "Purchase Book" : "v2.4"}
-            </span>
-          </div>
+          {isPurchase && (
+            <div className="pt-2 border-t border-slate-200/80 flex items-center justify-end text-[10px]">
+              <span className="text-amber-700 font-bold">
+                Purchase Book
+              </span>
+            </div>
+          )}
         </div>
       </aside>
 
