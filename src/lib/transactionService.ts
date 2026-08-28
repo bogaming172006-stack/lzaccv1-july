@@ -100,9 +100,13 @@ export async function createTransaction(newTx: Transaction, party: Party) {
       const newTotalDebit = (pData.totalDebit || 0) + (newTx.type === 'DEBIT' ? newTx.amount : 0);
       const newTotalCredit = (pData.totalCredit || 0) + (newTx.type === 'CREDIT' ? newTx.amount : 0);
 
+      // Clean & uppercase invoiceNo if provided
+      const cleanInvoiceNo = (newTx.invoiceNo || '').trim().toUpperCase();
+
       // Add running balance to the transaction itself
       const txWithBalance = {
         ...newTx,
+        invoiceNo: cleanInvoiceNo,
         runningBalance: newBalance
       };
 
@@ -189,8 +193,8 @@ export async function editTransaction(
     const newType = updatedTxFields.type || oldTx.type;
     const newAmount = updatedTxFields.amount;
     const newTimestamp = updatedTxFields.timestamp || oldTx.timestamp;
-    const newInvoiceNo = updatedTxFields.invoiceNo !== undefined ? updatedTxFields.invoiceNo : (oldTx.invoiceNo || '');
-    const newNotes = updatedTxFields.notes !== undefined ? updatedTxFields.notes : (oldTx.notes || '');
+    const newInvoiceNo = updatedTxFields.invoiceNo !== undefined ? updatedTxFields.invoiceNo.trim().toUpperCase() : (oldTx.invoiceNo || '').trim().toUpperCase();
+    const newNotes = updatedTxFields.notes !== undefined ? updatedTxFields.notes.trim() : (oldTx.notes || '');
 
     // 1. Update the transaction document first
     const txRef = doc(db, 'transactions', txId);

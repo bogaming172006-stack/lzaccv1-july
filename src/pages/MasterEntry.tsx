@@ -362,16 +362,38 @@ export default function MasterEntry() {
   const handleInvoiceCheck = async (isPreSubmit: boolean): Promise<boolean | string> => {
     if (!invoiceNo || !activeLedger) return true;
     if (!isSaleLedger) return true;
+
+    // Only detect duplicates for invoices that contain digits/numbers (pure text like "CASH", "UPI", "ADVANCE" are NOT treated as duplicate invoices)
+    const hasDigits = /\d+/.test(invoiceNo);
+    if (!hasDigits) {
+      setPartyLockedByInvoice(false);
+      setLockedInvoiceDetails(null);
+      return true;
+    }
+
     setIsCheckingInvoice(true);
     try {
-      const normalizedInvoice = invoiceNo.toLowerCase().trim();
-      const qTracked = query(collection(db, 'tracked_invoices'), where('ledgerId', '==', activeLedger.id), where('invoiceNo', '==', normalizedInvoice));
-      const trackedSnap = await getDocs(qTracked);
-      const trackedDocs = trackedSnap.docs.map(d => d.data());
+      const cleanUpper = invoiceNo.toUpperCase().trim();
+      const cleanLower = invoiceNo.toLowerCase().trim();
       
-      const qTx = query(collection(db, 'transactions'), where('ledgerId', '==', activeLedger.id), where('invoiceNo', '==', normalizedInvoice));
-      const txSnap = await getDocs(qTx);
-      const matchedTxs = txSnap.docs.map(d => d.data() as Transaction);
+      const [trackedSnapUpper, trackedSnapLower, txSnapUpper, txSnapLower] = await Promise.all([
+        getDocs(query(collection(db, 'tracked_invoices'), where('ledgerId', '==', activeLedger.id), where('invoiceNo', '==', cleanUpper))),
+        cleanUpper !== cleanLower 
+          ? getDocs(query(collection(db, 'tracked_invoices'), where('ledgerId', '==', activeLedger.id), where('invoiceNo', '==', cleanLower)))
+          : Promise.resolve({ docs: [] } as any),
+        getDocs(query(collection(db, 'transactions'), where('ledgerId', '==', activeLedger.id), where('invoiceNo', '==', cleanUpper))),
+        cleanUpper !== cleanLower
+          ? getDocs(query(collection(db, 'transactions'), where('ledgerId', '==', activeLedger.id), where('invoiceNo', '==', cleanLower)))
+          : Promise.resolve({ docs: [] } as any)
+      ]);
+
+      const trackedDocsMap = new Map<string, any>();
+      [...trackedSnapUpper.docs, ...trackedSnapLower.docs].forEach(d => trackedDocsMap.set(d.id, d.data()));
+      const trackedDocs = Array.from(trackedDocsMap.values());
+
+      const txDocsMap = new Map<string, Transaction>();
+      [...txSnapUpper.docs, ...txSnapLower.docs].forEach(d => txDocsMap.set(d.id, d.data() as Transaction));
+      const matchedTxs = Array.from(txDocsMap.values());
 
       const debitTx = matchedTxs.find(t => t.type === 'DEBIT');
       const creditTx = matchedTxs.find(t => t.type === 'CREDIT');
@@ -709,8 +731,8 @@ export default function MasterEntry() {
                     value={invoiceNo}
                     onKeyDown={handleInvoiceKeyDown}
                     onBlur={handleInvoiceBlur}
-                    onChange={e => { setInvoiceNo(e.target.value.toLowerCase()); setPartyLockedByInvoice(false); setLockedInvoiceDetails(null); }}
-                    className="w-full px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-white border border-slate-300 rounded-lg focus:border-blue-600 text-[11.5px] sm:text-sm font-mono font-normal sm:font-semibold text-slate-900 placeholder:text-slate-400"
+                    onChange={e => { setInvoiceNo(e.target.value.toUpperCase()); setPartyLockedByInvoice(false); setLockedInvoiceDetails(null); }}
+                    className="w-full px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-white border border-slate-300 rounded-lg focus:border-blue-600 text-[11.5px] sm:text-sm font-mono uppercase font-normal sm:font-semibold text-slate-900 placeholder:text-slate-400 placeholder:normal-case"
                     placeholder={isExpenseLedger ? "e.g. EXP-101, Bill #, Rent Oct" : "e.g. 1045 or INV-009"}
                   />
                   {isCheckingInvoice && (

@@ -576,16 +576,37 @@ export default function PartyDetail() {
       setMatchedInvoiceInfo(null);
       return true;
     }
+
+    // Only detect duplicates for invoices that contain digits/numbers (pure text like "CASH", "UPI", "ADVANCE" are NOT treated as duplicate invoices)
+    const hasDigits = /\d+/.test(invNo);
+    if (!hasDigits) {
+      setMatchedInvoiceInfo(null);
+      return true;
+    }
+
     setIsCheckingTxInvoice(true);
     try {
-      const normalizedInvoice = invNo.toLowerCase().trim();
-      const qTracked = query(collection(db, 'tracked_invoices'), where('ledgerId', '==', party.ledgerId), where('invoiceNo', '==', normalizedInvoice));
-      const trackedSnap = await getDocs(qTracked);
-      const trackedDocs = trackedSnap.docs.map(d => d.data());
-      
-      const qTx = query(collection(db, 'transactions'), where('ledgerId', '==', party.ledgerId), where('invoiceNo', '==', normalizedInvoice));
-      const txSnap = await getDocs(qTx);
-      const matchedTxs = txSnap.docs.map(d => d.data() as Transaction);
+      const cleanUpper = invNo.toUpperCase().trim();
+      const cleanLower = invNo.toLowerCase().trim();
+
+      const [trackedSnapUpper, trackedSnapLower, txSnapUpper, txSnapLower] = await Promise.all([
+        getDocs(query(collection(db, 'tracked_invoices'), where('ledgerId', '==', party.ledgerId), where('invoiceNo', '==', cleanUpper))),
+        cleanUpper !== cleanLower 
+          ? getDocs(query(collection(db, 'tracked_invoices'), where('ledgerId', '==', party.ledgerId), where('invoiceNo', '==', cleanLower)))
+          : Promise.resolve({ docs: [] } as any),
+        getDocs(query(collection(db, 'transactions'), where('ledgerId', '==', party.ledgerId), where('invoiceNo', '==', cleanUpper))),
+        cleanUpper !== cleanLower
+          ? getDocs(query(collection(db, 'transactions'), where('ledgerId', '==', party.ledgerId), where('invoiceNo', '==', cleanLower)))
+          : Promise.resolve({ docs: [] } as any)
+      ]);
+
+      const trackedDocsMap = new Map<string, any>();
+      [...trackedSnapUpper.docs, ...trackedSnapLower.docs].forEach(d => trackedDocsMap.set(d.id, d.data()));
+      const trackedDocs = Array.from(trackedDocsMap.values());
+
+      const txDocsMap = new Map<string, Transaction>();
+      [...txSnapUpper.docs, ...txSnapLower.docs].forEach(d => txDocsMap.set(d.id, d.data() as Transaction));
+      const matchedTxs = Array.from(txDocsMap.values());
 
       const debitTx = matchedTxs.find(t => t.type === 'DEBIT');
       const creditTx = matchedTxs.find(t => t.type === 'CREDIT');
@@ -1273,8 +1294,8 @@ export default function PartyDetail() {
                           {tx.notes || 'General ledger entry'}
                         </span>
                         {tx.invoiceNo && (
-                          <span className="text-[11px] font-normal text-slate-800 inline-block mt-0.5 font-mono">
-                            Inv #{tx.invoiceNo}
+                          <span className="text-[11px] font-normal text-slate-800 inline-block mt-0.5 font-mono uppercase">
+                            Inv #{tx.invoiceNo.toUpperCase()}
                           </span>
                         )}
                       </div>
@@ -1414,8 +1435,8 @@ export default function PartyDetail() {
                 {/* Invoice Ref */}
                 <div className="mt-0.5">
                   {tx.invoiceNo ? (
-                    <span className="text-[10.5px] font-normal text-slate-800 font-mono">
-                      Inv #{tx.invoiceNo}
+                    <span className="text-[10.5px] font-normal text-slate-800 font-mono uppercase">
+                      Inv #{tx.invoiceNo.toUpperCase()}
                     </span>
                   ) : (
                     <span className="text-[10px] text-slate-400">
@@ -1635,7 +1656,7 @@ export default function PartyDetail() {
                     type="text"
                     value={txInvoiceNo}
                     onChange={e => {
-                      setTxInvoiceNo(e.target.value.toLowerCase());
+                      setTxInvoiceNo(e.target.value.toUpperCase());
                       setTxError('');
                       if (!e.target.value.trim()) setMatchedInvoiceInfo(null);
                     }}
@@ -1645,7 +1666,7 @@ export default function PartyDetail() {
                       }
                     }}
                     placeholder="e.g. 101 or INV-45"
-                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 font-mono focus:border-blue-600 focus:outline-none"
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 font-mono uppercase focus:border-blue-600 focus:outline-none placeholder:normal-case"
                   />
                   {isCheckingTxInvoice && (
                     <div className="absolute right-2.5 top-2">
@@ -1854,8 +1875,8 @@ export default function PartyDetail() {
                   type="text"
                   placeholder="e.g. INV-1002"
                   value={editTxInvoiceNo}
-                  onChange={e => { setEditTxInvoiceNo(e.target.value.toLowerCase()); setEditTxError(''); }}
-                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md font-mono focus:border-blue-600 focus:outline-none"
+                  onChange={e => { setEditTxInvoiceNo(e.target.value.toUpperCase()); setEditTxError(''); }}
+                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md font-mono uppercase focus:border-blue-600 focus:outline-none placeholder:normal-case"
                 />
               </div>
 
