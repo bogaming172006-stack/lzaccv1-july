@@ -18,6 +18,7 @@ import BackupRestorePage from './pages/BackupRestorePage';
 import MasterEntry from './pages/MasterEntry';
 import InvoiceSheets from './pages/InvoiceSheets';
 import AccountsMail from './pages/AccountsMail';
+import Statement from './pages/Statement';
 import SplashLoader from './components/SplashLoader';
 
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -487,6 +488,16 @@ const AppContent: React.FC = () => {
               </AuthLayout>
             </RequireAuth>
           } />
+
+          <Route path="/statement" element={
+            <RequireAuth>
+              <AuthLayout>
+                <Statement />
+              </AuthLayout>
+            </RequireAuth>
+          } />
+
+          <Route path="/statements" element={<Navigate to="/statement" replace />} />
           
           <Route path="/admin" element={
             <RequireAuth>

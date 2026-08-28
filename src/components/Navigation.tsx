@@ -213,6 +213,15 @@ export default function Navigation() {
           
           <div className="py-3 space-y-1">
             <NavLink 
+              to="/statement" 
+              onClick={() => setShowMobileMore(false)} 
+              className={({ isActive }) => `flex items-center px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}
+            >
+              <FileSpreadsheet size={18} className="mr-3 text-[#0055a5]" />
+              Account Statement
+            </NavLink>
+
+            <NavLink 
               to="/activities" 
               onClick={() => setShowMobileMore(false)} 
               className={({ isActive }) => `flex items-center px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}
@@ -442,6 +451,24 @@ export default function Navigation() {
                   <>
                     <CreditCard size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                     <span>Master Voucher Entry</span>
+                  </>
+                )}
+              </NavLink>
+
+              <NavLink
+                to="/statement"
+                className={({ isActive }) =>
+                  `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                    isActive
+                      ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                  }`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <FileSpreadsheet size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                    <span>Statement</span>
                   </>
                 )}
               </NavLink>

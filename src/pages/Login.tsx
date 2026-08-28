@@ -6,7 +6,6 @@ import CompanyLogo from '../components/CompanyLogo';
 import { db, doc, setDoc, handleFirestoreError, OperationType } from '../firebase';
 import { v4 as uuidv4 } from 'uuid';
 import { User } from '../types';
-import { motion } from 'motion/react';
 
 export default function Login() {
   const { users, login, currentUser, isLoading } = useAuth();
@@ -83,96 +82,27 @@ export default function Login() {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center bg-[#f8fafc] p-4 font-sans text-slate-800 antialiased overflow-hidden select-none">
+    <div className="relative min-h-screen w-full flex items-center justify-center bg-slate-100/90 p-4 font-sans text-slate-800 antialiased overflow-hidden select-none">
       
-      {/* ── Background Animations & Decorative Layer ── */}
+      {/* ── Lightweight, Non-Lagging Background Layer for Mobile & Desktop ── */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {/* Subtle Geometric Background Dot Grid */}
         <div 
-          className="absolute inset-0 opacity-[0.45]"
+          className="absolute inset-0 opacity-[0.35]"
           style={{
             backgroundImage: `radial-gradient(#94a3b8 1px, transparent 1px)`,
-            backgroundSize: '28px 28px',
-            maskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, #000 70%, transparent 100%)',
-            WebkitMaskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, #000 70%, transparent 100%)'
+            backgroundSize: '24px 24px',
           }}
         />
 
-        {/* Animated Gradient Ambient Orb 1 - Emerald / Greenzar Theme */}
-        <motion.div
-          animate={{
-            x: [0, 60, -40, 0],
-            y: [0, -50, 40, 0],
-            scale: [1, 1.15, 0.95, 1],
-          }}
-          transition={{
-            duration: 18,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="absolute -top-20 -left-20 w-[380px] sm:w-[480px] h-[380px] sm:h-[480px] rounded-full bg-gradient-to-br from-emerald-200/40 via-teal-100/30 to-transparent blur-3xl"
-        />
-
-        {/* Animated Gradient Ambient Orb 2 - Sky / Soft Cyan Tone */}
-        <motion.div
-          animate={{
-            x: [0, -70, 50, 0],
-            y: [0, 60, -30, 0],
-            scale: [1, 0.9, 1.12, 1],
-          }}
-          transition={{
-            duration: 22,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="absolute -bottom-24 -right-24 w-[420px] sm:w-[520px] h-[420px] sm:h-[520px] rounded-full bg-gradient-to-tl from-sky-200/35 via-emerald-100/25 to-transparent blur-3xl"
-        />
-
-        {/* Animated Ambient Orb 3 - Center subtle light pulse */}
-        <motion.div
-          animate={{
-            opacity: [0.35, 0.6, 0.35],
-            scale: [0.95, 1.05, 0.95],
-          }}
-          transition={{
-            duration: 12,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] sm:w-[750px] h-[600px] sm:h-[750px] rounded-full bg-emerald-50/40 blur-[100px]"
-        />
-
-        {/* Subtle Animated Floating Rings / Wave Lines */}
-        <motion.div
-          animate={{
-            rotate: [0, 360]
-          }}
-          transition={{
-            duration: 90,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[620px] h-[620px] rounded-full border border-slate-200/40 pointer-events-none"
-        />
-        <motion.div
-          animate={{
-            rotate: [360, 0]
-          }}
-          transition={{
-            duration: 120,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[820px] h-[820px] rounded-full border border-dashed border-slate-200/30 pointer-events-none"
-        />
+        {/* Static, High-Performance Soft Corner Accents (No CPU/GPU drain) */}
+        <div className="absolute -top-24 -left-24 w-80 sm:w-96 h-80 sm:h-96 rounded-full bg-emerald-200/30 blur-2xl" />
+        <div className="absolute -bottom-24 -right-24 w-80 sm:w-96 h-80 sm:h-96 rounded-full bg-teal-200/25 blur-2xl" />
       </div>
 
       {/* ── Main Login Container Card ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 16, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="relative z-10 w-full max-w-[380px] bg-white/95 backdrop-blur-md rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/90 p-6 sm:p-8 transition-all"
+      <div
+        className="relative z-10 w-full max-w-[380px] bg-white rounded-2xl shadow-xl border border-slate-200/90 p-6 sm:p-8 transition-all"
       >
         
         {/* Brand Header */}
@@ -309,7 +239,7 @@ export default function Login() {
             </button>
           </form>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }
