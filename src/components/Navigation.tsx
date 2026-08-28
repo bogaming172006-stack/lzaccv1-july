@@ -414,7 +414,7 @@ export default function Navigation() {
                 {({ isActive }) => (
                   <>
                     <LayoutDashboard size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                    <span>Financial Dashboard</span>
+                    <span>Dashboard</span>
                   </>
                 )}
               </NavLink>
@@ -450,7 +450,7 @@ export default function Navigation() {
                 {({ isActive }) => (
                   <>
                     <CreditCard size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                    <span>Master Voucher Entry</span>
+                    <span>Input</span>
                   </>
                 )}
               </NavLink>
