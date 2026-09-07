@@ -39,8 +39,8 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { ToWords } from 'to-words';
 import { format } from 'date-fns';
+import { formatAmountInWords } from '../lib/numberToWords';
 import { useLedger } from '../LedgerContext';
 import { useAuth } from '../AuthContext';
 
@@ -471,36 +471,29 @@ export default function PartyDetail() {
       periodFinalBalance = filteredTx[filteredTx.length - 1].runningBalance;
     }
 
-    let words = '';
-    try {
-      const toWords = new ToWords({
-        localeCode: 'en-IN',
-        converterOptions: {
-          currency: true,
-          ignoreDecimal: false,
-          ignoreZeroCurrency: false,
-          doNotAddOnly: false,
-        }
-      });
-      words = toWords.convert(Math.abs(Math.round(periodFinalBalance * 100) / 100));
-    } catch(e) {
-      console.error(e);
-    }
+    const words = formatAmountInWords(Math.abs(periodFinalBalance));
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(71, 85, 105);
+    const splitWords = words ? doc.splitTextToSize(`Amount in words: ${words}`, 170) : [];
+    const boxHeight = 22 + (splitWords.length > 0 ? (splitWords.length * 4.5) : 0);
 
     doc.setFillColor(248, 250, 252);
-    doc.rect(14, finalY + 8, 182, 28, 'F');
+    doc.rect(14, finalY + 8, 182, boxHeight, 'F');
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(0, 0, 0);
-    doc.text('Period Total:', 20, finalY + 20);
-    doc.text(`Rs. ${periodFinalBalance > 0 ? '-' : ''}${Math.abs(periodFinalBalance).toFixed(2)}`, 190, finalY + 20, { align: 'right' });
+    doc.text('Period Total:', 20, finalY + 19);
+    doc.text(`Rs. ${periodFinalBalance > 0 ? '-' : ''}${Math.abs(periodFinalBalance).toFixed(2)}`, 190, finalY + 19, { align: 'right' });
     
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(71, 85, 105);
-    doc.text(`Amount in words: ${words}`, 20, finalY + 30);
+    if (splitWords.length > 0) {
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(71, 85, 105);
+      doc.text(splitWords, 20, finalY + 28);
+    }
     
-    let currentY = finalY + 44;
+    let currentY = finalY + 8 + boxHeight + 8;
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
@@ -1647,6 +1640,16 @@ export default function PartyDetail() {
                 </div>
               )}
 
+              {txAmount && !isNaN(parseFloat(txAmount)) && parseFloat(txAmount) > 0 && (
+                <div className="px-2.5 py-1.5 bg-blue-50/80 border border-blue-100 rounded-md text-[11px] text-blue-900 flex items-start gap-1.5">
+                  <FileText size={12} className="text-blue-600 mt-0.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <span className="font-semibold block text-[9.5px] uppercase tracking-wider text-blue-700">Amount in words:</span>
+                    <span className="italic font-medium text-blue-950 leading-tight block">{formatAmountInWords(txAmount)}</span>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                   Receipt / Invoice No.
@@ -1745,6 +1748,12 @@ export default function PartyDetail() {
                   {showTxModal === 'DEBIT' ? '-' : '+'}₹{parseFloat(txAmount).toFixed(2)}
                 </span>
               </div>
+              {formatAmountInWords(txAmount) && (
+                <div className="text-[10px] text-slate-500 italic bg-white p-1.5 rounded border border-slate-200/80 leading-tight">
+                  <span className="font-semibold not-italic text-slate-600 block text-[9px] uppercase tracking-wider">In Words:</span>
+                  {formatAmountInWords(txAmount)}
+                </div>
+              )}
               <div className="flex justify-between font-bold text-slate-900 pt-0.5">
                 <span>Expected Balance:</span>
                 <span>
@@ -1844,6 +1853,15 @@ export default function PartyDetail() {
                     placeholder="0.00"
                   />
                 </div>
+                {editTxAmount && !isNaN(parseFloat(editTxAmount)) && parseFloat(editTxAmount) > 0 && (
+                  <div className="mt-1 px-2.5 py-1.5 bg-blue-50/70 border border-blue-100 rounded-md text-[11px] text-blue-900 flex items-start gap-1.5">
+                    <FileText size={12} className="text-blue-600 mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <span className="font-semibold block text-[9.5px] uppercase tracking-wider text-blue-700">Amount in words:</span>
+                      <span className="italic font-medium text-blue-950 leading-tight block">{formatAmountInWords(editTxAmount)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Date & Time */}

@@ -656,14 +656,25 @@ export default function MasterEntry() {
             : "Journal Voucher Entry"
         }
         actions={
-          <button
-            type="button"
-            onClick={() => navigate('/excel')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-xs transition-colors"
-          >
-            <FileSpreadsheet size={15} />
-            <span>Excel Sheet Input</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('/tr-note')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0055a5] hover:bg-[#004080] text-white rounded-lg font-bold text-xs shadow-xs transition-colors cursor-pointer"
+              title="Create TR Note (Debit/Credit Adjustment)"
+            >
+              <FileCheck size={15} />
+              <span>TR Note</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/excel')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-xs transition-colors"
+            >
+              <FileSpreadsheet size={15} />
+              <span>Excel Sheet Input</span>
+            </button>
+          </div>
         }
       />
 

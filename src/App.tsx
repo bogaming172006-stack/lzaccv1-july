@@ -19,7 +19,9 @@ import MasterEntry from './pages/MasterEntry';
 import InvoiceSheets from './pages/InvoiceSheets';
 import AccountsMail from './pages/AccountsMail';
 import Statement from './pages/Statement';
+import TrNote from './pages/TrNote';
 import SplashLoader from './components/SplashLoader';
+import OfflineIndicator from './components/OfflineIndicator';
 
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser, isLoading, error: authError } = useAuth();
@@ -472,6 +474,17 @@ const AppContent: React.FC = () => {
               </AuthLayout>
             </RequireAuth>
           } />
+
+          <Route path="/tr-note" element={
+            <RequireAuth>
+              <AuthLayout>
+                <TrNote />
+              </AuthLayout>
+            </RequireAuth>
+          } />
+
+          <Route path="/trnote" element={<Navigate to="/tr-note" replace />} />
+          <Route path="/tr-notes" element={<Navigate to="/tr-note" replace />} />
           
           <Route path="/invoice-sheets" element={
             <RequireAuth>
@@ -528,6 +541,9 @@ const AppContent: React.FC = () => {
           className={`transition-opacity duration-700 ease-out ${fade ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         />
       )}
+
+      {/* PWA Offline Connection Indicator */}
+      <OfflineIndicator />
     </>
   );
 };

@@ -2,6 +2,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import { X, Calendar, User, Hash, BookOpen, FileText, ArrowDownRight, ArrowUpRight, CreditCard, DollarSign, Printer, Download, Edit2, Trash2 } from 'lucide-react';
 import { Transaction, Ledger } from '../types';
+import { formatAmountInWords } from '../lib/numberToWords';
 
 interface TransactionDetailModalProps {
   isOpen: boolean;
@@ -134,6 +135,11 @@ export default function TransactionDetailModal({
             <div className={`text-base min-[400px]:text-lg sm:text-xl font-normal tracking-tight tabular-nums ${transaction.type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
               {transaction.type === 'DEBIT' ? '-' : '+'}₹{transaction.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </div>
+            {formatAmountInWords(transaction.amount) && (
+              <div className="mt-1 pt-1 border-t border-slate-200/60 text-[10px] sm:text-[10.5px] text-slate-600 font-medium italic">
+                {formatAmountInWords(transaction.amount)}
+              </div>
+            )}
           </div>
 
           {/* Core Info list */}
