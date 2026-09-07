@@ -45,9 +45,11 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
           {/* Header */}
           <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#0055a5] flex items-center justify-center text-white shadow-xs">
-                {isIOS ? <Smartphone size={18} /> : <Laptop size={18} />}
-              </div>
+              <img 
+                src="/pwa-192x192.png" 
+                alt="Greenzar App Logo" 
+                className="w-9 h-9 rounded-xl shadow-xs border border-slate-200/80 object-cover bg-white" 
+              />
               <div>
                 <h3 className="font-bold text-slate-900 text-sm">
                   {isIOS ? 'Install on iPhone / iPad' : 'Install Greenzar App'}
@@ -151,9 +153,11 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
         <div className={`px-3 py-2 ${className}`}>
           <div className="p-2.5 bg-blue-50/70 border border-blue-200/80 rounded-xl flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-md bg-[#0055a5] text-white flex items-center justify-center shrink-0 shadow-2xs">
-                <Download size={13} />
-              </div>
+              <img 
+                src="/favicon-32x32.png" 
+                alt="App" 
+                className="w-6 h-6 rounded-md shadow-2xs object-cover bg-white shrink-0 border border-blue-100" 
+              />
               <div className="min-w-0">
                 <span className="text-[11px] font-bold text-slate-900 block leading-tight">Install App</span>
                 <span className="text-[9.5px] text-slate-500 block leading-tight">Desktop & Mobile PWA</span>

@@ -11,7 +11,7 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'favicon.png', 'apple-touch-icon.png', 'logo.png', 'loading.webm', 'loading.mp4'],
+        includeAssets: ['favicon.ico', 'favicon.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png', 'app-icon.png', 'logo.png', 'loading.webm', 'loading.mp4'],
         manifest: {
           id: '/',
           name: 'Greenzar Accounting System',
