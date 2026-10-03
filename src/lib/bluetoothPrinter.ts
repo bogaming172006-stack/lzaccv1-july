@@ -399,7 +399,7 @@ export function createBillReceiptData(
   },
   items: ReceiptItemData[] = [],
   companyName: string = 'GREENZAR FOOD & BEVERAGE',
-  paperWidth: '58mm' | '72mm' | '80mm' = '58mm'
+  paperWidth: '58mm' | '72mm' | '80mm' = '80mm'
 ): ReceiptPrintData {
   const amount = Number(bill.total_amount) || 0;
   const now = new Date();

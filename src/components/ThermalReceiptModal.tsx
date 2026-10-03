@@ -103,10 +103,8 @@ export default function ThermalReceiptModal({
   salesmanName
 }: ThermalReceiptModalProps) {
   const printRef = useRef<HTMLDivElement>(null);
-  const [paperSize, setPaperSize] = useState<'72mm' | '80mm' | '58mm'>('72mm');
-  const [pdfPassword, setPdfPassword] = useState('');
-  const [showPassInput, setShowPassInput] = useState(false);
-  const [showPassText, setShowPassText] = useState(false);
+  const [paperSize] = useState<'72mm' | '80mm' | '58mm'>('80mm');
+  const pdfPassword = '';
 
   const [bluetoothStatus, setBluetoothStatus] = useState<BluetoothPrinterStatus>({ state: 'idle' });
   const hasWebBluetooth = isWebBluetoothSupported();
@@ -792,87 +790,123 @@ export default function ThermalReceiptModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-fade-in" id="thermal-receipt-modal">
-      <div className="bg-zinc-900 border border-zinc-700/80 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 bg-black/40 backdrop-blur-2xs animate-fade-in" id="thermal-receipt-modal">
+      <div className="bg-white border border-slate-200/90 rounded-xl shadow-xl w-[260px] sm:w-[280px] overflow-hidden flex flex-col">
         
-        {/* Modal Top Header Bar */}
-        <div className="flex justify-between items-center px-4 py-3 border-b border-zinc-800 bg-zinc-950">
-          <div className="flex items-center gap-2">
-            <div className="p-1 bg-[#0055a5] rounded text-white shadow-2xs">
-              <Receipt size={16} />
-            </div>
-            <div>
-              <h3 className="font-bold text-xs sm:text-sm text-zinc-100 uppercase tracking-wider">
-                Official Thermal Voucher & Receipt
-              </h3>
-              <p className="text-[10px] text-zinc-400">Professional Print Engine • 100% Thermal & POS Ready</p>
-            </div>
+        {/* Modal Top Header Bar - Small & Compact */}
+        <div className="flex justify-between items-center px-3 py-2 border-b border-slate-100 bg-white">
+          <div className="flex items-center gap-1.5">
+            <Receipt size={14} className="text-blue-600" />
+            <h3 className="font-bold text-xs text-slate-800">
+              Print Receipt
+            </h3>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Paper Size Selector (72mm vs 80mm vs 58mm) */}
-            <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-0.5 flex items-center">
-              <button
-                type="button"
-                onClick={() => setPaperSize('72mm')}
-                className={`px-2 py-0.5 rounded text-[10.5px] font-bold transition-all ${
-                  paperSize === '72mm'
-                    ? 'bg-[#0055a5] text-white shadow-xs'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-                title="Standard 72mm Printable Thermal POS Size"
-              >
-                72mm
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaperSize('80mm')}
-                className={`px-2 py-0.5 rounded text-[10.5px] font-bold transition-all ${
-                  paperSize === '80mm'
-                    ? 'bg-[#0055a5] text-white shadow-xs'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-                title="80mm Wide Roll"
-              >
-                80mm
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaperSize('58mm')}
-                className={`px-2 py-0.5 rounded text-[10.5px] font-bold transition-all ${
-                  paperSize === '58mm'
-                    ? 'bg-[#0055a5] text-white shadow-xs'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-                title="Compact 2-inch (58mm) mobile thermal printers"
-              >
-                58mm
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-zinc-400 hover:text-zinc-100 p-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
-            >
-              <X size={18} />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            <X size={14} />
+          </button>
         </div>
 
-        {/* Modal Scrollable Receipt View */}
-        <div className="p-4 sm:p-6 overflow-y-auto bg-zinc-950 flex flex-col items-center flex-1">
+        {/* Modal Body - Compact, Small, ONLY Two Options */}
+        <div className="p-2.5 bg-white flex flex-col gap-2">
           
-          {/* Paper Receipt Physical Preview Container - Simple, clean, authentic format */}
-          <div 
-            ref={printRef}
-            className={`bg-white text-black p-4 sm:p-5 shadow-xl relative flex flex-col font-mono select-none border border-zinc-300 transition-all duration-200 rounded-sm ${
-              paperSize === '58mm' ? 'w-[230px] text-[10px]' : paperSize === '72mm' ? 'w-[275px] text-[10.5px]' : 'w-[310px] text-[11px]'
-            }`}
+          {/* Option 1: Bluetooth Thermal Printer */}
+          <button
+            type="button"
+            onClick={handleBluetoothPrint}
+            disabled={bluetoothStatus.state === 'connecting' || bluetoothStatus.state === 'printing'}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-blue-600 bg-blue-50/70 hover:bg-blue-100 text-left transition-all cursor-pointer group disabled:opacity-50"
           >
-            {/* Printable Content Node */}
+            <div className="w-8 h-8 rounded-md bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+              {bluetoothStatus.state === 'connecting' || bluetoothStatus.state === 'printing' ? (
+                <Loader2 size={15} className="animate-spin text-white" />
+              ) : (
+                <Bluetooth size={15} />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="font-bold text-xs text-slate-900 block truncate">
+                Bluetooth Printer
+              </span>
+              <span className="text-[10px] text-blue-800/70 block truncate">
+                {cachedBtName ? cachedBtName : 'Wireless 80mm'}
+              </span>
+            </div>
+          </button>
+
+          {/* Option 2: Standard Print (80mm) */}
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-left transition-all cursor-pointer group"
+          >
+            <div className="w-8 h-8 rounded-md bg-slate-800 text-white flex items-center justify-center shrink-0 shadow-2xs">
+              <Printer size={15} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="font-bold text-xs text-slate-900 block truncate">
+                Standard Print
+              </span>
+              <span className="text-[10px] text-slate-500 block truncate">
+                System (80mm)
+              </span>
+            </div>
+          </button>
+
+          {/* Bluetooth Status Toast / Feedback Banner */}
+          {bluetoothStatus.state !== 'idle' && (
+            <div className={`p-2 rounded-md text-[11px] flex items-center justify-between border ${
+              bluetoothStatus.state === 'success'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : bluetoothStatus.state === 'error'
+                ? 'bg-rose-50 text-rose-800 border-rose-200'
+                : 'bg-blue-50 text-blue-800 border-blue-200'
+            }`}>
+              <div className="flex items-center gap-1.5 min-w-0">
+                {bluetoothStatus.state === 'connecting' || bluetoothStatus.state === 'printing' ? (
+                  <Loader2 size={12} className="animate-spin text-blue-600 shrink-0" />
+                ) : bluetoothStatus.state === 'success' ? (
+                  <Check size={12} className="text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle size={12} className="text-rose-600 shrink-0" />
+                )}
+                <span className="font-medium truncate">{bluetoothStatus.message}</span>
+              </div>
+              {bluetoothStatus.state === 'error' && (
+                <button
+                  type="button"
+                  onClick={handleRawBtPrint}
+                  className="underline text-[10px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer shrink-0 ml-1.5"
+                  title="Print via RawBT Android App"
+                >
+                  RawBT
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Cancel button */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-medium transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+
+        </div>
+
+        {/* Hidden Printable Receipt Node (Used strictly by handlePrint for 80mm browser print engine) */}
+        <div 
+          aria-hidden="true" 
+          style={{ position: 'fixed', left: '-9999px', top: '-9999px', width: '80mm', opacity: 0, pointerEvents: 'none' }}
+        >
+          <div ref={printRef} className="bg-white text-black p-4 font-mono text-[11px]">
             <div id="thermal-receipt-print-content" className="flex flex-col text-black">
-              
               {/* 1. Header */}
               <div className="text-center">
                 <div className="font-extrabold text-[12px] uppercase tracking-wider text-black">
@@ -1007,146 +1041,8 @@ export default function ThermalReceiptModal({
               <div className="text-center text-[9px] text-zinc-500 font-semibold mt-2">
                 * Thank you for your business! *
               </div>
-
             </div>
           </div>
-          
-        </div>
-
-        {/* Security Password Lock Bar */}
-        <div className="px-4 py-2.5 bg-zinc-950/90 border-t border-zinc-800">
-          <div className="flex justify-between items-center">
-            <button
-              type="button"
-              onClick={() => setShowPassInput(!showPassInput)}
-              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-sky-400 font-medium transition-colors"
-            >
-              <Lock size={13} className={pdfPassword.trim() ? "text-amber-400" : "text-zinc-500"} />
-              <span>{pdfPassword.trim() ? "PDF Password Encryption Active" : "Add Password Encryption to PDF"}</span>
-              <span className="text-[10px] text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded ml-1">
-                {showPassInput ? "Hide" : "Setup"}
-              </span>
-            </button>
-
-            {partyPhone && !pdfPassword && (
-              <button
-                type="button"
-                onClick={() => {
-                  setPdfPassword(partyPhone.replace(/\D/g, ''));
-                  setShowPassInput(true);
-                }}
-                className="text-[10px] text-sky-400 hover:underline flex items-center gap-1"
-              >
-                <Key size={10} />
-                <span>Use Phone ({partyPhone.slice(-4)})</span>
-              </button>
-            )}
-          </div>
-
-          {showPassInput && (
-            <div className="relative mt-2">
-              <input
-                type={showPassText ? "text" : "password"}
-                placeholder="Enter password to encrypt PDF..."
-                value={pdfPassword}
-                onChange={(e) => setPdfPassword(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-sky-500 pr-8"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassText(!showPassText)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
-              >
-                {showPassText ? <EyeOff size={13} /> : <Eye size={13} />}
-              </button>
-            </div>
-          )}
-
-          {pdfPassword.trim() && (
-            <p className="text-[10px] text-amber-400 mt-1 flex items-center gap-1">
-              <Lock size={10} />
-              PDF will require password: <code className="bg-zinc-800 px-1 rounded text-zinc-200">{pdfPassword}</code> to open.
-            </p>
-          )}
-        </div>
-
-        {/* Bluetooth Status Toast / Feedback Banner */}
-        {bluetoothStatus.state !== 'idle' && (
-          <div className={`px-4 py-2 text-xs flex items-center justify-between border-t ${
-            bluetoothStatus.state === 'success'
-              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
-              : bluetoothStatus.state === 'error'
-              ? 'bg-rose-950/80 text-rose-300 border-rose-800'
-              : 'bg-blue-950/80 text-blue-300 border-blue-800'
-          }`}>
-            <div className="flex items-center gap-2 min-w-0">
-              {bluetoothStatus.state === 'connecting' || bluetoothStatus.state === 'printing' ? (
-                <Loader2 size={13} className="animate-spin text-blue-400 shrink-0" />
-              ) : bluetoothStatus.state === 'success' ? (
-                <Check size={13} className="text-emerald-400 shrink-0" />
-              ) : (
-                <AlertCircle size={13} className="text-rose-400 shrink-0" />
-              )}
-              <span className="font-medium truncate">{bluetoothStatus.message}</span>
-            </div>
-            {bluetoothStatus.state === 'error' && (
-              <button
-                type="button"
-                onClick={handleRawBtPrint}
-                className="underline text-[11px] font-bold text-sky-400 hover:text-sky-300 cursor-pointer shrink-0 ml-2"
-                title="Print via RawBT Android App"
-              >
-                Use RawBT
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Modal Bottom Action Controls: PDF, Bluetooth Printer, System Print */}
-        <div className="p-3 sm:p-4 border-t border-zinc-800 bg-zinc-950 flex flex-col sm:flex-row gap-2">
-          <button
-            type="button"
-            onClick={handleDownloadPDF}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border border-zinc-700 hover:border-zinc-500 text-zinc-200 hover:text-white text-xs font-bold hover:bg-zinc-800 active:scale-98 transition-all cursor-pointer"
-          >
-            <Download size={14} />
-            <span>Download PDF</span>
-          </button>
-
-          {/* Bluetooth Thermal Printer Button */}
-          <button
-            type="button"
-            onClick={handleBluetoothPrint}
-            disabled={bluetoothStatus.state === 'connecting' || bluetoothStatus.state === 'printing'}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 hover:from-blue-600 hover:to-indigo-600 text-white text-xs font-bold active:scale-98 transition-all shadow-md shadow-blue-950/50 cursor-pointer disabled:opacity-60"
-            title="Connect and print directly to mobile Bluetooth thermal printer (POS-58, POS-80, MPT-II)"
-          >
-            {bluetoothStatus.state === 'connecting' || bluetoothStatus.state === 'printing' ? (
-              <Loader2 size={14} className="animate-spin text-white" />
-            ) : (
-              <Bluetooth size={14} className="text-sky-200" />
-            )}
-            <span>
-              {bluetoothStatus.state === 'printing'
-                ? 'Printing...'
-                : bluetoothStatus.state === 'connecting'
-                ? 'Connecting...'
-                : cachedBtName
-                ? `BT Print (${cachedBtName})`
-                : 'Bluetooth Printer'}
-            </span>
-          </button>
-          
-          {/* Standard System Print Button */}
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#0055a5] hover:bg-[#004080] text-white text-xs font-bold active:scale-98 transition-all shadow-md shadow-blue-950/40 cursor-pointer"
-            title="Open standard browser print dialog"
-          >
-            <Printer size={14} />
-            <span>Print ({paperSize})</span>
-          </button>
         </div>
 
       </div>
