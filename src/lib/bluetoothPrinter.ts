@@ -129,53 +129,36 @@ export function buildEscPosReceipt(data: ReceiptPrintData): Uint8Array {
   // 2. Select Character Code Table (PC437 Standard USA)
   bytes.push(0x1b, 0x74, 0x00);
 
-  // 3. Header: Company Name (Center, Double Height)
+  // 3. Header: Company Name & Title (Center, Bold)
   bytes.push(0x1b, 0x61, 0x01); // Center
   bytes.push(0x1b, 0x45, 0x01); // Bold ON
-  bytes.push(0x1d, 0x21, 0x01); // Double height
   pushLine(data.companyName || 'GREENZAR FOOD & BEVERAGE');
-  bytes.push(0x1d, 0x21, 0x00); // Normal size
   bytes.push(0x1b, 0x45, 0x00); // Bold OFF
-
   if (data.ledgerName) {
-    pushLine(`Book: ${data.ledgerName}`);
+    pushLine(data.ledgerName);
   }
-  bytes.push(0x0a);
-
-  // 4. Voucher Title Box
-  bytes.push(0x1b, 0x45, 0x01); // Bold ON
-  pushLine(`*** ${data.title.toUpperCase()} ***`);
-  bytes.push(0x1b, 0x45, 0x00); // Bold OFF
-  pushLine(doubleDivider);
-
-  // 5. Meta info (Left aligned)
-  bytes.push(0x1b, 0x61, 0x00); // Left align
-  pushTwoCols(`REF NO: #${data.invoiceNo}`, `DATE: ${data.date}`);
-  pushTwoCols(`TIME: ${data.time}`, `TYPE: ${data.type}`);
+  pushLine(`-- ${data.title.toUpperCase()} --`);
   pushLine(divider);
 
-  // 6. Party Information
-  bytes.push(0x1b, 0x45, 0x01); // Bold ON
-  pushLine(`${data.partyLabel.toUpperCase()}:`);
-  pushLine(data.partyName.toUpperCase());
-  bytes.push(0x1b, 0x45, 0x00); // Bold OFF
+  // 4. Meta & Party info (Left aligned)
+  bytes.push(0x1b, 0x61, 0x00); // Left align
+  pushTwoCols(`Bill: #${data.invoiceNo}`, data.date);
+  pushTwoCols(`Party: ${data.partyName}`, data.time);
   if (data.partyPhone) {
     pushLine(`Phone: ${data.partyPhone}`);
   }
   if (data.partyAddress) {
     pushLine(`Addr: ${data.partyAddress}`);
   }
+  if (data.vehicleNumber || data.driverName) {
+    if (data.vehicleNumber) pushTwoCols(`Veh: ${data.vehicleNumber}`, data.driverName ? `Dr: ${data.driverName}` : '');
+    else if (data.driverName) pushLine(`Driver: ${data.driverName}`);
+  }
   pushLine(divider);
 
-  // 6b. Ordered Items Breakdown (if present)
+  // 5. Ordered Items Breakdown (if present)
   if (data.items && data.items.length > 0) {
-    bytes.push(0x1b, 0x45, 0x01); // Bold ON
-    if (widthChars >= 40) {
-      pushTwoCols('ITEM (QTY x RATE)', 'AMOUNT');
-    } else {
-      pushTwoCols('ITEM [QTY]', 'TOTAL');
-    }
-    bytes.push(0x1b, 0x45, 0x00); // Bold OFF
+    pushTwoCols('ITEM [QTY]', 'AMOUNT');
     pushLine(divider);
 
     let totalItemsQty = 0;
@@ -186,91 +169,59 @@ export function buildEscPosReceipt(data: ReceiptPrintData): Uint8Array {
       const total = Number(item.line_total) || (q * rate);
       const totalStr = formatRupeesPlain(total);
 
-      const itemName = `${idx + 1}. ${item.name}${item.mark ? ` (${item.mark})` : ''}`;
-      if (widthChars >= 40 && rate > 0) {
-        const left = `${itemName} (${q}x${formatRupeesPlain(rate)})`;
-        pushTwoCols(left, totalStr);
-      } else {
-        const left = `${itemName} [${q}]`;
-        pushTwoCols(left, totalStr);
-      }
+      const itemName = `${idx + 1}. ${item.name}${item.mark ? ` (${item.mark})` : ''} [${q}]`;
+      pushTwoCols(itemName, totalStr);
     });
 
     pushLine(divider);
-    bytes.push(0x1b, 0x45, 0x01); // Bold ON
-    pushTwoCols(`TOTAL ITEMS: ${totalItemsQty} pcs`, `ITEMS: ${formatRupeesPlain(data.amount)}`);
-    bytes.push(0x1b, 0x45, 0x00); // Bold OFF
+    pushTwoCols(`TOTAL QTY: ${totalItemsQty} pcs`, '');
     pushLine(divider);
   }
 
-  // 6c. Transport & Vehicle Details
-  if (data.vehicleNumber || data.driverName || data.salesmanName) {
-    if (data.vehicleNumber) pushTwoCols('VEHICLE NO:', data.vehicleNumber.toUpperCase());
-    if (data.driverName) pushTwoCols('DRIVER:', data.driverName.toUpperCase());
-    if (data.salesmanName) pushTwoCols('SALESMAN:', data.salesmanName.toUpperCase());
-    pushLine(divider);
-  }
-
-  // 7. Amount Box (Prominent Bold Center)
-  bytes.push(0x1b, 0x61, 0x01); // Center
-  pushLine(`VOUCHER AMOUNT (${data.type === 'DEBIT' ? 'DR' : 'CR'})`);
+  // 6. Total Amount (Prominent Bold Center / TwoCols)
   bytes.push(0x1b, 0x45, 0x01); // Bold ON
-  bytes.push(0x1d, 0x21, 0x11); // Double width & height
-  pushLine(formatRupeesPlain(data.amount));
+  bytes.push(0x1d, 0x21, 0x01); // Double height
+  pushTwoCols('TOTAL:', formatRupeesPlain(data.amount));
   bytes.push(0x1d, 0x21, 0x00); // Normal size
   bytes.push(0x1b, 0x45, 0x00); // Bold OFF
-  bytes.push(0x0a);
 
-  // 8. Amount in Words
   if (data.amountInWords) {
-    bytes.push(0x1b, 0x61, 0x00); // Left align
-    pushLine(`In Words: INR ${data.amountInWords.toUpperCase()}`);
+    pushLine(`(${data.amountInWords})`);
+  }
+
+  // 7. Balances (if active)
+  if (data.beforeBalance !== undefined || data.afterBalance !== undefined) {
     pushLine(divider);
+    if (data.beforeBalance !== undefined && data.beforeBalance !== 0) {
+      const bfSign = data.beforeBalance > 0 ? 'Dr' : data.beforeBalance < 0 ? 'Cr' : '';
+      pushTwoCols('Prev Balance:', `${formatRupeesPlain(Math.abs(data.beforeBalance))} ${bfSign}`);
+    }
+    if (data.afterBalance !== undefined) {
+      bytes.push(0x1b, 0x45, 0x01); // Bold ON
+      const afSign = data.afterBalance > 0 ? 'Dr' : data.afterBalance < 0 ? 'Cr' : '';
+      pushTwoCols('Net Balance:', `${formatRupeesPlain(Math.abs(data.afterBalance))} ${afSign}`);
+      bytes.push(0x1b, 0x45, 0x00); // Bold OFF
+    }
   }
 
-  // 9. Accounting Reconciliation Balance Table
-  bytes.push(0x1b, 0x61, 0x00); // Left
-  if (data.beforeBalance !== undefined) {
-    const bfSign = data.beforeBalance > 0 ? 'Dr' : data.beforeBalance < 0 ? 'Cr' : '';
-    pushTwoCols('Previous Balance:', `${formatRupeesPlain(Math.abs(data.beforeBalance))} ${bfSign}`);
-  }
-
-  pushTwoCols(
-    `This Entry (${data.type === 'DEBIT' ? 'Dr' : 'Cr'}):`,
-    formatRupeesPlain(data.amount)
-  );
-
-  if (data.afterBalance !== undefined) {
-    pushLine(divider);
-    bytes.push(0x1b, 0x45, 0x01); // Bold ON
-    const afSign = data.afterBalance > 0 ? 'Dr' : data.afterBalance < 0 ? 'Cr' : '';
-    pushTwoCols('NET CURRENT BALANCE:', `${formatRupeesPlain(Math.abs(data.afterBalance))} ${afSign}`);
-    bytes.push(0x1b, 0x45, 0x00); // Bold OFF
-  }
-  pushLine(doubleDivider);
-
-  // 10. Remarks / Particulars
+  // 8. Particulars / Remarks
   if (data.particulars && data.particulars.trim()) {
-    pushLine('REMARKS / PARTICULARS:');
-    pushLine(data.particulars);
-    pushLine(divider);
+    pushLine(`Note: ${data.particulars}`);
   }
 
-  // 11. Dual Signatures
-  bytes.push(0x0a);
+  // 9. Simple Signatures
+  pushLine(divider);
   bytes.push(0x0a);
   pushTwoCols("Receiver's Sign", "Authorized Sign");
   bytes.push(0x0a);
 
-  // 12. Audit Footer
+  // 10. Audit Footer
   bytes.push(0x1b, 0x61, 0x01); // Center
-  pushLine('* Computer Generated Accounting Voucher *');
-  pushLine('Thank you for your business!');
-  bytes.push(0x0a);
+  pushLine('* Thank you for your business! *');
   bytes.push(0x0a);
   bytes.push(0x0a);
 
-  // 13. Feed & Paper Cut (GS V 66 0)
+  // 11. Feed & Paper Cut (GS V 66 0)
   bytes.push(0x1d, 0x56, 0x42, 0x00);
 
   return new Uint8Array(bytes);

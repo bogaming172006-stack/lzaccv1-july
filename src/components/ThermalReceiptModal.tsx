@@ -863,202 +863,152 @@ export default function ThermalReceiptModal({
         {/* Modal Scrollable Receipt View */}
         <div className="p-4 sm:p-6 overflow-y-auto bg-zinc-950 flex flex-col items-center flex-1">
           
-          {/* Paper Receipt Physical Preview Container */}
+          {/* Paper Receipt Physical Preview Container - Simple, clean, authentic format */}
           <div 
             ref={printRef}
-            className={`bg-white text-black pt-2 px-3.5 pb-4 shadow-2xl relative flex flex-col font-sans select-none border border-zinc-300 transition-all duration-200 rounded-xs ${
+            className={`bg-white text-black p-4 sm:p-5 shadow-xl relative flex flex-col font-mono select-none border border-zinc-300 transition-all duration-200 rounded-sm ${
               paperSize === '58mm' ? 'w-[230px] text-[10px]' : paperSize === '72mm' ? 'w-[275px] text-[10.5px]' : 'w-[310px] text-[11px]'
             }`}
-            style={{ minHeight: '340px' }}
           >
-            {/* Top jagged/tear receipt perforation */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-[linear-gradient(45deg,transparent_33.333%,#09090b_33.333%,#09090b_66.667%,transparent_66.667%)] bg-[length:6px_6px]"></div>
-            
             {/* Printable Content Node */}
-            <div id="thermal-receipt-print-content" className="pt-1 flex flex-col text-black">
+            <div id="thermal-receipt-print-content" className="flex flex-col text-black">
               
-              {/* 1. Header with Company Logo */}
-              <div className="logo-container flex justify-center items-center w-full mt-1 mb-2.5 text-center">
-                <CompanyLogo className={`${paperSize === '58mm' ? 'h-8' : paperSize === '72mm' ? 'h-9' : 'h-10'} w-auto object-contain mx-auto`} variant="dark" />
-              </div>
-
-              {/* Organization & Ledger Sub-titles */}
-              <div className="text-center font-extrabold text-[12px] uppercase tracking-wider text-black header-org leading-normal mt-0.5 mb-1">
-                Greenzar Food & Beverage
-              </div>
-              <div className="text-center uppercase text-[8.5px] font-semibold tracking-wide text-zinc-600 mb-0.5 header-sub">
-                Book: <span className="font-bold text-black">{ledgerName}</span>
-              </div>
-
-              {/* High-Contrast Voucher Title Badge */}
-              <div className="text-center my-1">
-                <span className="voucher-badge inline-block bg-black text-white font-extrabold text-[10px] px-2.5 py-0.5 rounded uppercase tracking-wider shadow-2xs">
-                  {receiptTitle}
-                </span>
-              </div>
-
-              {/* Double Line Divider */}
-              <div className="border-t border-b border-black h-[3px] my-1.5 rule-double"></div>
-
-              {/* 2. Structured Meta Info Grid */}
-              <div className="grid grid-cols-2 gap-x-2 gap-y-1 my-1 text-[9.5px] meta-grid">
-                <div className="flex flex-col meta-item">
-                  <span className="text-[8px] uppercase text-zinc-500 font-bold meta-label">Ref:</span>
-                  <span className="font-mono font-bold text-black text-[10.5px] meta-val">{formattedInvoiceNo}</span>
+              {/* 1. Header */}
+              <div className="text-center">
+                <div className="font-extrabold text-[12px] uppercase tracking-wider text-black">
+                  Greenzar Food & Beverage
                 </div>
-                <div className="flex flex-col text-right meta-item">
-                  <span className="text-[8px] uppercase text-zinc-500 font-bold meta-label">Date:</span>
-                  <span className="font-bold text-black meta-val">{formattedDate}</span>
-                </div>
-                <div className="flex flex-col meta-item">
-                  <span className="text-[8px] uppercase text-zinc-500 font-bold meta-label">Time:</span>
-                  <span className="font-medium text-black meta-val">{formattedTime}</span>
-                </div>
-                <div className="flex flex-col text-right meta-item">
-                  <span className="text-[8px] uppercase text-zinc-500 font-bold meta-label">Adjustment Type:</span>
-                  <span className={`font-bold meta-val ${transaction.type === 'DEBIT' ? 'text-rose-700' : 'text-emerald-700'}`}>
-                    {transaction.type === 'DEBIT' ? 'DEBIT (-)' : 'CREDIT (+)'}
-                  </span>
+                {ledgerName && (
+                  <div className="text-[9px] text-zinc-500 uppercase tracking-wide mt-0.5">
+                    {ledgerName}
+                  </div>
+                )}
+                <div className="text-[10px] font-bold text-zinc-800 uppercase tracking-widest mt-1">
+                  -- {receiptTitle} --
                 </div>
               </div>
 
-              {/* 3. Party Information - Simple text, no background color, no box border */}
-              <div className="py-1 my-1 party-box">
-                <div className="text-[8px] uppercase text-zinc-500 font-bold party-tag">
-                  {partyLabel}:
+              {/* Dashed Separator */}
+              <div className="border-b border-dashed border-zinc-400 my-2"></div>
+
+              {/* 2. Bill & Party Meta */}
+              <div className="space-y-1 text-[9.5px]">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-zinc-600">Bill No: #{formattedInvoiceNo}</span>
+                  <span className="text-zinc-600">{formattedDate}</span>
                 </div>
-                <div className="font-bold text-black text-[12px] leading-snug party-name break-words">
-                  {partyName.toUpperCase()}
+                <div className="flex justify-between items-baseline">
+                  <span className="font-bold text-black truncate max-w-[170px]">{partyLabel}: {partyName}</span>
+                  <span className="text-zinc-500 text-[8.5px]">{formattedTime}</span>
                 </div>
                 {partyPhone && (
-                  <div className="text-[9.5px] font-mono text-zinc-700 mt-0.5">
-                    Phone: <span className="font-semibold">{partyPhone}</span>
-                  </div>
+                  <div className="text-zinc-600">Phone: {partyPhone}</div>
                 )}
                 {partyAddress && (
-                  <div className="text-[9px] text-zinc-600 mt-0.5 break-words">
-                    Addr: {partyAddress}
+                  <div className="text-zinc-600 truncate">Addr: {partyAddress}</div>
+                )}
+                {(vehicleNumber || driverName) && (
+                  <div className="flex justify-between text-zinc-600 text-[9px]">
+                    {vehicleNumber && <span>Veh: {vehicleNumber}</span>}
+                    {driverName && <span>Driver: {driverName}</span>}
                   </div>
                 )}
               </div>
 
-              {/* 3b. Itemized Order Breakdown Table (if available) */}
+              {/* Dashed Separator */}
+              <div className="border-b border-dashed border-zinc-400 my-2"></div>
+
+              {/* 3. Items Breakdown (if present) */}
               {items && items.length > 0 && (
-                <div className="my-1.5 border-t border-b border-black py-1">
-                  <div className="flex justify-between items-center text-[8px] font-bold uppercase tracking-wider text-black border-b border-black pb-0.5 mb-1">
-                    <span className="flex-1">Item Details</span>
-                    <span className="w-16 text-center">Qty x Rate</span>
+                <div className="text-[9.5px]">
+                  <div className="flex justify-between font-bold text-zinc-700 pb-1 border-b border-dashed border-zinc-300">
+                    <span className="flex-1">Item</span>
+                    <span className="w-12 text-center">Qty</span>
                     <span className="w-16 text-right">Amount</span>
                   </div>
-                  <div className="divide-y divide-zinc-200 text-[8.5px]">
+                  <div className="divide-y divide-dashed divide-zinc-200 py-1">
                     {items.map((it, idx) => {
                       const q = Number(it.qty) || 0;
                       const r = Number(it.rate) || 0;
                       const tot = Number(it.line_total) || (q * r);
                       return (
-                        <div key={idx} className="py-0.5 flex justify-between items-center">
-                          <span className="font-semibold truncate flex-1 pr-1">
+                        <div key={idx} className="py-0.5 flex justify-between items-center text-[9.5px]">
+                          <span className="flex-1 truncate pr-1">
                             {idx + 1}. {it.product_name}
-                            {it.mark_text && <span className="text-[7.5px] italic text-zinc-600 ml-0.5">({it.mark_text})</span>}
+                            {it.mark_text && <span className="text-[8px] text-zinc-500 ml-0.5">({it.mark_text})</span>}
                           </span>
-                          <span className="w-16 text-center font-mono text-zinc-600">
-                            {q} {r > 0 ? `×₹${r}` : 'pcs'}
-                          </span>
-                          <span className="w-16 text-right font-mono font-bold tabular-nums">
+                          <span className="w-12 text-center text-zinc-700">{q}</span>
+                          <span className="w-16 text-right font-bold tabular-nums">
                             ₹{tot.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </span>
                         </div>
                       );
                     })}
                   </div>
-                  <div className="flex justify-between items-center text-[8.5px] font-bold pt-1 border-t border-black mt-1">
-                    <span>Total Qty: {items.reduce((acc, it) => acc + (Number(it.qty) || 0), 0)} pcs</span>
-                    <span>Total: ₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  <div className="flex justify-between text-[9px] font-semibold text-zinc-600 pt-1 border-t border-dashed border-zinc-300">
+                    <span>Total Items: {items.reduce((acc, it) => acc + (Number(it.qty) || 0), 0)} pcs</span>
+                  </div>
+                  <div className="border-b border-dashed border-zinc-400 my-2"></div>
+                </div>
+              )}
+
+              {/* 4. Total Amount (Prominent Simple Bold) */}
+              <div className="py-1">
+                <div className="flex justify-between items-baseline text-sm font-bold text-black">
+                  <span>TOTAL:</span>
+                  <span className="text-base font-extrabold tabular-nums">
+                    ₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                {formatAmountInWords(transaction.amount) && (
+                  <div className="text-[8.5px] text-zinc-600 italic mt-0.5 leading-tight">
+                    ({formatAmountInWords(transaction.amount)})
+                  </div>
+                )}
+              </div>
+
+              {/* 5. Balance Information (if active) */}
+              {(beforeOutstanding !== 0 || afterOutstanding !== 0) && (
+                <div className="text-[9px] text-zinc-700 space-y-0.5 pt-1.5 border-t border-dashed border-zinc-300 mt-1">
+                  {beforeOutstanding !== 0 && (
+                    <div className="flex justify-between">
+                      <span>Previous Balance:</span>
+                      <span className="tabular-nums">{formatBalancePlain(beforeOutstanding)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-black">
+                    <span>Net Balance:</span>
+                    <span className="tabular-nums">{formatBalancePlain(afterOutstanding)}</span>
                   </div>
                 </div>
               )}
 
-              {/* 3c. Vehicle & Transport Details (if available) */}
-              {(vehicleNumber || driverName || salesmanName) && (
-                <div className="grid grid-cols-2 gap-1 text-[8px] py-1 border-b border-zinc-300 my-0.5">
-                  {vehicleNumber && <div><span className="text-zinc-500">Vehicle:</span> <span className="font-bold">{vehicleNumber}</span></div>}
-                  {driverName && <div><span className="text-zinc-500">Driver:</span> <span className="font-bold">{driverName}</span></div>}
-                  {salesmanName && <div><span className="text-zinc-500">Salesman:</span> <span className="font-bold">{salesmanName}</span></div>}
-                </div>
-              )}
-
-              {/* 4. Complete Accounting Reconciliation Statement - Simple text, no background color */}
-              <div className="my-1.5 recon-section">
-                <div className="flex justify-between items-center text-[8.5px] font-bold uppercase tracking-wider text-zinc-600 border-b border-black pb-0.5 mb-1 recon-header">
-                  <span>Particulars</span>
-                  <span>Amount (₹)</span>
-                </div>
-
-                {/* Row 1: Previous Outstanding */}
-                <div className="flex justify-between items-center py-0.5 text-[9.5px] recon-row">
-                  <span className="text-zinc-700">1. Previous Balance:</span>
-                  <span className="font-mono font-bold text-black tabular-nums">
-                    {formatBalancePlain(beforeOutstanding)}
-                  </span>
-                </div>
-
-                {/* Row 2: This Transaction Entry */}
-                <div className="flex justify-between items-center py-0.5 text-[10.5px] font-bold recon-row">
-                  <span>2. This Entry ({transaction.type}):</span>
-                  <span className={`font-mono tabular-nums ${transaction.type === 'DEBIT' ? 'text-rose-700' : 'text-emerald-700'}`}>
-                    {transaction.type === 'DEBIT' ? '+' : '-'}₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-
-                {/* Row 3: Net Current Closing Balance - Simple text, no black background box */}
-                <div className="net-closing-box flex justify-between items-center py-1 border-t border-black my-1 text-[11px] font-bold">
-                  <span className="uppercase text-[9.5px] tracking-wide text-black">Net Current Balance:</span>
-                  <span className="font-mono tabular-nums text-black">
-                    {formatBalancePlain(afterOutstanding)}
-                  </span>
-                </div>
-              </div>
-
-              {/* 5. Live Amount in Words - Simple text, no background color, no box border */}
-              {formatAmountInWords(transaction.amount) && (
-                <div className="py-1 text-[8.5px] italic text-zinc-800 leading-tight uppercase my-1 words-box">
-                  <span className="font-bold not-italic text-[8px] block text-zinc-500">In Words:</span>
-                  INR {formatAmountInWords(transaction.amount).toUpperCase()}
-                </div>
-              )}
-
-              {/* 6. Remarks / Particulars Note - Simple text, no border */}
+              {/* 6. Remarks / Particulars */}
               {transaction.notes && (
-                <div className="py-0.5 my-1 text-[9px] notes-box">
-                  <span className="font-bold uppercase text-black block text-[8px]">Particulars / Remarks:</span>
-                  <span className="italic text-zinc-800 break-words">{transaction.notes.toUpperCase()}</span>
+                <div className="text-[9px] text-zinc-700 pt-1.5 mt-1 border-t border-dashed border-zinc-200">
+                  <span className="text-zinc-500 font-semibold">Note: </span>
+                  <span className="italic">{transaction.notes}</span>
                 </div>
               )}
 
-              {/* 7. Dual Authorization Signatures */}
-              <div className="flex justify-between items-end mt-4 mb-2 pt-2 text-center text-[8px] uppercase font-bold text-black signatures-grid">
-                <div className="flex flex-col items-center flex-1 sig-col">
-                  <div className="w-4/5 border-t border-dotted border-black mb-1 sig-line"></div>
+              {/* 7. Footer Signatures & Thank You */}
+              <div className="border-b border-dashed border-zinc-400 my-2.5"></div>
+              <div className="flex justify-between items-end pt-3 pb-1 text-[8.5px] text-zinc-600">
+                <div className="text-center w-24">
+                  <div className="border-t border-dotted border-zinc-400 mb-0.5"></div>
                   <span>Receiver's Sign</span>
                 </div>
-                <div className="flex flex-col items-center flex-1 sig-col">
-                  <div className="w-4/5 border-t border-dotted border-black mb-1 sig-line"></div>
+                <div className="text-center w-24">
+                  <div className="border-t border-dotted border-zinc-400 mb-0.5"></div>
                   <span>Authorized Sign</span>
                 </div>
               </div>
 
-              {/* 8. Barcode & Audit Footer */}
-              <ReceiptBarcode value={formattedInvoiceNo} isNarrow={paperSize === '58mm'} />
-
-              <div className="text-center text-[7.5px] text-zinc-600 mt-0.5 leading-tight footer-audit">
-                <div>* Computer Generated Accounting Voucher *</div>
-                <div className="font-semibold text-black">Thank you for your business!</div>
+              <div className="text-center text-[9px] text-zinc-500 font-semibold mt-2">
+                * Thank you for your business! *
               </div>
 
             </div>
-
-            {/* Bottom jagged/tear receipt perforation */}
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-[linear-gradient(-45deg,transparent_33.333%,#09090b_33.333%,#09090b_66.667%,transparent_66.667%)] bg-[length:6px_6px]"></div>
           </div>
           
         </div>
