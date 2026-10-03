@@ -1,6 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { X, Edit2, Trash2, Printer } from 'lucide-react';
+import { X, Edit2, Trash2, Printer, Bluetooth } from 'lucide-react';
 import { Transaction, Ledger } from '../types';
 import { formatAmountInWords } from '../lib/numberToWords';
 
@@ -127,7 +127,7 @@ export default function TransactionDetailModal({
         {/* Amount Section - Simple text, no background color, no border */}
         <div className="py-1">
           <div className="text-2xl font-bold tracking-tight tabular-nums text-slate-900">
-            {transaction.type === 'DEBIT' ? '-' : '+'}₹{transaction.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            {transaction.type === 'DEBIT' ? '-' : '+'}₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className="text-xs text-slate-500 font-medium mt-0.5">
             {transaction.type === 'DEBIT' ? 'Debit (Dr) / Outflow' : 'Credit (Cr) / Inflow'}
@@ -173,14 +173,14 @@ export default function TransactionDetailModal({
                 <div className="flex justify-between items-baseline gap-2">
                   <span className="text-slate-500">Before Balance</span>
                   <span className="tabular-nums text-slate-800 text-right">
-                    {beforeAmount === 0 ? '₹0.00' : beforeAmount > 0 ? `₹${Math.abs(beforeAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })} Dr` : `₹${Math.abs(beforeAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })} Cr`}
+                    {beforeAmount === 0 ? '₹0.00' : beforeAmount > 0 ? `₹${Math.abs(beforeAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Dr` : `₹${Math.abs(beforeAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr`}
                   </span>
                 </div>
               )}
               <div className="flex justify-between items-baseline gap-2">
                 <span className="text-slate-500">After Balance</span>
                 <span className="font-semibold tabular-nums text-slate-900 text-right">
-                  {runningBalance === 0 ? '₹0.00' : runningBalance > 0 ? `₹${Math.abs(runningBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })} Dr` : `₹${Math.abs(runningBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })} Cr`}
+                  {runningBalance === 0 ? '₹0.00' : runningBalance > 0 ? `₹${Math.abs(runningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Dr` : `₹${Math.abs(runningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr`}
                 </span>
               </div>
             </>
@@ -223,9 +223,11 @@ export default function TransactionDetailModal({
                 onOpenReceipt(transaction);
               }} 
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-blue-700 hover:text-blue-900 hover:bg-blue-50/50 rounded-md font-medium text-xs transition-colors cursor-pointer"
+              title="Print receipt voucher or connect to Bluetooth thermal printer"
             >
               <Printer size={13} />
-              <span>Print Receipt</span>
+              <Bluetooth size={12} className="text-blue-500 -ml-0.5" />
+              <span>Print / BT Receipt</span>
             </button>
           ) : <div />}
           

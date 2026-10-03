@@ -47,7 +47,10 @@ export default function PartyList() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'DUE' | 'ADVANCE' | 'INACTIVE'>('ALL');
   const [sortOrder, setSortOrder] = useState<'recent' | 'name' | 'due_desc' | 'due_asc'>('recent');
-  const [currency, setCurrency] = useState<string>(() => localStorage.getItem('party_currency') || 'Rp');
+  const [currency, setCurrency] = useState<string>(() => {
+    const saved = localStorage.getItem('party_currency');
+    return (saved && (saved === '₹' || saved === 'Rs.' || saved === '$')) ? saved : '₹';
+  });
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [showChart, setShowChart] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -554,9 +557,9 @@ export default function PartyList() {
                 <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">Currency Symbol</label>
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
-                    { id: 'Rp', label: 'Rp' },
-                    { id: '₹', label: '₹' },
-                    { id: '$', label: '$' }
+                    { id: '₹', label: '₹ (INR / Rs.)' },
+                    { id: 'Rs.', label: 'Rs.' },
+                    { id: '$', label: '$ (USD)' }
                   ].map(c => (
                     <button
                       key={c.id}

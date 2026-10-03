@@ -1,11 +1,19 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
-import { X, Printer, Download, Receipt, Lock, Eye, EyeOff, Key, SlidersHorizontal, Check } from 'lucide-react';
+import { X, Printer, Download, Receipt, Lock, Eye, EyeOff, Key, SlidersHorizontal, Check, Bluetooth, Loader2, AlertCircle } from 'lucide-react';
 import { Transaction, Ledger } from '../types';
 import CompanyLogo, { loadImage, getOptimizedLogoData } from './CompanyLogo';
 import { exportEncryptedPdf, downloadPdfBlob } from '../lib/pdfEncrypt';
 import { formatAmountInWords } from '../lib/numberToWords';
+import {
+  printToBluetoothPrinter,
+  isWebBluetoothSupported,
+  openRawBtBluetoothPrint,
+  getCachedPrinterName,
+  ReceiptPrintData,
+  BluetoothPrinterStatus
+} from '../lib/bluetoothPrinter';
 
 interface ThermalReceiptModalProps {
   isOpen: boolean;
@@ -13,11 +21,16 @@ interface ThermalReceiptModalProps {
   transaction: Transaction;
   partyName: string;
   partyPhone?: string;
+  partyAddress?: string;
   ledgerName: string;
   ledgerType?: Ledger['type'];
   isPurchaseStyle?: boolean;
   autoPrint?: boolean;
   customTitle?: string;
+  items?: { product_name: string; qty: number; rate?: number; line_total?: number; mark_text?: string | null }[];
+  vehicleNumber?: string;
+  driverName?: string;
+  salesmanName?: string;
 }
 
 export function getReceiptTitle(ledgerType?: Ledger['type'], txType?: 'DEBIT' | 'CREDIT') {
@@ -78,17 +91,26 @@ export default function ThermalReceiptModal({
   transaction,
   partyName,
   partyPhone,
+  partyAddress,
   ledgerName,
   ledgerType,
   isPurchaseStyle = false,
   autoPrint = false,
-  customTitle
+  customTitle,
+  items,
+  vehicleNumber,
+  driverName,
+  salesmanName
 }: ThermalReceiptModalProps) {
   const printRef = useRef<HTMLDivElement>(null);
   const [paperSize, setPaperSize] = useState<'72mm' | '80mm' | '58mm'>('72mm');
   const [pdfPassword, setPdfPassword] = useState('');
   const [showPassInput, setShowPassInput] = useState(false);
   const [showPassText, setShowPassText] = useState(false);
+
+  const [bluetoothStatus, setBluetoothStatus] = useState<BluetoothPrinterStatus>({ state: 'idle' });
+  const hasWebBluetooth = isWebBluetoothSupported();
+  const cachedBtName = getCachedPrinterName();
 
   const receiptTitle = customTitle || getReceiptTitle(ledgerType, transaction.type);
   const partyLabel = getPartyLabel(ledgerType, transaction.type);
@@ -98,8 +120,8 @@ export default function ThermalReceiptModal({
   const beforeOutstanding = afterOutstanding - balanceChange;
 
   const formatBalancePlain = (amount: number) => {
-    if (amount === 0) return '0.00';
-    const absVal = Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (amount === 0) return '₹0.00';
+    const absVal = Math.abs(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     return amount > 0 ? `₹${absVal} Dr` : `₹${absVal} Cr`;
   };
 
@@ -107,6 +129,56 @@ export default function ThermalReceiptModal({
   const txDate = new Date(transaction.timestamp);
   const formattedDate = format(txDate, 'dd MMM yyyy');
   const formattedTime = format(txDate, 'hh:mm a');
+
+  const getReceiptData = (): ReceiptPrintData => ({
+    title: receiptTitle,
+    companyName: 'GREENZAR FOOD & BEVERAGE',
+    ledgerName,
+    invoiceNo: formattedInvoiceNo,
+    date: formattedDate,
+    time: formattedTime,
+    partyLabel,
+    partyName,
+    partyPhone,
+    partyAddress,
+    particulars: transaction.notes,
+    amount: transaction.amount,
+    type: transaction.type,
+    beforeBalance: beforeOutstanding,
+    afterBalance: afterOutstanding,
+    amountInWords: formatAmountInWords(transaction.amount),
+    paperWidth: paperSize,
+    items: items?.map(it => ({
+      name: it.product_name,
+      qty: it.qty,
+      rate: it.rate,
+      line_total: it.line_total,
+      mark: it.mark_text
+    })),
+    vehicleNumber,
+    driverName,
+    salesmanName
+  });
+
+  const handleBluetoothPrint = async () => {
+    const data = getReceiptData();
+    setBluetoothStatus({ state: 'connecting', message: 'Scanning Bluetooth thermal printers...' });
+
+    const result = await printToBluetoothPrinter(data, (st) => {
+      setBluetoothStatus(st);
+    });
+
+    if (result.success) {
+      setTimeout(() => {
+        setBluetoothStatus({ state: 'idle' });
+      }, 4000);
+    }
+  };
+
+  const handleRawBtPrint = () => {
+    const data = getReceiptData();
+    openRawBtBluetoothPrint(data);
+  };
 
   const handlePrint = () => {
     const printContent = document.getElementById('thermal-receipt-print-content');
@@ -560,6 +632,32 @@ export default function ThermalReceiptModal({
     }
     currentY += partyBoxH + 3.5;
 
+    // 5b. Ordered Items breakdown in PDF (if available)
+    if (items && items.length > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.text('ORDERED ITEMS', leftX, currentY);
+      doc.text('AMOUNT', rightX, currentY, { align: 'right' });
+      currentY += 1.8;
+      doc.line(leftX, currentY, rightX, currentY);
+      currentY += 3.5;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.8);
+      items.forEach((it, idx) => {
+        const q = Number(it.qty) || 0;
+        const r = Number(it.rate) || 0;
+        const tot = Number(it.line_total) || (q * r);
+        const nameStr = `${idx + 1}. ${it.product_name}${it.mark_text ? ` (${it.mark_text})` : ''} [${q} pcs]`;
+        doc.text(nameStr.substring(0, 34), leftX, currentY);
+        doc.text(`Rs. ${tot.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, rightX, currentY, { align: 'right' });
+        currentY += 3.2;
+      });
+
+      doc.line(leftX, currentY, rightX, currentY);
+      currentY += 3.2;
+    }
+
     // 6. Symmetrical Financial Ledger Reconciliation Table
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.35);
@@ -837,7 +935,57 @@ export default function ThermalReceiptModal({
                     Phone: <span className="font-semibold">{partyPhone}</span>
                   </div>
                 )}
+                {partyAddress && (
+                  <div className="text-[9px] text-zinc-600 mt-0.5 break-words">
+                    Addr: {partyAddress}
+                  </div>
+                )}
               </div>
+
+              {/* 3b. Itemized Order Breakdown Table (if available) */}
+              {items && items.length > 0 && (
+                <div className="my-1.5 border-t border-b border-black py-1">
+                  <div className="flex justify-between items-center text-[8px] font-bold uppercase tracking-wider text-black border-b border-black pb-0.5 mb-1">
+                    <span className="flex-1">Item Details</span>
+                    <span className="w-16 text-center">Qty x Rate</span>
+                    <span className="w-16 text-right">Amount</span>
+                  </div>
+                  <div className="divide-y divide-zinc-200 text-[8.5px]">
+                    {items.map((it, idx) => {
+                      const q = Number(it.qty) || 0;
+                      const r = Number(it.rate) || 0;
+                      const tot = Number(it.line_total) || (q * r);
+                      return (
+                        <div key={idx} className="py-0.5 flex justify-between items-center">
+                          <span className="font-semibold truncate flex-1 pr-1">
+                            {idx + 1}. {it.product_name}
+                            {it.mark_text && <span className="text-[7.5px] italic text-zinc-600 ml-0.5">({it.mark_text})</span>}
+                          </span>
+                          <span className="w-16 text-center font-mono text-zinc-600">
+                            {q} {r > 0 ? `×₹${r}` : 'pcs'}
+                          </span>
+                          <span className="w-16 text-right font-mono font-bold tabular-nums">
+                            ₹{tot.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between items-center text-[8.5px] font-bold pt-1 border-t border-black mt-1">
+                    <span>Total Qty: {items.reduce((acc, it) => acc + (Number(it.qty) || 0), 0)} pcs</span>
+                    <span>Total: ₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 3c. Vehicle & Transport Details (if available) */}
+              {(vehicleNumber || driverName || salesmanName) && (
+                <div className="grid grid-cols-2 gap-1 text-[8px] py-1 border-b border-zinc-300 my-0.5">
+                  {vehicleNumber && <div><span className="text-zinc-500">Vehicle:</span> <span className="font-bold">{vehicleNumber}</span></div>}
+                  {driverName && <div><span className="text-zinc-500">Driver:</span> <span className="font-bold">{driverName}</span></div>}
+                  {salesmanName && <div><span className="text-zinc-500">Salesman:</span> <span className="font-bold">{salesmanName}</span></div>}
+                </div>
+              )}
 
               {/* 4. Complete Accounting Reconciliation Statement - Simple text, no background color */}
               <div className="my-1.5 recon-section">
@@ -858,7 +1006,7 @@ export default function ThermalReceiptModal({
                 <div className="flex justify-between items-center py-0.5 text-[10.5px] font-bold recon-row">
                   <span>2. This Entry ({transaction.type}):</span>
                   <span className={`font-mono tabular-nums ${transaction.type === 'DEBIT' ? 'text-rose-700' : 'text-emerald-700'}`}>
-                    {transaction.type === 'DEBIT' ? '+' : '-'}₹{transaction.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {transaction.type === 'DEBIT' ? '+' : '-'}₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
 
@@ -972,24 +1120,82 @@ export default function ThermalReceiptModal({
           )}
         </div>
 
-        {/* Modal Bottom Action Controls */}
-        <div className="p-3.5 sm:p-4 border-t border-zinc-800 bg-zinc-950 flex gap-2.5">
+        {/* Bluetooth Status Toast / Feedback Banner */}
+        {bluetoothStatus.state !== 'idle' && (
+          <div className={`px-4 py-2 text-xs flex items-center justify-between border-t ${
+            bluetoothStatus.state === 'success'
+              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
+              : bluetoothStatus.state === 'error'
+              ? 'bg-rose-950/80 text-rose-300 border-rose-800'
+              : 'bg-blue-950/80 text-blue-300 border-blue-800'
+          }`}>
+            <div className="flex items-center gap-2 min-w-0">
+              {bluetoothStatus.state === 'connecting' || bluetoothStatus.state === 'printing' ? (
+                <Loader2 size={13} className="animate-spin text-blue-400 shrink-0" />
+              ) : bluetoothStatus.state === 'success' ? (
+                <Check size={13} className="text-emerald-400 shrink-0" />
+              ) : (
+                <AlertCircle size={13} className="text-rose-400 shrink-0" />
+              )}
+              <span className="font-medium truncate">{bluetoothStatus.message}</span>
+            </div>
+            {bluetoothStatus.state === 'error' && (
+              <button
+                type="button"
+                onClick={handleRawBtPrint}
+                className="underline text-[11px] font-bold text-sky-400 hover:text-sky-300 cursor-pointer shrink-0 ml-2"
+                title="Print via RawBT Android App"
+              >
+                Use RawBT
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Modal Bottom Action Controls: PDF, Bluetooth Printer, System Print */}
+        <div className="p-3 sm:p-4 border-t border-zinc-800 bg-zinc-950 flex flex-col sm:flex-row gap-2">
           <button
             type="button"
             onClick={handleDownloadPDF}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-zinc-700 hover:border-zinc-500 text-zinc-200 hover:text-white text-xs font-bold hover:bg-zinc-800 active:scale-98 transition-all cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border border-zinc-700 hover:border-zinc-500 text-zinc-200 hover:text-white text-xs font-bold hover:bg-zinc-800 active:scale-98 transition-all cursor-pointer"
           >
             <Download size={14} />
             <span>Download PDF</span>
           </button>
+
+          {/* Bluetooth Thermal Printer Button */}
+          <button
+            type="button"
+            onClick={handleBluetoothPrint}
+            disabled={bluetoothStatus.state === 'connecting' || bluetoothStatus.state === 'printing'}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 hover:from-blue-600 hover:to-indigo-600 text-white text-xs font-bold active:scale-98 transition-all shadow-md shadow-blue-950/50 cursor-pointer disabled:opacity-60"
+            title="Connect and print directly to mobile Bluetooth thermal printer (POS-58, POS-80, MPT-II)"
+          >
+            {bluetoothStatus.state === 'connecting' || bluetoothStatus.state === 'printing' ? (
+              <Loader2 size={14} className="animate-spin text-white" />
+            ) : (
+              <Bluetooth size={14} className="text-sky-200" />
+            )}
+            <span>
+              {bluetoothStatus.state === 'printing'
+                ? 'Printing...'
+                : bluetoothStatus.state === 'connecting'
+                ? 'Connecting...'
+                : cachedBtName
+                ? `BT Print (${cachedBtName})`
+                : 'Bluetooth Printer'}
+            </span>
+          </button>
           
+          {/* Standard System Print Button */}
           <button
             type="button"
             onClick={handlePrint}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-[#0055a5] hover:bg-[#004080] text-white text-xs font-bold active:scale-98 transition-all shadow-md shadow-blue-950/40 cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#0055a5] hover:bg-[#004080] text-white text-xs font-bold active:scale-98 transition-all shadow-md shadow-blue-950/40 cursor-pointer"
+            title="Open standard browser print dialog"
           >
-            <Printer size={15} />
-            <span>Print Receipt ({paperSize})</span>
+            <Printer size={14} />
+            <span>Print ({paperSize})</span>
           </button>
         </div>
 

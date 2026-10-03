@@ -24,7 +24,8 @@ import {
   MapPin,
   Truck,
   PlusCircle,
-  AlertCircle
+  AlertCircle,
+  Bluetooth
 } from 'lucide-react';
 import { useLedger } from '../LedgerContext';
 import { Party, Transaction } from '../types';
@@ -43,6 +44,14 @@ import {
   BillingDateOption,
   formatBillParticulars
 } from '../lib/billingService';
+import ThermalReceiptModal from '../components/ThermalReceiptModal';
+import { 
+  printToBluetoothPrinter, 
+  createBillReceiptData, 
+  openRawBtBluetoothPrint,
+  BluetoothPrinterStatus,
+  getCachedPrinterName 
+} from '../lib/bluetoothPrinter';
 
 export default function BillingDeclaration() {
   const navigate = useNavigate();
@@ -67,6 +76,42 @@ export default function BillingDeclaration() {
   } | null>(null);
   const [orderItems, setOrderItems] = useState<BillingBillItem[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState<boolean>(false);
+  const [bluetoothStatus, setBluetoothStatus] = useState<BluetoothPrinterStatus>({ state: 'idle' });
+  const [thermalReceiptBill, setThermalReceiptBill] = useState<{ bill: BillingBill; items: BillingBillItem[] } | null>(null);
+
+  const handlePrintOrderBluetooth = async (bill: BillingBill, items: BillingBillItem[]) => {
+    const data = createBillReceiptData(
+      bill,
+      items.map(it => ({
+        name: it.product_name,
+        qty: it.qty,
+        rate: it.rate,
+        line_total: it.line_total,
+        mark: it.mark_text
+      })),
+      'GREENZAR FOOD & BEVERAGE'
+    );
+    setBluetoothStatus({ state: 'connecting', message: 'Scanning Bluetooth thermal printers...' });
+    const res = await printToBluetoothPrinter(data, st => setBluetoothStatus(st));
+    if (res.success) {
+      setTimeout(() => setBluetoothStatus({ state: 'idle' }), 4000);
+    }
+  };
+
+  const handlePrintOrderRawBt = (bill: BillingBill, items: BillingBillItem[]) => {
+    const data = createBillReceiptData(
+      bill,
+      items.map(it => ({
+        name: it.product_name,
+        qty: it.qty,
+        rate: it.rate,
+        line_total: it.line_total,
+        mark: it.mark_text
+      })),
+      'GREENZAR FOOD & BEVERAGE'
+    );
+    openRawBtBluetoothPrint(data);
+  };
 
   useEffect(() => {
     if (!selectedOrderDetails?.bill) {
@@ -1071,21 +1116,118 @@ export default function BillingDeclaration() {
               </div>
             </div>
 
-            {/* Modal Footer */}
-            <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
+            {/* Bluetooth Status Toast / Feedback Banner */}
+            {bluetoothStatus.state !== 'idle' && (
+              <div className={`px-4 py-2 text-xs flex items-center justify-between border-t ${
+                bluetoothStatus.state === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : bluetoothStatus.state === 'error'
+                  ? 'bg-rose-50 text-rose-800 border-rose-200'
+                  : 'bg-blue-50 text-blue-800 border-blue-200'
+              }`}>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {bluetoothStatus.state === 'connecting' || bluetoothStatus.state === 'printing' ? (
+                    <Loader2 size={13} className="animate-spin text-blue-600 shrink-0" />
+                  ) : bluetoothStatus.state === 'success' ? (
+                    <Check size={13} className="text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle size={13} className="text-rose-600 shrink-0" />
+                  )}
+                  <span className="font-medium truncate text-[11px]">{bluetoothStatus.message}</span>
+                </div>
+                {bluetoothStatus.state === 'error' && (
+                  <button
+                    type="button"
+                    onClick={() => handlePrintOrderRawBt(selectedOrderDetails.bill, orderItems)}
+                    className="underline text-[10.5px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer shrink-0 ml-2"
+                    title="Print via RawBT Android App"
+                  >
+                    Use RawBT
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Modal Footer with Print and Bluetooth Options */}
+            <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="text-slate-400 text-[10.5px]">
                 Created: {selectedOrderDetails.bill.created_at ? new Date(selectedOrderDetails.bill.created_at).toLocaleString() : 'N/A'}
               </span>
-              <button
-                type="button"
-                onClick={() => setSelectedOrderDetails(null)}
-                className="px-3.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
-              >
-                Close
-              </button>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {/* Direct Bluetooth Thermal Printer Button */}
+                <button
+                  type="button"
+                  onClick={() => handlePrintOrderBluetooth(selectedOrderDetails.bill, orderItems)}
+                  disabled={bluetoothStatus.state === 'connecting' || bluetoothStatus.state === 'printing'}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer text-xs"
+                  title="Connect and print directly to mobile Bluetooth thermal printer (POS-58, POS-80, MPT-II)"
+                >
+                  {bluetoothStatus.state === 'connecting' || bluetoothStatus.state === 'printing' ? (
+                    <Loader2 size={13} className="animate-spin text-white" />
+                  ) : (
+                    <Bluetooth size={13} className="text-blue-200" />
+                  )}
+                  <span>
+                    {bluetoothStatus.state === 'printing'
+                      ? 'Printing...'
+                      : bluetoothStatus.state === 'connecting'
+                      ? 'Connecting...'
+                      : getCachedPrinterName()
+                      ? `BT Print (${getCachedPrinterName()})`
+                      : 'Bluetooth Printer'}
+                  </span>
+                </button>
+
+                {/* Print Receipt / Thermal Preview Button */}
+                <button
+                  type="button"
+                  onClick={() => setThermalReceiptBill({ bill: selectedOrderDetails.bill, items: orderItems })}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer text-xs"
+                  title="Open formal receipt preview with 58mm/80mm sizes and PDF export"
+                >
+                  <Printer size={13} className="text-slate-600" />
+                  <span>Print Receipt</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderDetails(null)}
+                  className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer text-xs"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Thermal Receipt Print Modal for Bill */}
+      {thermalReceiptBill && (
+        <ThermalReceiptModal
+          isOpen={true}
+          onClose={() => setThermalReceiptBill(null)}
+          transaction={{
+            id: thermalReceiptBill.bill.id || `bill-${thermalReceiptBill.bill.bill_no}`,
+            ledgerId: activeLedger?.id || '',
+            type: 'DEBIT',
+            amount: Number(thermalReceiptBill.bill.total_amount) || 0,
+            timestamp: thermalReceiptBill.bill.bill_date ? new Date(thermalReceiptBill.bill.bill_date).getTime() : Date.now(),
+            partyId: '',
+            notes: thermalReceiptBill.bill.remark || `Order #${thermalReceiptBill.bill.bill_no}`,
+            invoiceNo: String(thermalReceiptBill.bill.bill_no || '')
+          }}
+          partyName={thermalReceiptBill.bill.customer_name || 'Anonymous Customer'}
+          partyPhone={thermalReceiptBill.bill.phone_number}
+          partyAddress={thermalReceiptBill.bill.customer_address}
+          ledgerName={activeLedger?.name || 'Stock Database'}
+          customTitle="ORDER DELIVERY BILL"
+          items={thermalReceiptBill.items}
+          vehicleNumber={thermalReceiptBill.bill.vehicle_number}
+          driverName={thermalReceiptBill.bill.driver_name}
+          salesmanName={thermalReceiptBill.bill.salesman_name}
+        />
       )}
 
     </div>

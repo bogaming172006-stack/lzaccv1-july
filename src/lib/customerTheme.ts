@@ -41,13 +41,13 @@ export function getAvatarColor(name: string): AvatarColor {
   return AVATAR_COLOR_MAP[firstLetter] || { bg: '#2563EB', text: '#FFFFFF', className: 'avatar-o' };
 }
 
-export function formatCustomerCurrency(amount: number, currency: string = 'Rp'): string {
+export function formatCustomerCurrency(amount: number, currency: string = '₹'): string {
   const absVal = Math.abs(amount || 0);
+  if (!currency || currency === '₹' || currency === 'INR' || currency === 'Rs' || currency === 'Rs.') {
+    return `₹${absVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
   if (currency === 'Rp') {
     return `Rp ${absVal.toLocaleString('id-ID')}`;
-  }
-  if (currency === '₹') {
-    return `₹ ${absVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
   if (currency === '$') {
     return `$ ${absVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

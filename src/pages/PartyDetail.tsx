@@ -120,7 +120,10 @@ export default function PartyDetail() {
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [show12MonthChart, setShow12MonthChart] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'debit' | 'credit'>('all');
-  const [currency, setCurrency] = useState<string>(() => localStorage.getItem('party_currency') || 'Rp');
+  const [currency, setCurrency] = useState<string>(() => {
+    const saved = localStorage.getItem('party_currency');
+    return (saved && (saved === '₹' || saved === 'Rs.' || saved === '$')) ? saved : '₹';
+  });
   const [density, setDensity] = useState<'compact' | 'ultra'>(() => (localStorage.getItem('party_density') as any) || 'compact');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
 
@@ -1390,9 +1393,9 @@ export default function PartyDetail() {
                 <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">Currency Symbol</label>
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
-                    { id: 'Rp', label: 'Rp' },
-                    { id: '₹', label: '₹' },
-                    { id: '$', label: '$' }
+                    { id: '₹', label: '₹ (INR / Rs.)' },
+                    { id: 'Rs.', label: 'Rs.' },
+                    { id: '$', label: '$ (USD)' }
                   ].map(c => (
                     <button
                       key={c.id}
