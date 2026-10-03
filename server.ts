@@ -52,7 +52,8 @@ const TABLES = [
   "balances", 
   "daily_summaries", 
   "dashboard_summary", 
-  "cache_versions"
+  "cache_versions",
+  "log"
 ];
 
 // Turso client instance
@@ -259,10 +260,106 @@ let tablesInitialized = false;
 async function ensureTablesExist(client: any) {
   if (tablesInitialized) return;
   for (const col of TABLES) {
-    await client.execute(`CREATE TABLE IF NOT EXISTS ${col} (id TEXT PRIMARY KEY, data TEXT)`);
+    if (col === "log") {
+      await client.execute(`CREATE TABLE IF NOT EXISTS log (id TEXT PRIMARY KEY, date TEXT, data TEXT)`);
+      try {
+        await client.execute(`ALTER TABLE log ADD COLUMN date TEXT`);
+      } catch (e: any) {
+        // column date might already exist
+      }
+    } else {
+      await client.execute(`CREATE TABLE IF NOT EXISTS ${col} (id TEXT PRIMARY KEY, data TEXT)`);
+    }
   }
   await ensureIndexesExist(client);
+  await syncLogDateColumn(client);
   tablesInitialized = true;
+}
+
+async function syncLogDateColumn(client: any) {
+  try {
+    // 1. Ensure existing rows in log have the date column populated from data
+    await client.execute(`
+      UPDATE log 
+      SET date = COALESCE(
+        json_extract(data, '$.date'),
+        strftime('%Y-%m-%d', datetime(json_extract(data, '$.timestamp') / 1000, 'unixepoch'))
+      ) 
+      WHERE (date IS NULL OR date = '') AND data IS NOT NULL
+    `);
+
+    // 1b. Ensure existing rows in log have beforeAmount inside data column JSON
+    try {
+      const logRows = await client.execute(`SELECT id, data FROM log`);
+      for (const r of logRows.rows) {
+        try {
+          const parsed = JSON.parse(r.data as string);
+          if (parsed && parsed.beforeAmount === undefined) {
+            const afterAmt = Number(parsed.afterAmount ?? parsed.amount ?? 0);
+            const amt = Number(parsed.amount ?? 0);
+            const isDebit = parsed.type === 'DEBIT';
+            const beforeAmt = isDebit ? (afterAmt - amt) : (afterAmt + amt);
+            parsed.beforeAmount = beforeAmt;
+            await client.execute({
+              sql: `UPDATE log SET data = ? WHERE id = ?`,
+              args: [JSON.stringify(parsed), r.id]
+            });
+          }
+        } catch (e) {}
+      }
+    } catch (e: any) {
+      console.warn("[Database] migrate beforeAmount notice:", e.message);
+    }
+
+    // 2. If log table is empty, auto-populate it from transactions
+    const logCountRes = await client.execute(`SELECT count(*) as count FROM log`);
+    const logCount = Number(logCountRes.rows[0]?.count || 0);
+    if (logCount === 0) {
+      const txRows = await client.execute(`SELECT id, data FROM transactions`);
+      if (txRows.rows.length > 0) {
+        const partyRows = await client.execute(`SELECT id, data FROM parties`);
+        const partyMap = new Map<string, string>();
+        for (const pr of partyRows.rows) {
+          try {
+            const pData = JSON.parse(pr.data as string);
+            partyMap.set(pData.id, pData.name);
+          } catch (e) {}
+        }
+
+        for (const r of txRows.rows) {
+          try {
+            const tx = JSON.parse(r.data as string);
+            const txDate = tx.date || (tx.timestamp ? new Date(tx.timestamp).toISOString().split('T')[0] : '');
+            const pName = partyMap.get(tx.partyId) || 'Unknown Party';
+            const afterAmt = tx.runningBalance !== undefined ? tx.runningBalance : tx.amount;
+            const isDebit = tx.type === 'DEBIT';
+            const beforeAmt = tx.beforeAmount !== undefined ? tx.beforeAmount : (isDebit ? (afterAmt - tx.amount) : (afterAmt + tx.amount));
+            const logEntry = {
+              id: tx.id,
+              transactionId: tx.id,
+              ledgerId: tx.ledgerId,
+              partyId: tx.partyId,
+              partyName: pName,
+              date: txDate,
+              type: tx.type,
+              amount: tx.amount,
+              beforeAmount: beforeAmt,
+              afterAmount: afterAmt,
+              invoiceNo: tx.invoiceNo || '',
+              notes: tx.notes || '',
+              timestamp: tx.timestamp
+            };
+            await client.execute({
+              sql: `INSERT OR REPLACE INTO log (id, date, data) VALUES (?, ?, ?)`,
+              args: [tx.id, txDate, JSON.stringify(logEntry)]
+            });
+          } catch (e) {}
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn("[Database] syncLogDateColumn notice:", err.message);
+  }
 }
 
 async function ensureIndexesExist(client: any) {
@@ -275,7 +372,11 @@ async function ensureIndexesExist(client: any) {
     "CREATE INDEX IF NOT EXISTS idx_balances_partyId ON balances(json_extract(data, '$.partyId'))",
     "CREATE INDEX IF NOT EXISTS idx_tracked_invoices_ledgerId ON tracked_invoices(json_extract(data, '$.ledgerId'))",
     "CREATE INDEX IF NOT EXISTS idx_tracked_invoices_invoiceNo ON tracked_invoices(json_extract(data, '$.invoiceNo'))",
-    "CREATE INDEX IF NOT EXISTS idx_products_ledgerId ON products(json_extract(data, '$.ledgerId'))"
+    "CREATE INDEX IF NOT EXISTS idx_products_ledgerId ON products(json_extract(data, '$.ledgerId'))",
+    "CREATE INDEX IF NOT EXISTS idx_log_ledgerId ON log(json_extract(data, '$.ledgerId'))",
+    "CREATE INDEX IF NOT EXISTS idx_log_partyId ON log(json_extract(data, '$.partyId'))",
+    "CREATE INDEX IF NOT EXISTS idx_log_date ON log(json_extract(data, '$.date'))",
+    "CREATE INDEX IF NOT EXISTS idx_log_date_col ON log(date)"
   ];
   for (const stmt of indexStatements) {
     try {
@@ -390,10 +491,22 @@ app.post("/api/db/batch", async (req, res) => {
               finalData = { ...parsed, ...data, id };
             }
           }
-          await transaction.execute({
-            sql: `INSERT OR REPLACE INTO ${colName} (id, data) VALUES (?, ?)`,
-            args: [id, JSON.stringify(finalData)]
-          });
+          if (colName === "log") {
+            const rowDate = finalData.date || (finalData.timestamp ? new Date(finalData.timestamp).toISOString().split('T')[0] : '');
+            if (finalData.beforeAmount === undefined && finalData.afterAmount !== undefined && finalData.amount !== undefined) {
+              const isDebit = finalData.type === 'DEBIT';
+              finalData.beforeAmount = isDebit ? (finalData.afterAmount - finalData.amount) : (finalData.afterAmount + finalData.amount);
+            }
+            await transaction.execute({
+              sql: `INSERT OR REPLACE INTO log (id, date, data) VALUES (?, ?, ?)`,
+              args: [id, rowDate, JSON.stringify(finalData)]
+            });
+          } else {
+            await transaction.execute({
+              sql: `INSERT OR REPLACE INTO ${colName} (id, data) VALUES (?, ?)`,
+              args: [id, JSON.stringify(finalData)]
+            });
+          }
         } else if (type === "update") {
           const current = await transaction.execute({
             sql: `SELECT data FROM ${colName} WHERE id = ?`,
@@ -402,10 +515,22 @@ app.post("/api/db/batch", async (req, res) => {
           if (current.rows.length > 0) {
             const parsed = JSON.parse(current.rows[0].data as string);
             const finalData = { ...parsed, ...data, id };
-            await transaction.execute({
-              sql: `INSERT OR REPLACE INTO ${colName} (id, data) VALUES (?, ?)`,
-              args: [id, JSON.stringify(finalData)]
-            });
+            if (colName === "log") {
+              const rowDate = finalData.date || (finalData.timestamp ? new Date(finalData.timestamp).toISOString().split('T')[0] : '');
+              if (finalData.beforeAmount === undefined && finalData.afterAmount !== undefined && finalData.amount !== undefined) {
+                const isDebit = finalData.type === 'DEBIT';
+                finalData.beforeAmount = isDebit ? (finalData.afterAmount - finalData.amount) : (finalData.afterAmount + finalData.amount);
+              }
+              await transaction.execute({
+                sql: `INSERT OR REPLACE INTO log (id, date, data) VALUES (?, ?, ?)`,
+                args: [id, rowDate, JSON.stringify(finalData)]
+              });
+            } else {
+              await transaction.execute({
+                sql: `INSERT OR REPLACE INTO ${colName} (id, data) VALUES (?, ?)`,
+                args: [id, JSON.stringify(finalData)]
+              });
+            }
           }
         } else if (type === "delete") {
           await transaction.execute({
@@ -502,10 +627,18 @@ app.post("/api/db/restore", async (req, res) => {
       const rows = backupData[col];
       if (Array.isArray(rows)) {
         for (const row of rows) {
-          await client.execute({
-            sql: `INSERT OR REPLACE INTO ${col} (id, data) VALUES (?, ?)`,
-            args: [row.id, JSON.stringify(row)]
-          });
+          if (col === "log") {
+            const rowDate = row.date || (row.timestamp ? new Date(row.timestamp).toISOString().split('T')[0] : '');
+            await client.execute({
+              sql: `INSERT OR REPLACE INTO log (id, date, data) VALUES (?, ?, ?)`,
+              args: [row.id, rowDate, JSON.stringify(row)]
+            });
+          } else {
+            await client.execute({
+              sql: `INSERT OR REPLACE INTO ${col} (id, data) VALUES (?, ?)`,
+              args: [row.id, JSON.stringify(row)]
+            });
+          }
         }
       }
     }
@@ -524,7 +657,11 @@ app.get("/api/db/export-sqlite", async (req, res) => {
 
     // 1. Create tables & indexes inside memory database
     for (const col of TABLES) {
-      memDb.run(`CREATE TABLE IF NOT EXISTS ${col} (id TEXT PRIMARY KEY, data TEXT)`);
+      if (col === "log") {
+        memDb.run(`CREATE TABLE IF NOT EXISTS log (id TEXT PRIMARY KEY, date TEXT, data TEXT)`);
+      } else {
+        memDb.run(`CREATE TABLE IF NOT EXISTS ${col} (id TEXT PRIMARY KEY, data TEXT)`);
+      }
     }
     const indexStatements = [
       "CREATE INDEX IF NOT EXISTS idx_parties_ledgerId ON parties(json_extract(data, '$.ledgerId'))",
@@ -547,12 +684,18 @@ app.get("/api/db/export-sqlite", async (req, res) => {
 
     for (const col of TABLES) {
       try {
-        const result = await client.execute(`SELECT id, data FROM ${col}`);
+        const querySql = col === "log" ? `SELECT id, date, data FROM log` : `SELECT id, data FROM ${col}`;
+        const result = await client.execute(querySql);
         let colCount = 0;
         for (const row of result.rows) {
           const id = row.id as string;
           const dataStr = row.data as string;
-          memDb.run(`INSERT OR REPLACE INTO ${col} (id, data) VALUES (?, ?)`, [id, dataStr]);
+          if (col === "log") {
+            const rowDate = (row as any).date || "";
+            memDb.run(`INSERT OR REPLACE INTO log (id, date, data) VALUES (?, ?, ?)`, [id, rowDate, dataStr]);
+          } else {
+            memDb.run(`INSERT OR REPLACE INTO ${col} (id, data) VALUES (?, ?)`, [id, dataStr]);
+          }
           colCount++;
           totalRows++;
         }
@@ -974,6 +1117,243 @@ app.get("/api/parties/live", async (req, res) => {
   } catch (err: any) {
     console.error("Error proxying Google Sheets API v4 request:", err);
     res.status(500).json({ error: err.message || "An unexpected error occurred while communicating with Google Sheets." });
+  }
+});
+
+// ---------------------------------------------------------
+// TURSO BILLING DATABASE INTEGRATION (READ-ONLY BILL DECLARATION)
+// ---------------------------------------------------------
+const BILLING_DB_URL = (
+  process.env.BILLING_DB_URL || 
+  "libsql://stock-db-stockdb.aws-ap-south-1.turso.io"
+).trim().replace(/[\r\n]/g, "");
+
+const BILLING_DB_AUTH_TOKEN = (
+  process.env.BILLING_DB_AUTH_TOKEN || 
+  "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicm8iLCJpYXQiOjE3ODg5NjIzNDAsImlkIjoiMDE5ZjYwMDItMzUwMS03NDkyLTlmYTctMmMyYzIxOGFhMTNlIiwia2lkIjoiMFpzcXRkdjNRQ3VoSHpoUzJYTUJFYm94SWduS0RNUWxvRzBYMVF5bnZ3USIsInJpZCI6IjYwODE2MzcwLWIwZDEtNGFjZC1iYjJiLTg4NWIwZDQxODNmYiJ9.porz0uAbvXmjLiGsLPEHksQMHcHgpJ7UJ6esEEaEBHlmvVFA8XBQfQmEw0cb0M_D5I7VVZQI_6v3QEB5rOq7DQ"
+).trim().replace(/[\r\n]/g, "");
+
+let billingTursoClient: any = null;
+function getBillingClient() {
+  if (!billingTursoClient) {
+    billingTursoClient = createClient({
+      url: BILLING_DB_URL,
+      authToken: BILLING_DB_AUTH_TOKEN
+    });
+  }
+  return billingTursoClient;
+}
+
+function getTodayKolkataDate(): string {
+  try {
+    return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  } catch (e) {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+// 1. Get bills filtered by date (defaults to today)
+app.get("/api/billing/bills", async (req, res) => {
+  try {
+    const rawDate = (req.query.date as string || "").trim();
+    const targetDate = rawDate || getTodayKolkataDate();
+    const client = getBillingClient();
+
+    const queryRes = await client.execute({
+      sql: `SELECT 
+        id, 
+        bill_no, 
+        bill_type, 
+        total_qty, 
+        total_amount, 
+        total_weight, 
+        bill_date, 
+        customer_name, 
+        customer_address, 
+        vehicle_number, 
+        payment_upi, 
+        driver_name, 
+        driver_contact, 
+        salesman_name, 
+        phone_number, 
+        remark, 
+        status, 
+        created_at
+      FROM bills 
+      WHERE bill_date = ? OR date(created_at) = ?
+      ORDER BY created_at DESC`,
+      args: [targetDate, targetDate]
+    });
+
+    const bills = queryRes.rows || [];
+    const totalAmount = bills.reduce((sum: number, b: any) => sum + (Number(b.total_amount) || 0), 0);
+
+    res.json({
+      success: true,
+      date: targetDate,
+      count: bills.length,
+      totalAmount,
+      bills
+    });
+  } catch (err: any) {
+    console.error("Error fetching bills from billing DB:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message || String(err) 
+    });
+  }
+});
+
+// 2. Lookup bill by bill number (exact or partial)
+app.get("/api/billing/lookup/:billNo", async (req, res) => {
+  try {
+    const rawBillNo = (req.params.billNo || "").trim();
+    if (!rawBillNo) {
+      return res.status(400).json({ success: false, error: "Missing bill number" });
+    }
+
+    const client = getBillingClient();
+    const cleanNo = rawBillNo.toUpperCase();
+    const strippedNo = cleanNo.replace(/^(INV|BILL)[-\s:]*/i, "");
+
+    const queryRes = await client.execute({
+      sql: `SELECT 
+        id, 
+        bill_no, 
+        bill_type, 
+        total_qty, 
+        total_amount, 
+        total_weight, 
+        bill_date, 
+        customer_name, 
+        customer_address, 
+        vehicle_number, 
+        payment_upi, 
+        driver_name, 
+        driver_contact, 
+        salesman_name, 
+        phone_number, 
+        remark, 
+        status, 
+        created_at
+      FROM bills 
+      WHERE LOWER(bill_no) = LOWER(?) 
+         OR LOWER(bill_no) = LOWER(?)
+         OR LOWER(bill_no) LIKE LOWER(?)
+      ORDER BY 
+        CASE 
+          WHEN LOWER(bill_no) = LOWER(?) THEN 1
+          WHEN LOWER(bill_no) = LOWER(?) THEN 2
+          ELSE 3
+        END,
+        created_at DESC
+      LIMIT 10`,
+      args: [cleanNo, strippedNo, `%${strippedNo}%`, cleanNo, strippedNo]
+    });
+
+    const matches = queryRes.rows || [];
+    const bestMatch = matches.length > 0 ? matches[0] : null;
+
+    res.json({
+      success: true,
+      found: matches.length > 0,
+      bill: bestMatch,
+      matches
+    });
+  } catch (err: any) {
+    console.error("Error looking up bill from billing DB:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message || String(err) 
+    });
+  }
+});
+
+// 2b. Get items for a bill by bill ID or bill number
+app.get("/api/billing/bills/:billId/items", async (req, res) => {
+  try {
+    const rawBillId = (req.params.billId || "").trim();
+    if (!rawBillId) {
+      return res.status(400).json({ success: false, error: "Missing bill ID" });
+    }
+
+    const client = getBillingClient();
+    const queryRes = await client.execute({
+      sql: `SELECT 
+        id, 
+        bill_id, 
+        product_name, 
+        qty, 
+        rate, 
+        line_total, 
+        is_marked, 
+        mark_text 
+      FROM bill_items 
+      WHERE bill_id = ? OR bill_id = (SELECT id FROM bills WHERE bill_no = ? LIMIT 1)
+      ORDER BY rowid ASC`,
+      args: [rawBillId, rawBillId]
+    });
+
+    let items = queryRes.rows || [];
+
+    // Fallback to bill_items_2 if bill_items has 0 rows
+    if (items.length === 0) {
+      const items2Res = await client.execute({
+        sql: `SELECT items_data FROM bill_items_2 WHERE bill_id = ? OR bill_id = (SELECT id FROM bills WHERE bill_no = ? LIMIT 1)`,
+        args: [rawBillId, rawBillId]
+      });
+      if (items2Res.rows && items2Res.rows.length > 0 && items2Res.rows[0].items_data) {
+        try {
+          const parsed = JSON.parse(items2Res.rows[0].items_data as string);
+          if (Array.isArray(parsed)) {
+            items = parsed;
+          }
+        } catch (e) {
+          console.error("Failed to parse items_data JSON:", e);
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      count: items.length,
+      items
+    });
+  } catch (err: any) {
+    console.error("Error fetching bill items from billing DB:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message || String(err) 
+    });
+  }
+});
+
+// 3. Get recent bill dates with totals for date picker
+app.get("/api/billing/dates", async (req, res) => {
+  try {
+    const client = getBillingClient();
+    const queryRes = await client.execute(`
+      SELECT 
+        bill_date, 
+        COUNT(*) as count, 
+        SUM(total_amount) as total_amount 
+      FROM bills 
+      WHERE bill_date IS NOT NULL AND bill_date != ''
+      GROUP BY bill_date 
+      ORDER BY bill_date DESC 
+      LIMIT 30
+    `);
+
+    res.json({
+      success: true,
+      dates: queryRes.rows || []
+    });
+  } catch (err: any) {
+    console.error("Error fetching bill dates from billing DB:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message || String(err) 
+    });
   }
 });
 

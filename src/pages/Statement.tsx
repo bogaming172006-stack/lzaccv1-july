@@ -1308,19 +1308,19 @@ export default function Statement() {
       </div>
 
       {/* Filters & Configuration Control Bar */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-4 sm:p-5 space-y-4 print:hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-3 sm:p-3.5 space-y-2.5 print:hidden">
         
         {/* Preset Date Range Buttons */}
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-              <Calendar size={14} className="text-[#0055a5]" />
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <Calendar size={13} className="text-[#0055a5]" />
               Date Presets & Period
             </span>
-            <span className="text-[11px] text-slate-400">Select standard duration or pick custom dates</span>
+            <span className="text-[10px] text-slate-400">Select standard duration or pick custom dates</span>
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 custom-scrollbar">
             {[
               { key: 'today', label: 'Today' },
               { key: 'yesterday', label: 'Yesterday' },
@@ -1335,7 +1335,7 @@ export default function Statement() {
                 key={p.key}
                 type="button"
                 onClick={() => handlePresetChange(p.key as DatePreset)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   datePreset === p.key
                     ? 'bg-[#0055a5] text-white shadow-xs'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
@@ -1348,11 +1348,11 @@ export default function Statement() {
         </div>
 
         {/* Date Inputs & Primary Selectors */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-2 border-t border-slate-100">
           
           {/* Start Date */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">
               Start Date (From)
             </label>
             <input
@@ -1362,13 +1362,13 @@ export default function Statement() {
                 setStartDate(e.target.value);
                 setDatePreset('custom');
               }}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
             />
           </div>
 
           {/* End Date */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">
               End Date (To)
             </label>
             <input
@@ -1378,13 +1378,13 @@ export default function Statement() {
                 setEndDate(e.target.value);
                 setDatePreset('custom');
               }}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
             />
           </div>
 
           {/* Ledger Book Selector */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">
               Ledger Book Scope
             </label>
             <select
@@ -1393,7 +1393,7 @@ export default function Statement() {
                 setSelectedLedgerId(e.target.value);
                 setSelectedPartyId('ALL');
               }}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
             >
               <option value="ACTIVE">Active Ledger: {activeLedger?.name || 'Active'}</option>
               <option value="ALL">All Combined Ledgers (Consolidated)</option>
@@ -1405,13 +1405,13 @@ export default function Statement() {
 
           {/* Account / Party Autocomplete Selector */}
           <div className="relative" ref={partyDropdownRef}>
-            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 flex items-center justify-between">
+            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5 flex items-center justify-between">
               <span>Party / Account</span>
               {selectedPartyId !== 'ALL' && (
                 <button
                   type="button"
                   onClick={() => { setSelectedPartyId('ALL'); setPartySearch(''); }}
-                  className="text-[10px] text-rose-600 hover:underline font-bold"
+                  className="text-[9.5px] text-rose-600 hover:underline font-bold"
                 >
                   Clear Selection
                 </button>
@@ -1420,25 +1420,25 @@ export default function Statement() {
             
             <div 
               onClick={() => setShowPartyDropdown(true)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 flex items-center justify-between cursor-pointer hover:border-slate-400 transition-colors"
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 flex items-center justify-between cursor-pointer hover:border-slate-400 transition-colors"
             >
               <span className="truncate">
                 {selectedParty ? selectedParty.name : `All Parties (${availableParties.length})`}
               </span>
-              <ChevronDown size={14} className="text-slate-400 shrink-0 ml-1" />
+              <ChevronDown size={13} className="text-slate-400 shrink-0 ml-1" />
             </div>
 
             {/* Dropdown Menu */}
             {showPartyDropdown && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1.5 animate-in fade-in duration-100">
                 <div className="relative">
-                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     value={partySearch}
                     onChange={(e) => setPartySearch(e.target.value)}
                     placeholder="Search party name or phone..."
-                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
+                    className="w-full pl-7.5 pr-2.5 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
                     autoFocus
                   />
                 </div>
@@ -1447,12 +1447,12 @@ export default function Statement() {
                   <button
                     type="button"
                     onClick={() => { setSelectedPartyId('ALL'); setShowPartyDropdown(false); }}
-                    className={`w-full text-left px-2.5 py-1.5 text-xs rounded-lg flex items-center justify-between ${
+                    className={`w-full text-left px-2 py-1.2 text-[11px] rounded-md flex items-center justify-between ${
                       selectedPartyId === 'ALL' ? 'bg-[#0055a5] text-white font-bold' : 'hover:bg-slate-100 text-slate-700'
                     }`}
                   >
                     <span>All Parties (Consolidated)</span>
-                    <span className="text-[10px] opacity-75">{availableParties.length} total</span>
+                    <span className="text-[9.5px] opacity-75">{availableParties.length} total</span>
                   </button>
 
                   {availableParties
@@ -1462,12 +1462,12 @@ export default function Statement() {
                         key={p.id}
                         type="button"
                         onClick={() => { setSelectedPartyId(p.id); setShowPartyDropdown(false); }}
-                        className={`w-full text-left px-2.5 py-1.5 text-xs rounded-lg flex items-center justify-between ${
+                        className={`w-full text-left px-2 py-1.2 text-[11px] rounded-md flex items-center justify-between ${
                           selectedPartyId === p.id ? 'bg-[#0055a5] text-white font-bold' : 'hover:bg-slate-100 text-slate-700'
                         }`}
                       >
                         <span className="truncate font-medium">{p.name}</span>
-                        <span className={`text-[10px] font-mono shrink-0 ml-2 ${selectedPartyId === p.id ? 'text-white' : (p.currentDue || 0) >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        <span className={`text-[9.5px] font-mono shrink-0 ml-2 ${selectedPartyId === p.id ? 'text-white' : (p.currentDue || 0) >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                           ₹{Math.abs(p.currentDue || 0).toLocaleString()} {(p.currentDue || 0) >= 0 ? 'Dr' : 'Cr'}
                         </span>
                       </button>
@@ -1479,17 +1479,17 @@ export default function Statement() {
         </div>
 
         {/* Secondary Detailed Filters Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-2 border-t border-slate-100">
           
           {/* Movement Type */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">
               Transaction Type
             </label>
             <select
               value={txTypeFilter}
               onChange={(e) => setTxTypeFilter(e.target.value as any)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
             >
               <option value="ALL">All Entries (Debits & Credits)</option>
               <option value="DEBIT">Debits Only (Sales / Charges / Outward)</option>
@@ -1499,13 +1499,13 @@ export default function Statement() {
 
           {/* Payment Mode */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">
               Payment Mode
             </label>
             <select
               value={paymentModeFilter}
               onChange={(e) => setPaymentModeFilter(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
             >
               <option value="ALL">All Payment Modes</option>
               <option value="CASH">Cash Only</option>
@@ -1516,30 +1516,30 @@ export default function Statement() {
 
           {/* Search Query */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">
               Search Invoice / Memo
             </label>
             <div className="relative">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Invoice #, note, bill..."
-                className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
+                className="w-full pl-7.5 pr-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
               />
             </div>
           </div>
 
           {/* Sort Order */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">
               Sort Order (Date-wise)
             </label>
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as any)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
             >
               <option value="asc">Earliest to Latest (Opening ➔ Closing)</option>
               <option value="desc">Latest to Earliest (Newest First)</option>
@@ -1577,7 +1577,7 @@ export default function Statement() {
       </div>
 
       {/* Executive Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-2.5">
         
         {/* 1. Opening Balance */}
         <StatCard
@@ -1627,13 +1627,13 @@ export default function Statement() {
       </div>
 
       {formatAmountInWords(Math.abs(globalSummary.totalClosing)) && (
-        <div className="px-3.5 py-2 bg-slate-50 border border-slate-200/80 rounded-lg text-xs text-slate-700 flex items-center justify-between gap-2 flex-wrap print:hidden">
+        <div className="px-3 py-1.5 bg-slate-50 border border-slate-200/80 rounded-lg text-[11px] text-slate-700 flex items-center justify-between gap-2 flex-wrap print:hidden">
           <div className="flex items-center gap-1.5 text-slate-600">
-            <FileText size={13} className="text-slate-400 shrink-0" />
-            <span className="font-semibold text-slate-800 uppercase text-[10px] tracking-wider">Closing Position in Words:</span>
+            <FileText size={12} className="text-slate-400 shrink-0" />
+            <span className="font-semibold text-slate-800 uppercase text-[9.5px] tracking-wider">Closing Position in Words:</span>
             <span className="italic font-medium text-slate-900">{formatAmountInWords(Math.abs(globalSummary.totalClosing))}</span>
           </div>
-          <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded ${globalSummary.totalClosing >= 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${globalSummary.totalClosing >= 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
             {globalSummary.totalClosing >= 0 ? 'Net Dr (Receivable)' : 'Net Cr (Payable / Advance)'}
           </span>
         </div>
@@ -1641,30 +1641,30 @@ export default function Statement() {
 
       {/* View Mode Toggle Bar */}
       <div className="flex items-center justify-between flex-wrap gap-2 print:hidden">
-        <div className="inline-flex bg-slate-200/80 p-1 rounded-xl">
+        <div className="inline-flex bg-slate-200/80 p-0.5 rounded-lg">
           <button
             type="button"
             onClick={() => setViewMode('party_wise')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer ${
               viewMode === 'party_wise'
                 ? 'bg-white text-[#0055a5] shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Users size={14} />
+            <Users size={13} />
             <span>Party-by-Party Ledger (Sales First, Purchases Next)</span>
           </button>
           
           <button
             type="button"
             onClick={() => setViewMode('flat')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer ${
               viewMode === 'flat'
                 ? 'bg-white text-[#0055a5] shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Layers size={14} />
+            <Layers size={13} />
             <span>Continuous Timeline View</span>
           </button>
         </div>
@@ -1674,7 +1674,7 @@ export default function Statement() {
             <button
               type="button"
               onClick={() => handleToggleAllParties(true)}
-              className="text-xs text-blue-700 hover:underline font-semibold"
+              className="text-[11px] text-blue-700 hover:underline font-semibold"
             >
               Expand All
             </button>
@@ -1682,7 +1682,7 @@ export default function Statement() {
             <button
               type="button"
               onClick={() => handleToggleAllParties(false)}
-              className="text-xs text-slate-600 hover:underline font-semibold"
+              className="text-[11px] text-slate-600 hover:underline font-semibold"
             >
               Collapse All
             </button>

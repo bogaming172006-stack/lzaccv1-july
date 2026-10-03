@@ -177,3 +177,34 @@ input:-webkit-autofill:active {
   -webkit-text-fill-color: #0f172a !important;
 }
 
+/* Gray to Red Blinking Animation */
+@keyframes blinkGrayRed {
+  0%, 100% {
+    color: #dc2626;
+  }
+  50% {
+    color: #94a3b8;
+  }
+}
+
+.animate-blink-gray-red {
+  animation: blinkGrayRed 1.2s ease-in-out infinite;
+}
+
+/* ========================================================================= */
+/* CUSTOMER & TRANSACTION SECTION (Exact styles from user template)         */
+/* ========================================================================= */
+.font-customer {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.avatar-a { background-color: #FBA027; color: #FFFFFF; }
+.avatar-b { background-color: #A2E8D0; color: #065F46; }
+.avatar-g { background-color: #8B5CF6; color: #FFFFFF; }
+.avatar-t { background-color: #00B594; color: #FFFFFF; }
+.avatar-s { background-color: #F95A2C; color: #FFFFFF; }
+.avatar-o { background-color: #2563EB; color: #FFFFFF; }
+.avatar-n { background-color: #FF6685; color: #FFFFFF; }
+.avatar-r { background-color: #C084FC; color: #FFFFFF; }
+
+

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType, doc, getDoc, collection, query, where, updateDoc, getDocs } from '../firebase';
 import { Party, Transaction } from '../types';
@@ -15,6 +15,8 @@ import {
   Search, 
   ChevronLeft, 
   ChevronRight, 
+  ChevronUp,
+  ChevronDown,
   Trash2, 
   Share2, 
   Copy, 
@@ -25,29 +27,35 @@ import {
   Building2, 
   Phone, 
   Mail, 
-  MapPin,
-  TrendingDown,
-  TrendingUp,
-  CreditCard,
-  X,
-  Loader2,
-  RefreshCw,
-  Calculator,
-  Wrench,
-  Sparkles
+  MapPin, 
+  TrendingDown, 
+  TrendingUp, 
+  CreditCard, 
+  X, 
+  Loader2, 
+  RefreshCw, 
+  Calculator, 
+  Wrench, 
+  Sparkles,
+  BarChart2,
+  MoreVertical
 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { v4 as uuidv4 } from 'uuid';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { format } from 'date-fns';
+import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { formatAmountInWords } from '../lib/numberToWords';
 import { useLedger } from '../LedgerContext';
 import { useAuth } from '../AuthContext';
+import { getAvatarColor, formatCustomerCurrency } from '../lib/customerTheme';
 
 import { createTransaction, editTransaction, deleteTransaction, recalculatePartyBalance } from '../lib/transactionService';
 import { getCacheItem, getFilteredCacheItems, setCacheItem } from '../lib/idbCache';
 import { syncCollection } from '../lib/syncCache';
 import { logUserActivity } from '../lib/activityLogger';
+import { isInvoiceNumber } from '../lib/invoiceClassification';
+import { useLedgerTextCase, CaseIndicator } from '../lib/textCaseHelper';
 import ThermalReceiptModal from '../components/ThermalReceiptModal';
 import { loadImage, getOptimizedLogoData } from '../components/CompanyLogo';
 import TransactionDetailModal from '../components/TransactionDetailModal';
@@ -96,6 +104,7 @@ export default function PartyDetail() {
   const [editTxInvoiceNo, setEditTxInvoiceNo] = useState('');
   const [editTxNotes, setEditTxNotes] = useState('');
   const [editTxError, setEditTxError] = useState('');
+  const { isCaps, toggleManualCaps, handleTextChange } = useLedgerTextCase();
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [recalcSummary, setRecalcSummary] = useState<{
     openingBalance: number;
@@ -109,6 +118,84 @@ export default function PartyDetail() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showDateFilter, setShowDateFilter] = useState(false);
+  const [show12MonthChart, setShow12MonthChart] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'debit' | 'credit'>('all');
+  const [currency, setCurrency] = useState<string>(() => localStorage.getItem('party_currency') || 'Rp');
+  const [density, setDensity] = useState<'compact' | 'ultra'>(() => (localStorage.getItem('party_density') as any) || 'compact');
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+
+  const handleDensityChange = (d: 'compact' | 'ultra') => {
+    setDensity(d);
+    localStorage.setItem('party_density', d);
+  };
+
+  const handleCurrencyChange = (curr: string) => {
+    setCurrency(curr);
+    localStorage.setItem('party_currency', curr);
+  };
+
+  // Generate 12-month rolling column chart data for this specific party
+  const party12MonthData = useMemo(() => {
+    const data = [];
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const monthDate = subMonths(now, i);
+      const start = startOfMonth(monthDate).getTime();
+      const end = endOfMonth(monthDate).getTime();
+      
+      const monthTxs = transactions.filter(t => t.timestamp >= start && t.timestamp <= end);
+      const debit = monthTxs.filter(t => t.type === 'DEBIT').reduce((acc, t) => acc + (t.amount || 0), 0);
+      const credit = monthTxs.filter(t => t.type === 'CREDIT').reduce((acc, t) => acc + (t.amount || 0), 0);
+      const txCount = monthTxs.length;
+      
+      data.push({
+        name: format(monthDate, 'MMM'),
+        fullMonth: format(monthDate, 'MMMM yyyy'),
+        debit,
+        credit,
+        net: debit - credit,
+        txCount
+      });
+    }
+    return data;
+  }, [transactions]);
+
+  const party12MonthDr = useMemo(() => party12MonthData.reduce((acc, m) => acc + m.debit, 0), [party12MonthData]);
+  const party12MonthCr = useMemo(() => party12MonthData.reduce((acc, m) => acc + m.credit, 0), [party12MonthData]);
+  const party12MonthNet = party12MonthDr - party12MonthCr;
+
+  const totalDebitSum = useMemo(() => {
+    return transactions.filter(t => t.type === 'DEBIT').reduce((acc, t) => acc + t.amount, 0);
+  }, [transactions]);
+
+  const totalCreditSum = useMemo(() => {
+    return transactions.filter(t => t.type === 'CREDIT').reduce((acc, t) => acc + t.amount, 0);
+  }, [transactions]);
+
+  const groupedTransactions = useMemo(() => {
+    let items = [...transactions].sort((a, b) => b.timestamp - a.timestamp);
+    if (activeFilter === 'debit') {
+      items = items.filter(t => t.type === 'DEBIT');
+    } else if (activeFilter === 'credit') {
+      items = items.filter(t => t.type === 'CREDIT');
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      items = items.filter(t => 
+        (t.notes || '').toLowerCase().includes(q) || 
+        (t.invoiceNo || '').toLowerCase().includes(q)
+      );
+    }
+
+    const groups: Record<string, Transaction[]> = {};
+    items.forEach(tx => {
+      const dateStr = format(new Date(tx.timestamp), 'MMM d, yyyy');
+      if (!groups[dateStr]) groups[dateStr] = [];
+      groups[dateStr].push(tx);
+    });
+    return groups;
+  }, [transactions, activeFilter, searchQuery]);
 
   const handleOpenEditTx = (tx: Transaction) => {
     setEditingTx(tx);
@@ -1013,529 +1100,363 @@ export default function PartyDetail() {
     );
   }
 
-  const totalDebitSum = transactions.filter(t => t.type === 'DEBIT').reduce((acc, t) => acc + t.amount, 0);
-  const totalCreditSum = transactions.filter(t => t.type === 'CREDIT').reduce((acc, t) => acc + t.amount, 0);
+  const avatar = getAvatarColor(party.name);
+  const initial = party.name.trim().charAt(0).toUpperCase() || 'C';
 
   return (
-    <div className="p-2 min-[400px]:p-3 sm:p-8 pt-1 min-[400px]:pt-1.5 sm:pt-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-2 sm:space-y-6">
-      
-      {/* Top Breadcrumb & Actions */}
-      <div className="flex items-center justify-between gap-1.5 sm:gap-2">
-        <button 
-          onClick={() => navigate('/parties')} 
-          className="inline-flex items-center text-[11px] min-[400px]:text-xs font-normal sm:font-bold text-slate-600 hover:text-slate-900 transition-colors"
-        >
-          <ArrowLeft size={13} className="mr-1 sm:mr-1.5" /> Back to Parties
-        </button>
+    <div className={`w-full min-h-screen bg-white sm:bg-[#F8FAFC] pb-16 font-customer ${density === 'ultra' ? 'text-[11px]' : 'text-xs'}`}>
+      <div className="w-full min-h-screen bg-white flex flex-col relative sm:max-w-xl md:max-w-2xl sm:mx-auto sm:border-x sm:border-slate-100 sm:shadow-xs transition-all">
+        
+        {/* ========================================================================= */}
+        {/* COMPACT SCREEN 2: TRANSACTION PAGE HEADER                                 */}
+        {/* ========================================================================= */}
+        <header className="px-3 py-1.5 flex items-center justify-between bg-white sticky top-0 z-20 border-b border-[#F1F5F9]">
+          <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+            <button 
+              id="backToListBtn" 
+              onClick={() => navigate('/parties')}
+              className="p-1 text-[#0F172A] rounded-md hover:bg-slate-100 active:opacity-60 transition shrink-0" 
+              aria-label="Back"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+              </svg>
+            </button>
+            <h1 className="text-sm font-bold text-[#0F172A] tracking-tight truncate flex-1 min-w-0" id="detailCustomerHeaderTitle">
+              {party.name}
+            </h1>
+          </div>
 
-        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button 
+              onClick={() => setShowDownloadModal(true)} 
+              className="p-1 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 transition"
+              title="Export PDF Statement"
+            >
+              <Download size={13} />
+            </button>
+            <button 
+              onClick={() => setShowShareModal(true)} 
+              className="p-1 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 transition"
+              title="Share Statement via WhatsApp / Link"
+            >
+              <Share2 size={13} />
+            </button>
+            <button 
+              onClick={() => setShowMoreMenu(true)} 
+              className="p-1 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 transition"
+              title="More Actions & Settings"
+            >
+              <MoreVertical size={13} />
+            </button>
+          </div>
+        </header>
+
+        {/* COMPACT CUSTOMER CARD SIMPLE */}
+        <div className="px-3 py-1.5 flex items-center">
+          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+            <div 
+              className={`w-7 h-7 rounded-full flex items-center justify-center text-[10.5px] font-bold shrink-0 shadow-2xs ${avatar.className}`}
+              style={{ backgroundColor: avatar.bg, color: avatar.text }}
+            >
+              {initial}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xs font-bold text-[#0F172A] leading-tight mb-0.5 truncate" id="detailCustomerName">
+                {party.name}
+              </h2>
+              <p className="text-[10px] text-[#64748B] leading-tight truncate" id="detailCustomerMeta">
+                {[party.email || 'No email', party.phone || 'No phone'].join(' • ')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* COMPACT FINANCIAL BALANCE BANNER */}
+        <div className="mx-3 my-1 bg-white border border-[#E2E8F0] rounded-xl p-2.5 shadow-2xs">
+          <div className="flex justify-between items-baseline pb-1.5 border-b border-[#F1F5F9]">
+            <span className="text-[9px] font-bold text-[#64748B] uppercase tracking-[0.5px]">
+              CURRENT BALANCE
+            </span>
+            <span className={`text-base font-bold ${party.currentDue > 0 ? 'text-[#DC2626]' : party.currentDue < 0 ? 'text-[#16A34A]' : 'text-[#0F172A]'}`} id="detailNetBalance">
+              {formatCustomerCurrency(party.currentDue, currency)} {party.currentDue > 0 ? 'DR' : party.currentDue < 0 ? 'CR' : ''}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-1.5">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[9.5px] text-[#64748B] font-medium flex items-center gap-1">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline>
+                </svg>
+                Total Debit
+              </span>
+              <span className="text-[11px] font-bold text-[#DC2626] tabular-nums" id="detailTotalDebit">
+                {formatCustomerCurrency(totalDebitSum, currency)}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[9.5px] text-[#64748B] font-medium flex items-center gap-1">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="17" y1="7" x2="7" y2="17"></line><polyline points="17 17 7 17 7 7"></polyline>
+                </svg>
+                Total Credit
+              </span>
+              <span className="text-[11px] font-bold text-[#16A34A] tabular-nums" id="detailTotalCredit">
+                {formatCustomerCurrency(totalCreditSum, currency)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* QUICK ACTION BUTTONS (+ DEBIT / + CREDIT) */}
+        <div className="px-3 py-1 flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => { setTxAmount(''); setTxInvoiceNo(''); setTxNotes(''); setTxError(''); setShowTxModal('DEBIT'); }}
-            className={`inline-flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2.5 py-1 sm:py-1.5 ${
-              isExpense 
-                ? 'bg-rose-600 hover:bg-rose-700 text-white font-semibold shadow-2xs' 
-                : 'text-rose-600 hover:text-rose-800 hover:bg-rose-50/60 font-normal sm:font-medium'
-            } rounded-md sm:rounded-lg text-[10.5px] min-[400px]:text-[11px] sm:text-xs transition-colors`}
+            className="flex-1 py-1 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
           >
-            <Minus size={11} />
-            <span>{isExpense ? 'Pay Expense (Dr)' : 'Debit (Dr)'}</span>
+            <Minus size={11} className="text-rose-600" />
+            <span>+ Debit (Dr)</span>
           </button>
 
-          {!isExpense && (
-            <button
-              type="button"
-              onClick={() => { setTxAmount(''); setTxCashAmount(''); setTxAcAmount(''); setTxInvoiceNo(''); setTxNotes(''); setTxError(''); setShowTxModal('CREDIT'); }}
-              className="inline-flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2.5 py-1 sm:py-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50/60 rounded-md sm:rounded-lg text-[10.5px] min-[400px]:text-[11px] sm:text-xs font-normal sm:font-medium transition-colors"
+          <button
+            type="button"
+            onClick={() => { setTxAmount(''); setTxCashAmount(''); setTxAcAmount(''); setTxInvoiceNo(''); setTxNotes(''); setTxError(''); setShowTxModal('CREDIT'); }}
+            className="flex-1 py-1 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+          >
+            <Plus size={11} className="text-emerald-600" />
+            <span>+ Credit (Cr)</span>
+          </button>
+        </div>
+
+        {/* COMPACT FILTER TABS & SEARCH */}
+        <div className="px-3 py-1 flex items-center justify-between gap-1">
+          <div className="flex gap-1">
+            <button 
+              onClick={() => setActiveFilter('all')}
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border transition-all cursor-pointer ${
+                activeFilter === 'all' 
+                  ? 'bg-[#0F172A] text-white border-[#0F172A]' 
+                  : 'border-[#E2E8F0] bg-white text-[#64748B] hover:bg-slate-50'
+              }`}
             >
-              <Plus size={11} />
-              <span>Credit (Cr)</span>
+              All
             </button>
-          )}
+            <button 
+              onClick={() => setActiveFilter('debit')}
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border transition-all cursor-pointer ${
+                activeFilter === 'debit' 
+                  ? 'bg-[#0F172A] text-white border-[#0F172A]' 
+                  : 'border-[#E2E8F0] bg-white text-[#64748B] hover:bg-slate-50'
+              }`}
+            >
+              Debit
+            </button>
+            <button 
+              onClick={() => setActiveFilter('credit')}
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border transition-all cursor-pointer ${
+                activeFilter === 'credit' 
+                  ? 'bg-[#0F172A] text-white border-[#0F172A]' 
+                  : 'border-[#E2E8F0] bg-white text-[#64748B] hover:bg-slate-50'
+              }`}
+            >
+              Credit
+            </button>
+          </div>
 
-          {currentUser?.isAdmin && (
-            <>
-              <button
-                type="button"
-                onClick={handleRecalculateBalance}
-                disabled={isRecalculating}
-                className="inline-flex items-center gap-1 px-1.5 sm:px-2.5 py-1 sm:py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-md sm:rounded-lg text-[10.5px] min-[400px]:text-[11px] sm:text-xs font-semibold transition-colors cursor-pointer"
-                title="Recalculate running balances and fix calculations from original entries"
-              >
-                <RefreshCw size={11} className={isRecalculating ? "animate-spin text-amber-700" : "text-amber-700"} />
-                <span className="hidden sm:inline">{isRecalculating ? 'Recalculating...' : 'Fix Calculation'}</span>
-                <span className="inline sm:hidden">{isRecalculating ? '...' : 'Fix'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleOpenEditParty}
-                className="inline-flex items-center gap-1 px-1.5 sm:px-2.5 py-1 sm:py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100/60 rounded-md sm:rounded-lg text-[10.5px] min-[400px]:text-[11px] sm:text-xs font-normal transition-colors"
-                title="Edit Profile"
-              >
-                <Edit2 size={11} className="text-blue-600" />
-                <span className="hidden min-[380px]:inline">Edit</span>
-              </button>
-            </>
-          )}
+          <div className="relative w-24">
+            <Search size={10} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search..."
+              className="w-full pl-5 pr-1.5 py-0.5 bg-slate-50 border border-slate-200 rounded-full text-[10px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Corporate Account Header Card */}
-      <div className="bg-white rounded-lg sm:rounded-2xl shadow-2xs border border-slate-200/90 p-3 sm:p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-6">
-          <div className="flex items-start gap-3 min-w-0">
-            {/* Square outline box avatar */}
-            <div className="w-10 h-10 min-[400px]:w-11 min-[400px]:h-11 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200 text-slate-800 flex items-center justify-center font-bold text-xs sm:text-xl uppercase shrink-0 shadow-2xs">
-              {party.name.substring(0, 2).toUpperCase()}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                <h1 className="text-sm min-[400px]:text-base sm:text-2xl font-bold text-slate-900 tracking-tight truncate">{party.name}</h1>
-                {currentUser?.isAdmin && (
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="px-1.5 py-0.5 rounded text-[9.5px] min-[400px]:text-[10px] sm:text-xs font-medium bg-emerald-50 text-emerald-600 border border-emerald-200/60">
-                      {party.status || 'Active'}
-                    </span>
-                    <div 
-                      onClick={() => {
-                        navigator.clipboard.writeText(party.id);
-                        setPartyIdCopied(true);
-                        setTimeout(() => setPartyIdCopied(false), 2000);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100/90 hover:bg-slate-200/80 text-slate-700 hover:text-slate-900 border border-slate-200 text-[10px] sm:text-xs font-mono cursor-pointer transition select-all shadow-2xs group"
-                      title="Click to copy Firestore Database Document ID"
+        {/* COMPACT TRANSACTIONS LIST SECTION */}
+        <div className="px-3 pb-14 flex-1">
+          <ul className="list-none m-0 p-0" id="transactionsList">
+            {Object.entries(groupedTransactions).map(([dateStr, txs]) => (
+              <React.Fragment key={dateStr}>
+                {/* DATE SEPARATOR */}
+                <li className="flex items-center my-1.5 text-[#94A3B8] text-[9.5px] font-semibold before:flex-1 before:h-[1px] before:bg-[#E2E8F0] after:flex-1 after:h-[1px] after:bg-[#E2E8F0]">
+                  <span className="px-2 tracking-[0.2px]">{dateStr}</span>
+                </li>
+
+                {/* TRANSACTION ROWS */}
+                {(txs as Transaction[]).map((tx) => {
+                  const isDebit = tx.type === 'DEBIT';
+                  return (
+                    <li 
+                      key={tx.id}
+                      onClick={() => setSelectedDetailTx(tx)}
+                      className="flex items-center justify-between py-1.5 border-b border-[#F1F5F9] cursor-pointer hover:bg-slate-50/70 transition-colors select-none"
                     >
-                      <span className="text-slate-400 font-sans font-bold text-[8.5px] sm:text-[9px] uppercase tracking-wider">ID:</span>
-                      <span className="truncate max-w-[140px] sm:max-w-none">{party.id}</span>
-                      {partyIdCopied ? (
-                        <Check size={12} className="text-emerald-600 shrink-0" />
-                      ) : (
-                        <Copy size={12} className="text-slate-400 group-hover:text-slate-600 shrink-0" />
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Export & Share buttons beside name */}
-                <div className="flex items-center gap-1 sm:gap-1.5 ml-auto sm:ml-1">
-                  <button 
-                    onClick={() => setShowDownloadModal(true)} 
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 sm:px-2 sm:py-1 text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-md text-[9.5px] min-[400px]:text-[10px] sm:text-xs font-normal transition-colors cursor-pointer"
-                    title="Export PDF"
-                  >
-                    <Download size={10} className="text-slate-500" />
-                    <span>Export PDF</span>
-                  </button>
-                  <button 
-                    onClick={() => setShowShareModal(true)} 
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 sm:px-2 sm:py-1 text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-md text-[9.5px] min-[400px]:text-[10px] sm:text-xs font-normal transition-colors cursor-pointer"
-                    title="Share Statement"
-                  >
-                    <Share2 size={10} className="text-slate-500" />
-                    <span>Share</span>
-                  </button>
-                </div>
-              </div>
-              
-              <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-5 gap-y-1 text-[10px] min-[400px]:text-[11px] sm:text-xs text-slate-500 mt-1">
-                {party.phone && (
-                  <span className="flex items-center gap-1 font-normal text-slate-600">
-                    <Phone size={11} className="text-slate-400" />
-                    {party.phone}
-                  </span>
-                )}
-                {party.email && (
-                  <span className="flex items-center gap-1 text-slate-500 truncate max-w-[160px] sm:max-w-[200px]">
-                    <Mail size={11} className="text-slate-400 shrink-0" />
-                    <span className="truncate">{party.email}</span>
-                  </span>
-                )}
-                {party.address && (
-                  <span className="flex items-center gap-1 text-slate-500 truncate max-w-[160px] sm:max-w-[220px]">
-                    <MapPin size={11} className="text-slate-400 shrink-0" />
-                    <span className="truncate">{party.address}</span>
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Current Ledger Balance Display */}
-          <div className="flex flex-col items-start lg:items-end pt-2.5 lg:pt-0 border-t lg:border-t-0 border-slate-100 shrink-0">
-            <span className="text-[9px] min-[400px]:text-[9.5px] sm:text-[11px] uppercase font-medium tracking-wider text-slate-400 mb-0.5">
-              {isExpense ? 'TOTAL EXPENSES PAYABLE' : 'CURRENT OUTSTANDING BALANCE'}
-            </span>
-            <div className="text-base min-[400px]:text-lg sm:text-3xl font-bold tracking-tight tabular-nums flex items-baseline gap-1 select-all">
-              <span className={party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-900"}>
-                ₹ {Math.abs(party.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-              <span className={`text-[10px] min-[400px]:text-[11px] sm:text-sm font-bold uppercase ${party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-500"}`}>
-                {isExpense ? (party.currentDue !== 0 ? 'DR' : '') : (party.currentDue > 0 ? 'DR' : party.currentDue < 0 ? 'CR' : '')}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-
-      {/* Main Ledger Statement Table Card */}
-      <div className="bg-white rounded-lg sm:rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-        {/* Statement Toolbar */}
-        <div className="p-2 min-[400px]:p-2.5 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-2 sm:gap-4 items-stretch lg:items-center justify-between">
-          <div>
-            <h3 className="font-normal sm:font-bold text-slate-900 text-xs sm:text-base">Statement</h3>
-            <p className="text-[9.5px] min-[400px]:text-[10px] sm:text-xs text-slate-400 font-normal mt-0.2 sm:mt-0.5">
-              Showing 1 to {filteredTxs.length} of {transactions.length} entries
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <div className="relative flex-1 sm:w-64">
-                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search notes or ref..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-7.5 pr-3 py-1 sm:py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-md sm:rounded-lg text-[11px] min-[400px]:text-[11.5px] sm:text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#0055a5] transition-colors"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowDateFilter(!showDateFilter)}
-                className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-2 rounded-md sm:rounded-lg text-[11px] min-[400px]:text-[11.5px] sm:text-xs font-normal border transition-colors cursor-pointer shrink-0 ${
-                  (startDate || endDate || showDateFilter)
-                    ? 'bg-blue-50/80 border-blue-200 text-blue-700'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-                title="Filter by Date"
-              >
-                <Filter size={12} className={(startDate || endDate || showDateFilter) ? "text-blue-600" : "text-slate-500"} />
-                <span>Date Filter</span>
-                {(startDate || endDate) && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-600 ml-0.5"></span>
-                )}
-              </button>
-            </div>
-
-            {/* Date filter inputs expand panel */}
-            {showDateFilter && (
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-2 border-t border-slate-100">
-                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-md sm:rounded-lg px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10.5px] sm:text-xs">
-                  <span className="text-slate-400 font-normal uppercase tracking-wider text-[9px] sm:text-[10px] mr-1">From:</span>
-                  <input 
-                    type="date" 
-                    className="font-mono text-slate-700 bg-transparent focus:outline-none text-[10.5px] sm:text-xs font-normal"
-                    value={startDate}
-                    onChange={e => setStartDate(e.target.value)}
-                  />
-                </div>
-                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-md sm:rounded-lg px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10.5px] sm:text-xs">
-                  <span className="text-slate-400 font-normal uppercase tracking-wider text-[9px] sm:text-[10px] mr-1">To:</span>
-                  <input 
-                    type="date" 
-                    className="font-mono text-slate-700 bg-transparent focus:outline-none text-[10.5px] sm:text-xs font-normal"
-                    value={endDate}
-                    onChange={e => setEndDate(e.target.value)}
-                  />
-                </div>
-                {(startDate || endDate) && (
-                  <button 
-                    onClick={() => { setStartDate(''); setEndDate(''); }}
-                    className="text-[10px] sm:text-xs text-rose-600 hover:text-rose-700 font-normal px-2 py-0.5 sm:py-1 bg-rose-50 hover:bg-rose-100 rounded-md sm:rounded-lg transition-colors cursor-pointer"
-                  >
-                    Clear Dates
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Corporate Accounting Journal Table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left border-collapse table-finance">
-            <thead>
-              <tr className="border-b border-slate-200 bg-white text-[11px] font-semibold uppercase text-slate-700 tracking-wider">
-                <th className="py-3 px-4 w-44">Date & Time</th>
-                <th className="py-3 px-4">Particulars / Description</th>
-                <th className="py-3 px-4 w-32 text-right">Debit (Dr)</th>
-                <th className="py-3 px-4 w-32 text-right">Credit (Cr)</th>
-                <th className="py-3 px-4 w-40 text-right">Running Balance</th>
-                <th className="py-3 px-4 w-20 text-center">Receipt</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
-              {/* Transactions List (Most recent on top) */}
-              {txWithBalance.map((tx) => (
-                <tr 
-                  key={tx.id} 
-                  onClick={() => setSelectedDetailTx(tx)}
-                  className="hover:bg-slate-50/70 cursor-pointer transition-colors"
-                >
-                  <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
-                    {format(new Date(tx.timestamp), 'dd MMM yyyy, HH:mm')}
-                  </td>
-
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center justify-between group">
-                      <div className="min-w-0 pr-2">
-                        <span className="text-slate-800 font-normal block leading-relaxed">
-                          {tx.notes || 'General ledger entry'}
-                        </span>
-                        {tx.invoiceNo && (
-                          <span className="text-[11px] font-normal text-slate-800 inline-block mt-0.5 font-mono uppercase">
-                            Inv #{tx.invoiceNo.toUpperCase()}
-                          </span>
-                        )}
+                      <div className="flex items-center gap-2">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${isDebit ? 'bg-[#FEE2E2] text-[#DC2626]' : 'bg-[#DCFCE7] text-[#16A34A]'}`}>
+                          {isDebit ? (
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline>
+                            </svg>
+                          ) : (
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="17" y1="7" x2="7" y2="17"></line><polyline points="17 17 7 17 7 7"></polyline>
+                            </svg>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-bold text-[#0F172A] mb-0.5 leading-tight truncate max-w-[170px]">
+                            {tx.invoiceNo ? `Invoice #${tx.invoiceNo}` : (tx.notes || (isDebit ? 'Debit Entry' : 'Payment'))}
+                          </div>
+                          <div className="text-[9.5px] text-[#64748B]">
+                            {format(new Date(tx.timestamp), 'hh:mm a')}
+                          </div>
+                        </div>
                       </div>
 
-                      {currentUser?.isAdmin && (
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
-                            type="button" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEditTx(tx);
-                            }} 
-                            className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                            title="Edit Transaction"
-                          >
-                            <Edit2 size={13} />
-                          </button>
-                          <button 
-                            type="button" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeletingTx(tx);
-                              setShowDeleteConfirmModal(true);
-                            }} 
-                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded"
-                            title="Delete Transaction"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                      <div className="text-right shrink-0">
+                        <div className={`text-[11px] font-bold mb-0.5 tabular-nums ${isDebit ? 'text-[#DC2626]' : 'text-[#16A34A]'}`}>
+                          {isDebit ? '-' : '+'}{formatCustomerCurrency(tx.amount, currency)}
                         </div>
-                      )}
-                    </div>
-                  </td>
+                        <span className={`text-[8px] font-bold uppercase tracking-[0.3px] ${isDebit ? 'text-[#DC2626]' : 'text-[#16A34A]'}`}>
+                          {tx.type}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </React.Fragment>
+            ))}
 
-                  <td className="py-3.5 px-4 text-right tabular-nums">
-                    {tx.type === 'DEBIT' ? (
-                      <span className="font-normal text-rose-600">
-                        ₹ {tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </span>
-                    ) : (
-                      <span className="text-slate-400">-</span>
-                    )}
-                  </td>
+            {transactions.length === 0 && (
+              <li className="text-center py-10 px-3 text-[#94A3B8] text-[11px]">
+                No transactions recorded.
+              </li>
+            )}
+          </ul>
+        </div>
 
-                  <td className="py-3.5 px-4 text-right tabular-nums">
-                    {tx.type === 'CREDIT' ? (
-                      <span className="font-normal text-emerald-600">
-                        ₹ {tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </span>
-                    ) : (
-                      <span className="text-slate-400">-</span>
-                    )}
-                  </td>
+        {/* MORE OPTIONS MODAL */}
+        {showMoreMenu && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-white rounded-xl w-full max-w-xs border border-slate-200 p-4 space-y-3 shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 className="font-bold text-sm text-[#0F172A]">Customer Actions</h3>
+                <button 
+                  onClick={() => setShowMoreMenu(false)}
+                  className="text-slate-400 hover:text-slate-600 p-0.5"
+                >
+                  <X size={16} />
+                </button>
+              </div>
 
-                  <td className="py-3.5 px-4 text-right tabular-nums">
-                    <span className={`font-normal ${(tx.runningBalance ?? 0) > 0 ? 'text-rose-600' : (tx.runningBalance ?? 0) < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
-                      ₹ {Math.abs(tx.runningBalance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {(tx.runningBalance ?? 0) >= 0 ? 'DR' : 'CR'}
-                    </span>
-                  </td>
+              {/* Interface Size Toggle */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">Interface Size</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleDensityChange('compact')}
+                    className={`px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
+                      density === 'compact' 
+                        ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Compact (Default)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDensityChange('ultra')}
+                    className={`px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
+                      density === 'ultra' 
+                        ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Ultra-Compact
+                  </button>
+                </div>
+              </div>
 
-                  <td className="py-3.5 px-4 text-center" onClick={e => e.stopPropagation()}>
+              {/* Currency Selector */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">Currency Symbol</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: 'Rp', label: 'Rp' },
+                    { id: '₹', label: '₹' },
+                    { id: '$', label: '$' }
+                  ].map(c => (
                     <button
+                      key={c.id}
                       type="button"
-                      onClick={() => setReceiptTx(tx)}
-                      className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors"
-                      title="Print Thermal Receipt"
+                      onClick={() => handleCurrencyChange(c.id)}
+                      className={`px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
+                        currency === c.id 
+                          ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
                     >
-                      <FileText size={14} />
+                      {c.label}
                     </button>
-                  </td>
-                </tr>
-              ))}
-
-              {/* Opening Balance Row */}
-              <tr className="bg-slate-50/40 font-normal">
-                <td className="py-3.5 px-4 text-slate-400">-</td>
-                <td className="py-3.5 px-4">
-                  <span className="font-normal text-slate-800">
-                    Opening Balance
-                  </span>
-                  <span className="text-slate-400 ml-2">(Initial ledger balance)</span>
-                </td>
-                <td className="py-3.5 px-4 text-right text-slate-700 tabular-nums">
-                  {(party?.openingBalance ?? 0) > 0 ? (party?.openingBalance ?? 0).toFixed(2) : '-'}
-                </td>
-                <td className="py-3.5 px-4 text-right text-slate-400 tabular-nums">
-                  {(party?.openingBalance ?? 0) < 0 ? Math.abs(party?.openingBalance ?? 0).toFixed(2) : '-'}
-                </td>
-                <td className="py-3.5 px-4 text-right tabular-nums">
-                  <span className={`font-normal ${(party?.openingBalance ?? 0) > 0 ? 'text-rose-600' : (party?.openingBalance ?? 0) < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
-                    ₹ {Math.abs(party?.openingBalance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {(party?.openingBalance ?? 0) >= 0 ? 'DR' : 'CR'}
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-center text-slate-400">-</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer row: Total entries */}
-        <div className="px-4 py-3 border-t border-slate-100 bg-white text-xs text-slate-500 font-medium">
-          Total {txWithBalance.length + 1} entries
-        </div>
-
-        {/* Mobile View Card List (Cards matching user's design layout - Compact) */}
-        <div className="block md:hidden p-2 space-y-1.5 bg-slate-50/50">
-          {txWithBalance.map((tx) => (
-            <div 
-              key={tx.id} 
-              onClick={() => setSelectedDetailTx(tx)}
-              className="bg-white rounded-lg border border-slate-200/90 p-2 shadow-2xs hover:border-blue-300 transition-all cursor-pointer flex gap-2 items-start"
-            >
-              {/* Left Calendar Block */}
-              <div className="bg-slate-50 border border-slate-100 rounded-md p-1 min-w-[50px] flex flex-col items-center justify-center text-center shrink-0">
-                <Calendar size={11} className="text-slate-400 mb-0.5" />
-                <span className="text-sm font-bold text-slate-900 leading-tight">
-                  {format(new Date(tx.timestamp), 'dd')}
-                </span>
-                <span className="text-[8.5px] text-slate-500 font-medium leading-tight mt-0.5">
-                  {format(new Date(tx.timestamp), 'MMM yyyy')}
-                </span>
-                <span className="text-[8.5px] text-blue-600 font-medium leading-tight mt-0.5">
-                  {format(new Date(tx.timestamp), 'hh:mm a')}
-                </span>
-              </div>
-
-              {/* Right Content Details */}
-              <div className="flex-1 min-w-0">
-                {/* Header Row: Title & Document Icon */}
-                <div className="flex items-start justify-between gap-1">
-                  <h4 className="font-semibold text-slate-900 text-[11px] line-clamp-1">
-                    {tx.notes || 'General ledger entry'}
-                  </h4>
-                  <FileText size={12} className="text-slate-400 shrink-0 mt-0.5" />
-                </div>
-
-                {/* Invoice Ref */}
-                <div className="mt-0.5">
-                  {tx.invoiceNo ? (
-                    <span className="text-[10.5px] font-normal text-slate-800 font-mono uppercase">
-                      Inv #{tx.invoiceNo.toUpperCase()}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-slate-400">
-                      General ledger entry
-                    </span>
-                  )}
-                </div>
-
-                {/* Bottom Row: Amount & Running Balance */}
-                <div className="mt-1.5 pt-1.5 border-t border-slate-100 grid grid-cols-2 gap-1.5 items-center">
-                  {/* Amount Block */}
-                  <div>
-                    <span className={`text-[9.5px] font-semibold block ${tx.type === 'CREDIT' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {tx.type === 'CREDIT' ? 'Credit' : 'Debit'}
-                    </span>
-                    <span className="text-[8.5px] text-slate-400 block -mt-0.5">Amount</span>
-                    <div className={`text-[11px] min-[380px]:text-xs font-bold tracking-tight mt-0.5 tabular-nums ${tx.type === 'CREDIT' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      ₹ {tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </div>
-                  </div>
-
-                  {/* Running Balance Block */}
-                  <div className="pl-2 border-l border-slate-100">
-                    <span className="text-[8.5px] text-slate-500 block">Running Balance</span>
-                    <div className={`text-[11px] min-[380px]:text-xs font-bold tracking-tight mt-0.5 tabular-nums ${(tx.runningBalance ?? 0) > 0 ? 'text-rose-600' : (tx.runningBalance ?? 0) < 0 ? 'text-emerald-600' : 'text-slate-800'}`}>
-                      ₹ {Math.abs(tx.runningBalance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {(tx.runningBalance ?? 0) >= 0 ? 'DR' : 'CR'}
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          ))}
 
-          {/* Opening Balance Card */}
-          <div className="bg-white rounded-lg border border-slate-200/90 p-2 shadow-2xs flex gap-2 items-start">
-            {/* Left Calendar Block for Opening Balance */}
-            <div className="bg-slate-50 border border-slate-100 rounded-md p-1 min-w-[50px] flex flex-col items-center justify-center text-center shrink-0">
-              <Calendar size={11} className="text-slate-400 mb-0.5" />
-              <span className="text-sm font-bold text-slate-400 leading-tight">-</span>
-              <span className="text-[8.5px] text-slate-400 font-medium leading-tight mt-0.5">-</span>
-              <span className="text-[8.5px] text-slate-400 font-medium leading-tight mt-0.5">-</span>
-            </div>
+              <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => { setShowMoreMenu(false); handleOpenEditParty(); }}
+                  className="w-full py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 flex items-center justify-center gap-1.5 transition"
+                >
+                  <Edit2 size={13} className="text-blue-600" />
+                  <span>Edit Customer Details</span>
+                </button>
 
-            {/* Right Content Details for Opening Balance */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-1">
-                <h4 className="font-semibold text-slate-900 text-[11px]">
-                  Opening Balance
-                </h4>
-                <FileText size={12} className="text-slate-400 shrink-0 mt-0.5" />
+                {currentUser?.isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => { setShowMoreMenu(false); handleRecalculateBalance(); }}
+                    disabled={isRecalculating}
+                    className="w-full py-1.5 px-2.5 bg-amber-50 hover:bg-amber-100 rounded-lg text-[11px] font-semibold text-amber-800 flex items-center justify-center gap-1.5 transition"
+                  >
+                    <RefreshCw size={13} className={isRecalculating ? "animate-spin text-amber-700" : "text-amber-700"} />
+                    <span>{isRecalculating ? 'Recalculating...' : 'Fix Balance Calculations'}</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(party.id);
+                    setPartyIdCopied(true);
+                    setTimeout(() => setPartyIdCopied(false), 2000);
+                  }}
+                  className="w-full py-1.5 px-2.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-[10.5px] font-mono text-slate-600 flex items-center justify-center gap-1.5 transition"
+                >
+                  <Copy size={12} />
+                  <span>{partyIdCopied ? 'ID Copied!' : `Copy ID: ${party.id.substring(0, 12)}...`}</span>
+                </button>
               </div>
 
-              <div className="mt-0.5">
-                <span className="text-[10px] text-slate-400">
-                  (Initial ledger balance)
-                </span>
-              </div>
-
-              <div className="mt-1.5 pt-1.5 border-t border-slate-100 grid grid-cols-2 gap-1.5 items-center">
-                <div>
-                  <span className={`text-[9.5px] font-semibold block ${(party?.openingBalance ?? 0) >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                    {(party?.openingBalance ?? 0) >= 0 ? 'Debit' : 'Credit'}
-                  </span>
-                  <span className="text-[8.5px] text-slate-400 block -mt-0.5">Amount</span>
-                  <div className={`text-[11px] min-[380px]:text-xs font-bold tracking-tight mt-0.5 tabular-nums ${(party?.openingBalance ?? 0) >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                    ₹ {Math.abs(party?.openingBalance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </div>
-                </div>
-
-                <div className="pl-2 border-l border-slate-100">
-                  <span className="text-[8.5px] text-slate-500 block">Running Balance</span>
-                  <div className={`text-[11px] min-[380px]:text-xs font-bold tracking-tight mt-0.5 tabular-nums ${(party?.openingBalance ?? 0) > 0 ? 'text-rose-600' : (party?.openingBalance ?? 0) < 0 ? 'text-emerald-600' : 'text-slate-800'}`}>
-                    ₹ {Math.abs(party?.openingBalance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {(party?.openingBalance ?? 0) >= 0 ? 'DR' : 'CR'}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Pagination Footer */}
-        {totalPages > 1 && (
-          <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/60">
-            <span className="text-xs text-slate-500 font-medium">
-              Page {currentPage} of {totalPages}
-            </span>
-            <div className="flex items-center space-x-1">
               <button
                 type="button"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                className="p-1.5 border border-slate-300 rounded-md bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40"
+                onClick={() => setShowMoreMenu(false)}
+                className="w-full py-2 bg-[#0F172A] text-white font-bold text-[11px] rounded-lg hover:bg-slate-800 transition"
               >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                type="button"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                className="p-1.5 border border-slate-300 rounded-md bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40"
-              >
-                <ChevronRight size={16} />
+                Close
               </button>
             </div>
           </div>
         )}
+
       </div>
 
       {/* Transaction Modal (Debit / Credit) */}
@@ -1689,12 +1610,15 @@ export default function PartyDetail() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                  Particulars / Notes
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                    Particulars / Notes
+                  </label>
+                  <CaseIndicator isCaps={isCaps} onToggle={toggleManualCaps} />
+                </div>
                 <textarea 
                   value={txNotes} 
-                  onChange={e => { setTxNotes(e.target.value); setTxError(''); }} 
+                  onChange={e => { handleTextChange(e, setTxNotes); setTxError(''); }} 
                   className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 focus:border-blue-600 focus:outline-none" 
                   rows={2} 
                   placeholder="e.g. Goods delivery / NEFT Payment"
@@ -1900,10 +1824,13 @@ export default function PartyDetail() {
 
               {/* Particulars / Notes */}
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Particulars / Description</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600">Particulars / Description</label>
+                  <CaseIndicator isCaps={isCaps} onToggle={toggleManualCaps} />
+                </div>
                 <textarea
                   value={editTxNotes}
-                  onChange={e => { setEditTxNotes(e.target.value); setEditTxError(''); }}
+                  onChange={e => { handleTextChange(e, setEditTxNotes); setEditTxError(''); }}
                   className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md focus:border-blue-600 focus:outline-none"
                   rows={2}
                   placeholder="Describe goods, payment details or notes"
@@ -2074,7 +2001,7 @@ export default function PartyDetail() {
               )}
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Party Name</label>
-                <input required type="text" value={editPartyName} onChange={e => setEditPartyName(e.target.value)} className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs focus:outline-none focus:border-blue-600" />
+                <input required type="text" value={editPartyName} onChange={e => handleTextChange(e, setEditPartyName)} className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs focus:outline-none focus:border-blue-600" />
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Phone Number</label>
@@ -2086,7 +2013,7 @@ export default function PartyDetail() {
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Address</label>
-                <textarea value={editPartyAddress} onChange={e => setEditPartyAddress(e.target.value)} rows={2} className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs focus:outline-none focus:border-blue-600" />
+                <textarea value={editPartyAddress} onChange={e => handleTextChange(e, setEditPartyAddress)} rows={2} className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs focus:outline-none focus:border-blue-600" />
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Status</label>

@@ -1,5 +1,5 @@
 import { db, handleFirestoreError, OperationType, runTransaction, doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where } from '../firebase';
-import { Transaction, Party, DailySummary, DashboardSummary, Balance, CacheVersions } from '../types';
+import { Transaction, Party, DailySummary, DashboardSummary, Balance, CacheVersions, LogEntry } from '../types';
 import { setCacheItem } from './idbCache';
 import { format } from 'date-fns';
 
@@ -103,10 +103,11 @@ export async function createTransaction(newTx: Transaction, party: Party) {
       // Clean & uppercase invoiceNo if provided
       const cleanInvoiceNo = (newTx.invoiceNo || '').trim().toUpperCase();
 
-      // Add running balance to the transaction itself
+      // Add running balance and before amount to the transaction itself
       const txWithBalance = {
         ...newTx,
         invoiceNo: cleanInvoiceNo,
+        beforeAmount: pData.currentDue,
         runningBalance: newBalance
       };
 
@@ -114,6 +115,25 @@ export async function createTransaction(newTx: Transaction, party: Party) {
       const txRef = doc(db, 'transactions', newTx.id);
       transaction.set(txRef, txWithBalance);
       
+      // Update Log Table in Database (table: log)
+      const logRef = doc(db, 'log', newTx.id);
+      const logEntryData: LogEntry = {
+        id: newTx.id,
+        transactionId: newTx.id,
+        ledgerId: newTx.ledgerId,
+        partyId: party.id,
+        partyName: party.name,
+        date: dateStr,
+        type: newTx.type,
+        amount: newTx.amount,
+        beforeAmount: pData.currentDue,
+        afterAmount: newBalance,
+        invoiceNo: cleanInvoiceNo,
+        notes: newTx.notes || '',
+        timestamp: newTx.timestamp
+      };
+      transaction.set(logRef, logEntryData);
+
       // Update Party (pre-calculated total)
       transaction.update(partyRef, {
         currentDue: newBalance,
@@ -206,6 +226,21 @@ export async function editTransaction(
       notes: newNotes
     });
 
+    // Also update log table in database
+    try {
+      const logRef = doc(db, 'log', txId);
+      await updateDoc(logRef, {
+        amount: newAmount,
+        type: newType,
+        timestamp: newTimestamp,
+        date: format(new Date(newTimestamp), 'yyyy-MM-dd'),
+        invoiceNo: newInvoiceNo,
+        notes: newNotes
+      });
+    } catch (e) {
+      // Non-fatal if not exists yet
+    }
+
     // 2. Perform accurate chronological recalculation of all running balances for this party
     await recalculatePartyBalance(party.id, oldTx.ledgerId);
 
@@ -226,6 +261,14 @@ export async function deleteTransaction(oldTx: Transaction, party: Party) {
     await updateDoc(txRef, { isDeleted: true }); // safety
     const { deleteDoc } = await import('../firebase');
     await deleteDoc(txRef);
+
+    // Also delete from log table
+    try {
+      const logRef = doc(db, 'log', oldTx.id);
+      await deleteDoc(logRef);
+    } catch (e) {
+      // Non-fatal
+    }
 
     // 2. Perform accurate recalculation of all running balances and party due
     await recalculatePartyBalance(party.id, oldTx.ledgerId);
@@ -282,6 +325,7 @@ export async function recalculatePartyBalance(partyId: string, ledgerId: string)
     let latestTs = partyData.lastTransaction || Date.now();
 
     for (const tx of txs) {
+      const beforeBal = runningBal;
       const isDebit = tx.type === 'DEBIT';
       if (isDebit) {
         sumDebit += tx.amount;
@@ -292,10 +336,18 @@ export async function recalculatePartyBalance(partyId: string, ledgerId: string)
       }
       latestTs = Math.max(latestTs, tx.timestamp);
 
-      // Update transaction runningBalance if changed
+      // Update transaction runningBalance and beforeAmount if changed
       const tRef = doc(db, 'transactions', tx.id);
-      await updateDoc(tRef, { runningBalance: runningBal });
-      await setCacheItem<Transaction>('transactions', { ...tx, runningBalance: runningBal });
+      await updateDoc(tRef, { runningBalance: runningBal, beforeAmount: beforeBal });
+      await setCacheItem<Transaction>('transactions', { ...tx, runningBalance: runningBal, beforeAmount: beforeBal });
+
+      // Update log table in database with new beforeAmount and afterAmount
+      try {
+        const logRef = doc(db, 'log', tx.id);
+        await updateDoc(logRef, { beforeAmount: beforeBal, afterAmount: runningBal });
+      } catch (e) {
+        // Non-fatal
+      }
     }
 
     const updatedParty: Party = {
@@ -503,6 +555,56 @@ export async function updateDashboardPartiesCount(ledgerId: string, countChange:
     });
   } catch (err) {
     console.error("Error updating parties count", err);
+  }
+}
+
+// Function to automatically sync all transactions into the 'log' database table
+export async function syncTransactionsToLogTable(transactions: Transaction[], parties: Record<string, Party>): Promise<void> {
+  if (!transactions || transactions.length === 0) return;
+  try {
+    const existingLogSnap = await getDocs(collection(db, 'log'));
+    const existingLogIds = new Set(existingLogSnap.docs.map(d => d.id));
+    
+    const missingTx = transactions.filter(tx => !existingLogIds.has(tx.id));
+
+    for (const tx of missingTx) {
+      const party = parties[tx.partyId];
+      const afterAmt = tx.runningBalance !== undefined ? tx.runningBalance : (party?.currentDue ?? tx.amount);
+      const balanceChange = tx.type === 'DEBIT' ? tx.amount : -tx.amount;
+      const beforeAmt = tx.beforeAmount !== undefined ? tx.beforeAmount : (afterAmt - balanceChange);
+      const logEntry: LogEntry = {
+        id: tx.id,
+        transactionId: tx.id,
+        ledgerId: tx.ledgerId,
+        partyId: tx.partyId,
+        partyName: party?.name || 'Unknown Party',
+        date: format(new Date(tx.timestamp), 'yyyy-MM-dd'),
+        type: tx.type,
+        amount: tx.amount,
+        beforeAmount: beforeAmt,
+        afterAmount: afterAmt,
+        invoiceNo: tx.invoiceNo || '',
+        notes: tx.notes || '',
+        timestamp: tx.timestamp
+      };
+      await setDoc(doc(db, 'log', tx.id), logEntry);
+    }
+
+    // Also verify existing log entries have beforeAmount populated in data
+    const needBeforeAmount = existingLogSnap.docs.filter(d => {
+      const data = d.data();
+      return data && data.beforeAmount === undefined;
+    });
+    for (const d of needBeforeAmount) {
+      const data = d.data();
+      const afterAmt = Number(data.afterAmount ?? data.amount ?? 0);
+      const amt = Number(data.amount ?? 0);
+      const isDebit = data.type === 'DEBIT';
+      const beforeAmt = isDebit ? (afterAmt - amt) : (afterAmt + amt);
+      await updateDoc(doc(db, 'log', d.id), { beforeAmount: beforeAmt });
+    }
+  } catch (err) {
+    console.warn("syncTransactionsToLogTable notice:", err);
   }
 }
 

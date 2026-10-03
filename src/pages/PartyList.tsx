@@ -1,29 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType, doc, setDoc } from '../firebase';
-import { Party } from '../types';
+import { Party, Transaction } from '../types';
 import { 
   UserPlus, 
   Search, 
-  ChevronLeft, 
   ChevronRight, 
+  ArrowLeft,
   Upload, 
   Loader2, 
   X, 
-  Phone, 
-  Mail, 
-  MapPin, 
-  Users, 
-  TrendingDown, 
-  TrendingUp, 
-  ArrowRight,
-  Filter,
-  FileSpreadsheet,
-  Download,
+  Check, 
+  Copy, 
+  BarChart2,
   CheckCircle2,
-  Copy,
-  Check
+  Phone,
+  Mail,
+  SlidersHorizontal,
+  Sparkles,
+  Plus
 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../AuthContext';
 import { useLedger } from '../LedgerContext';
@@ -32,24 +30,28 @@ import { getFilteredCacheItems, setCacheItem } from '../lib/idbCache';
 import { updateDashboardPartiesCount } from '../lib/transactionService';
 import { formatContactWith91 } from '../lib/phoneUtils';
 import BulkImportPartiesModal from '../components/BulkImportPartiesModal';
-import PageHeader from '../components/ui/PageHeader';
-import StatCard from '../components/ui/StatCard';
-import AmountDisplay from '../components/ui/AmountDisplay';
-import Badge from '../components/ui/Badge';
-import { Card, CardHeader, CardBody } from '../components/ui/Card';
-
-const ITEMS_PER_PAGE = 20;
+import { useLedgerTextCase, CaseIndicator } from '../lib/textCaseHelper';
+import { 
+  getAvatarColor, 
+  formatCustomerCurrency, 
+  DEMO_CUSTOMERS_DATA 
+} from '../lib/customerTheme';
 
 export default function PartyList() {
   const { activeLedger } = useLedger();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+
   const [parties, setParties] = useState<Party[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'DUE' | 'ADVANCE' | 'INACTIVE'>('ALL');
   const [sortOrder, setSortOrder] = useState<'recent' | 'name' | 'due_desc' | 'due_asc'>('recent');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currency, setCurrency] = useState<string>(() => localStorage.getItem('party_currency') || 'Rp');
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+  const [showChart, setShowChart] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
 
   // Add Party Form State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -59,36 +61,49 @@ export default function PartyList() {
   const [addEmail, setAddEmail] = useState('');
   const [addOpeningBalance, setAddOpeningBalance] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { isCaps, toggleManualCaps, handleTextChange } = useLedgerTextCase();
 
   // Bulk Import State
   const [showImportModal, setShowImportModal] = useState(false);
   const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [density, setDensity] = useState<'compact' | 'ultra'>(() => (localStorage.getItem('party_density') as any) || 'compact');
 
-  const handleCopyPartyId = (e: React.MouseEvent, partyId: string) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(partyId);
-    setCopiedId(partyId);
-    setTimeout(() => {
-      setCopiedId(null);
-    }, 2000);
+  const handleDensityChange = (d: 'compact' | 'ultra') => {
+    setDensity(d);
+    localStorage.setItem('party_density', d);
   };
 
-  // 1. Initial Load & Background Sync
+  const handleCurrencyChange = (curr: string) => {
+    setCurrency(curr);
+    localStorage.setItem('party_currency', curr);
+  };
+
+  // Initial Load & Background Sync
   const loadParties = async () => {
     if (!activeLedger?.id) return;
     setIsLoading(true);
     try {
-      // Load cached items
-      const cached = await getFilteredCacheItems<Party>('parties', p => p.ledgerId === activeLedger.id);
-      setParties(cached);
+      const [cachedParties, cachedTxs] = await Promise.all([
+        getFilteredCacheItems<Party>('parties', p => p.ledgerId === activeLedger.id),
+        getFilteredCacheItems<Transaction>('transactions', t => t.ledgerId === activeLedger.id)
+      ]);
+      setParties(cachedParties);
+      setTransactions(cachedTxs);
 
       // Background sync from remote database
-      await syncCollection<Party>('parties', activeLedger.id, 'parties');
-      const fresh = await getFilteredCacheItems<Party>('parties', p => p.ledgerId === activeLedger.id);
-      setParties(fresh);
+      await Promise.all([
+        syncCollection<Party>('parties', activeLedger.id, 'parties'),
+        syncCollection<Transaction>('transactions', activeLedger.id, 'transactions')
+      ]);
+      const [freshParties, freshTxs] = await Promise.all([
+        getFilteredCacheItems<Party>('parties', p => p.ledgerId === activeLedger.id),
+        getFilteredCacheItems<Transaction>('transactions', t => t.ledgerId === activeLedger.id)
+      ]);
+      setParties(freshParties);
+      setTransactions(freshTxs);
     } catch (e) {
-      console.error("Failed to load parties:", e);
+      console.error("Failed to load parties and transactions:", e);
     } finally {
       setIsLoading(false);
     }
@@ -96,55 +111,82 @@ export default function PartyList() {
 
   useEffect(() => {
     loadParties();
-
-    const handleSync = () => {
-      loadParties();
-    };
+    const handleSync = () => { loadParties(); };
     window.addEventListener('database-synced', handleSync);
-    return () => {
-      window.removeEventListener('database-synced', handleSync);
-    };
+    return () => { window.removeEventListener('database-synced', handleSync); };
   }, [activeLedger?.id]);
 
-  // Reset page when filter or search changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, statusFilter, sortOrder]);
+  // Seed Demo Customers from the user's snippet
+  const handleSeedDemoCustomers = async () => {
+    if (!activeLedger?.id || isSeeding) return;
+    setIsSeeding(true);
+    try {
+      for (const item of DEMO_CUSTOMERS_DATA) {
+        const partyId = uuidv4();
+        const now = Date.now();
+        
+        let currentBalance = 0;
+        const txList: Transaction[] = [];
 
-  // 2. Filter & Sort
-  const filteredParties = parties
-    .filter(p => {
-      if (statusFilter === 'DUE') return p.currentDue > 0;
-      if (statusFilter === 'ADVANCE') return p.currentDue < 0;
-      if (statusFilter === 'INACTIVE') return p.status === 'Inactive';
-      return true;
-    })
-    .filter(p => {
-      if (!search.trim()) return true;
-      const q = search.toLowerCase().trim();
-      return (
-        (p.name || '').toLowerCase().includes(q) ||
-        (p.phone || '').includes(q) ||
-        (p.email || '').toLowerCase().includes(q) ||
-        (p.address || '').toLowerCase().includes(q) ||
-        (p.id || '').toLowerCase().includes(q)
-      );
-    })
-    .sort((a, b) => {
-      if (sortOrder === 'name') {
-        return a.name.localeCompare(b.name);
-      }
-      if (sortOrder === 'due_desc') {
-        return b.currentDue - a.currentDue;
-      }
-      if (sortOrder === 'due_asc') {
-        return a.currentDue - b.currentDue;
-      }
-      // 'recent' by lastTransaction
-      return (b.lastTransaction || 0) - (a.lastTransaction || 0);
-    });
+        // Build sample transactions
+        item.transactions.forEach((tx, idx) => {
+          const txTimestamp = now - (tx.daysAgo * 86400000) - (tx.hoursAgo * 3600000);
+          if (tx.type === 'DEBIT') {
+            currentBalance += tx.amount;
+          } else {
+            currentBalance -= tx.amount;
+          }
 
-  // 3. Add Party Handler
+          const newTx: Transaction = {
+            id: uuidv4(),
+            ledgerId: activeLedger.id,
+            partyId: partyId,
+            invoiceNo: tx.notes.includes('INV-') ? tx.notes.replace('Invoice #', '') : '',
+            type: tx.type,
+            amount: tx.amount,
+            notes: tx.notes,
+            timestamp: txTimestamp,
+            runningBalance: currentBalance,
+            paymentMode: tx.type === 'CREDIT' ? 'Bank' : undefined
+          };
+          txList.push(newTx);
+        });
+
+        const newParty: Party = {
+          id: partyId,
+          ledgerId: activeLedger.id,
+          name: item.name,
+          phone: item.phone,
+          email: item.email,
+          address: item.address,
+          openingBalance: 0,
+          currentDue: currentBalance,
+          lastTransaction: txList.length > 0 ? txList[0].timestamp : now,
+          status: 'Active'
+        };
+
+        await setCacheItem<Party>('parties', newParty);
+        await setDoc(doc(db, 'parties', partyId), newParty);
+
+        for (const t of txList) {
+          await setCacheItem<Transaction>('transactions', t);
+          await setDoc(doc(db, 'transactions', t.id), t);
+        }
+      }
+
+      await updateDashboardPartiesCount(activeLedger.id, DEMO_CUSTOMERS_DATA.length);
+      window.dispatchEvent(new CustomEvent('database-synced'));
+      await loadParties();
+      setImportSuccessMsg(`Loaded 8 demo customers with complete transaction history!`);
+      setTimeout(() => setImportSuccessMsg(null), 4000);
+    } catch (err) {
+      console.error('Failed to seed demo customers:', err);
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  // Add Party Form Submit
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting || !activeLedger?.id) return;
@@ -158,7 +200,7 @@ export default function PartyList() {
       id,
       ledgerId: activeLedger.id,
       name: addName.trim(),
-      phone: formatContactWith91(addPhone),
+      phone: addPhone.trim(),
       address: addAddress.trim(),
       email: addEmail.trim(),
       openingBalance: balance,
@@ -188,574 +230,514 @@ export default function PartyList() {
     }
   };
 
-  // 4. Bulk CSV / Excel Import Callback
-  const handleImportSuccess = (importedCount: number) => {
-    loadParties();
-    setImportSuccessMsg(`Successfully imported ${importedCount} party account${importedCount === 1 ? '' : 's'}!`);
-    setTimeout(() => {
-      setImportSuccessMsg(null);
-    }, 4000);
-  };
+  // Filtered & Sorted Customer List
+  const filteredParties = useMemo(() => {
+    return parties
+      .filter(p => {
+        if (statusFilter === 'DUE') return p.currentDue > 0;
+        if (statusFilter === 'ADVANCE') return p.currentDue < 0;
+        if (statusFilter === 'INACTIVE') return p.status === 'Inactive';
+        return true;
+      })
+      .filter(p => {
+        if (!search.trim()) return true;
+        const q = search.toLowerCase().trim();
+        return (
+          p.name.toLowerCase().includes(q) ||
+          (p.phone || '').toLowerCase().includes(q) ||
+          (p.email || '').toLowerCase().includes(q) ||
+          (p.address || '').toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => {
+        if (sortOrder === 'name') return a.name.localeCompare(b.name);
+        if (sortOrder === 'due_desc') return b.currentDue - a.currentDue;
+        if (sortOrder === 'due_asc') return a.currentDue - b.currentDue;
+        return (b.lastTransaction || 0) - (a.lastTransaction || 0);
+      });
+  }, [parties, statusFilter, search, sortOrder]);
 
-  const totalPages = Math.ceil(filteredParties.length / ITEMS_PER_PAGE);
-  const paginatedParties = filteredParties.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
+  const totalReceivable = useMemo(() => {
+    return parties.filter(p => p.currentDue > 0).reduce((acc, p) => acc + p.currentDue, 0);
+  }, [parties]);
 
-  const totalReceivable = parties.filter(p => p.currentDue > 0).reduce((acc, p) => acc + p.currentDue, 0);
-  const totalPayable = parties.filter(p => p.currentDue < 0).reduce((acc, p) => acc + Math.abs(p.currentDue), 0);
-
-  const isPurchase = activeLedger?.type === 'PURCHASE';
-  const isExpense = activeLedger?.type === 'EXPENSE';
-
-  if (!activeLedger) {
-    return <div className="p-8 text-center text-slate-500 font-medium">Please select a ledger.</div>;
-  }
+  const totalPayable = useMemo(() => {
+    return parties.filter(p => p.currentDue < 0).reduce((acc, p) => acc + Math.abs(p.currentDue), 0);
+  }, [parties]);
 
   return (
-    <div className="p-2 min-[400px]:p-3 sm:p-8 pt-1 min-[400px]:pt-1.5 sm:pt-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-2 sm:space-y-6">
-      
-      {/* Import Success Banner */}
-      {importSuccessMsg && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center justify-between shadow-2xs animate-in fade-in">
+    <div className={`w-full min-h-screen bg-white sm:bg-[#F8FAFC] pb-16 font-customer ${density === 'ultra' ? 'text-[11px]' : 'text-xs'}`}>
+      <div className="w-full min-h-screen bg-white flex flex-col relative sm:max-w-xl md:max-w-2xl sm:mx-auto sm:border-x sm:border-slate-100 sm:shadow-xs transition-all">
+        
+        {/* ========================================================================= */}
+        {/* COMPACT HEADER BAR                                                        */}
+        {/* ========================================================================= */}
+        <header className="px-3 py-1.5 flex items-center justify-between bg-white sticky top-0 z-20 border-b border-slate-100">
           <div className="flex items-center gap-2">
-            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-            <span>{importSuccessMsg}</span>
-          </div>
-          <button 
-            type="button" 
-            onClick={() => setImportSuccessMsg(null)}
-            className="text-emerald-600 hover:text-emerald-800 p-1"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
-      {/* Page Header */}
-      <div className="flex flex-row items-center justify-between gap-1.5 sm:gap-4">
-        <div>
-          <div className="flex items-center gap-1.5 sm:gap-3 flex-wrap">
-            <h1 className="text-sm min-[400px]:text-base sm:text-3xl font-semibold sm:font-bold text-slate-900 tracking-tight">
-              {isExpense ? "Expense Accounts & Payees" : isPurchase ? "Purchases Parties" : "Party Ledgers"}
-            </h1>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1 sm:gap-3 shrink-0">
-          {currentUser?.isAdmin && (
-            <button
-              type="button"
-              onClick={() => setShowImportModal(true)}
-              className="inline-flex items-center justify-center px-2 sm:px-3 py-1 sm:py-1.5 text-blue-700 bg-blue-50 hover:bg-blue-100/80 border border-blue-200/80 rounded-md sm:rounded-xl text-[11px] sm:text-xs font-bold transition shadow-2xs"
-              title="Bulk import party names and contacts from CSV or Excel files"
+            <button 
+              onClick={() => navigate('/')}
+              className="p-1 text-[#0F172A] rounded-md hover:bg-slate-100 active:opacity-60 transition" 
+              aria-label="Go back"
             >
-              <Upload size={13} className="mr-1 text-blue-600" />
-              <span>Import CSV / Excel</span>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+              </svg>
             </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center justify-center gap-0.5 sm:gap-1 text-[10.5px] sm:text-sm font-semibold text-white bg-[#0055a5] hover:bg-blue-800 transition py-1 sm:py-1.5 px-2.5 sm:px-3.5 rounded-md sm:rounded-xl shadow-2xs"
-          >
-            <UserPlus size={14} />
-            <span>Add <span className="hidden min-[380px]:inline">New </span>{isExpense ? 'Expense Head' : isPurchase ? 'Vendor' : 'Party'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 3 Metric Cards */}
-      <div className="grid grid-cols-3 gap-1.5 sm:gap-4">
-        
-        {/* Card 1: TOTAL REGISTERED PARTIES */}
-        <div className={`bg-white rounded-lg sm:rounded-2xl border ${isExpense ? 'border-rose-200' : isPurchase ? 'border-purple-200' : 'border-slate-200'} p-1.5 min-[400px]:p-2.5 sm:p-6 shadow-2xs flex flex-col justify-between`}>
-          <span className="text-[8px] min-[400px]:text-[9px] sm:text-[11px] font-normal uppercase tracking-wider text-slate-500 truncate">
-            {isExpense ? "Expense Heads" : "Parties"}
-          </span>
-          <div className="mt-0.5 sm:mt-3">
-            <div className={`text-xs min-[400px]:text-sm sm:text-4xl font-normal sm:font-bold ${isExpense ? 'text-rose-700' : isPurchase ? 'text-purple-800' : 'text-[#0055a5]'} tracking-tight`}>
-              {parties.length}
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-sm font-bold text-[#0F172A] tracking-tight">Customers</h1>
+              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600">
+                {parties.length}
+              </span>
             </div>
           </div>
-        </div>
 
-        {/* Card 2: TOTAL RECEIVABLES (DUES) / EXPENSES PAYABLE */}
-        <div className="bg-white rounded-lg sm:rounded-2xl border border-slate-200 p-1.5 min-[400px]:p-2.5 sm:p-6 shadow-2xs flex flex-col justify-between">
-          <span className="text-[8px] min-[400px]:text-[9px] sm:text-[11px] font-normal uppercase tracking-wider text-slate-500 truncate">
-            {isExpense ? "Total Expenses (Payable)" : "Receivables"}
-          </span>
-          <div className="mt-0.5 sm:mt-3">
-            <div className="text-[10px] min-[400px]:text-xs sm:text-3xl font-normal sm:font-bold text-rose-600 tracking-tight tabular-nums flex items-baseline gap-0.5">
-              <span>₹{totalReceivable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              <span className="text-[8px] min-[400px]:text-[9px] sm:text-xs font-normal sm:font-bold uppercase text-rose-600">DR</span>
-            </div>
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setShowFilterDrawer(true)}
+              className="p-1 text-[#1E3A8A] rounded-md hover:bg-slate-100 active:opacity-60 transition" 
+              aria-label="Filter"
+              title="Filter & Tools"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E3A8A" strokeWidth="2.3" strokeLinecap="round">
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="6" y1="12" x2="18" y2="12"></line>
+                <line x1="10" y1="18" x2="14" y2="18"></line>
+              </svg>
+            </button>
           </div>
-        </div>
+        </header>
 
-        {/* Card 3: TOTAL PAYABLES (ADVANCES) */}
-        <div className="bg-white rounded-lg sm:rounded-2xl border border-slate-200 p-1.5 min-[400px]:p-2.5 sm:p-6 shadow-2xs flex flex-col justify-between">
-          <span className="text-[8px] min-[400px]:text-[9px] sm:text-[11px] font-normal uppercase tracking-wider text-slate-500 truncate">
-            {isExpense ? "Settled / Credit" : "Payables"}
-          </span>
-          <div className="mt-0.5 sm:mt-3">
-            <div className="text-[10px] min-[400px]:text-xs sm:text-3xl font-normal sm:font-bold text-emerald-600 tracking-tight tabular-nums flex items-baseline gap-0.5">
-              <span>₹{totalPayable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              <span className="text-[8px] min-[400px]:text-[9px] sm:text-xs font-normal sm:font-bold uppercase text-emerald-600">CR</span>
+        {/* Import Banner Notification */}
+        {importSuccessMsg && (
+          <div className="mx-3 my-1 p-2 bg-emerald-50 border border-emerald-200 rounded-md text-[10.5px] text-emerald-800 font-semibold flex items-center justify-between shadow-xs animate-in fade-in">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+              <span>{importSuccessMsg}</span>
             </div>
+            <button 
+              type="button" 
+              onClick={() => setImportSuccessMsg(null)}
+              className="text-emerald-600 hover:text-emerald-800 p-0.5"
+            >
+              <X size={11} />
+            </button>
           </div>
-        </div>
+        )}
 
-      </div>
-
-      {/* Main Table Container */}
-      <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-        
-        {/* Search & Filter Toolbar */}
-        <div className="p-2 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-2 sm:gap-4 items-stretch lg:items-center justify-between">
-          
-          {/* Search Field */}
-          <div className="relative flex-1 max-w-md">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search party name, phone..."
+        {/* ========================================================================= */}
+        {/* COMPACT SEARCH SECTION                                                    */}
+        {/* ========================================================================= */}
+        <div className="px-3 pt-1 pb-1.5 bg-white">
+          <div className="flex items-center bg-[#F1F5F9] rounded-lg px-2.5 py-1 gap-1.5">
+            <span className="text-[#64748B] flex items-center shrink-0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="7.5"></circle>
+                <line x1="21" y1="21" x2="16.5" y2="16.5"></line>
+              </svg>
+            </span>
+            <input 
+              type="text" 
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full pl-7.5 pr-7 py-1 sm:py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-md sm:rounded-lg text-[11px] min-[400px]:text-[11.5px] sm:text-sm font-normal text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#0055a5] transition-colors"
+              className="border-none outline-none bg-transparent w-full text-[11px] text-[#1E293B] font-normal placeholder:text-[#94A3B8]" 
+              placeholder="Search customer..." 
+              autoComplete="off"
             />
             {search && (
-              <button
+              <button 
                 onClick={() => setSearch('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="text-[#94A3B8] hover:text-[#0F172A] p-0.5"
               >
-                <X size={13} />
+                <X size={11} />
               </button>
             )}
           </div>
-
-          {/* Underline Tabs & Sort Dropdown */}
-          <div className="flex items-center justify-between lg:justify-end gap-2 sm:gap-5">
-            {/* Status Tabs */}
-            <div className="flex items-center space-x-2 min-[400px]:space-x-3 sm:space-x-6 text-[10.5px] min-[400px]:text-[11px] sm:text-sm overflow-x-auto">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('ALL')}
-                className={`py-0.5 sm:py-1 whitespace-nowrap transition-all ${
-                  statusFilter === 'ALL'
-                    ? 'border-b-2 border-[#0055a5] text-[#0055a5] font-medium sm:font-semibold'
-                    : 'text-slate-500 hover:text-slate-900 font-normal'
-                }`}
-              >
-                All ({parties.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('DUE')}
-                className={`py-0.5 sm:py-1 whitespace-nowrap transition-all ${
-                  statusFilter === 'DUE'
-                    ? 'border-b-2 border-[#0055a5] text-[#0055a5] font-medium sm:font-semibold'
-                    : 'text-slate-500 hover:text-slate-900 font-normal'
-                }`}
-              >
-                Debtors ({parties.filter(p => p.currentDue > 0).length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('ADVANCE')}
-                className={`py-0.5 sm:py-1 whitespace-nowrap transition-all ${
-                  statusFilter === 'ADVANCE'
-                    ? 'border-b-2 border-[#0055a5] text-[#0055a5] font-medium sm:font-semibold'
-                    : 'text-slate-500 hover:text-slate-900 font-normal'
-                }`}
-              >
-                Creditors ({parties.filter(p => p.currentDue < 0).length})
-              </button>
-            </div>
-
-            {/* Sort Select */}
-            <select
-              value={sortOrder}
-              onChange={e => setSortOrder(e.target.value as any)}
-              className="bg-white border border-slate-200 hover:border-slate-300 rounded-md sm:rounded-lg px-2 py-0.5 sm:py-1.5 text-[10px] min-[400px]:text-[10.5px] sm:text-sm text-slate-600 font-normal sm:font-medium focus:outline-none focus:border-[#0055a5] transition-colors cursor-pointer shrink-0"
-            >
-              <option value="recent">Recent</option>
-              <option value="name">Name (A-Z)</option>
-              <option value="due_desc">Due: High-Low</option>
-              <option value="due_asc">Due: Low-High</option>
-            </select>
-          </div>
         </div>
 
-        {/* Accounting Table (Desktop) */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 bg-white text-[11px] font-semibold uppercase text-slate-700 tracking-wider">
-                <th className="py-3.5 px-4 w-5/12">Party Name & Information</th>
-                <th className="py-3.5 px-4 w-3/12">Contact Phone</th>
-                <th className="py-3.5 px-4 w-2/12 text-right">Current Ledger Balance</th>
-                {currentUser?.isAdmin && (
-                  <th className="py-3.5 px-4 w-1/12 text-center">Status</th>
-                )}
-                <th className="py-3.5 px-4 w-12 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
-              {paginatedParties.map((party) => {
+        {/* Compact Quick Status Filter Pills */}
+        <div className="px-3 pb-1.5 flex items-center gap-1 overflow-x-auto no-scrollbar">
+          <button
+            onClick={() => setStatusFilter('ALL')}
+            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors ${
+              statusFilter === 'ALL'
+                ? 'bg-[#0F172A] text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            All ({parties.length})
+          </button>
+          <button
+            onClick={() => setStatusFilter('DUE')}
+            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors ${
+              statusFilter === 'DUE'
+                ? 'bg-rose-600 text-white'
+                : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+            }`}
+          >
+            Debtors ({parties.filter(p => p.currentDue > 0).length})
+          </button>
+          <button
+            onClick={() => setStatusFilter('ADVANCE')}
+            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors ${
+              statusFilter === 'ADVANCE'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+            }`}
+          >
+            Creditors ({parties.filter(p => p.currentDue < 0).length})
+          </button>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* COMPACT CUSTOMER LIST                                                     */}
+        {/* ========================================================================= */}
+        <main className="flex-1 pb-16">
+          {isLoading && parties.length === 0 ? (
+            <div className="py-12 text-center text-slate-400">
+              <Loader2 className="animate-spin mx-auto mb-1.5 text-blue-600" size={18} />
+              <p className="text-[11px] font-medium">Loading customers...</p>
+            </div>
+          ) : (
+            <ul className="list-none m-0 p-0">
+              {filteredParties.map((party) => {
+                const avatar = getAvatarColor(party.name);
+                const initial = party.name.trim().charAt(0).toUpperCase() || 'C';
+
                 return (
-                  <tr 
-                    key={party.id} 
+                  <li 
+                    key={party.id}
                     onClick={() => navigate(`/parties/${party.id}`)}
-                    className="hover:bg-slate-50/60 cursor-pointer transition-colors"
+                    className="flex items-center px-3 py-1.5 cursor-pointer border-b border-[#F1F5F9] hover:bg-[#F8FAFC] active:bg-[#F1F5F9] transition-colors select-none"
                   >
-                    <td className="py-4 px-4">
-                      <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-blue-50/80 border border-blue-100 text-[#0055a5] flex items-center justify-center font-bold text-xs uppercase shrink-0">
-                          {party.name.substring(0, 2).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <span className="font-bold text-slate-900 text-sm block truncate hover:text-[#0055a5] transition-colors">
-                            {party.name}
+                    {/* Circle Avatar (26px) */}
+                    <div 
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-[10.5px] font-bold shrink-0 mr-2.5 shadow-2xs ${avatar.className}`}
+                      style={{ backgroundColor: avatar.bg, color: avatar.text }}
+                    >
+                      {initial}
+                    </div>
+
+                    {/* Customer Info */}
+                    <div className="flex-1 min-w-0 pr-1.5">
+                      <div className="text-[12px] font-bold text-[#0F172A] leading-tight mb-0.5 truncate">
+                        {party.name}
+                      </div>
+                      <div className="text-[10px] text-[#64748B] leading-tight truncate">
+                        {party.email || (party.address ? party.address : 'No email added')}
+                      </div>
+                      <div className="text-[10px] text-[#64748B] leading-tight truncate">
+                        {party.phone || 'No phone number'}
+                      </div>
+                    </div>
+
+                    {/* Balance Preview & Chevron */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {party.currentDue !== 0 && (
+                        <div className="text-right hidden min-[320px]:block">
+                          <div className={`text-[10.5px] font-bold ${party.currentDue > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                            {party.currentDue > 0 ? '-' : '+'}{formatCustomerCurrency(party.currentDue, currency)}
+                          </div>
+                          <span className={`text-[8px] font-bold uppercase tracking-wider ${party.currentDue > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                            {party.currentDue > 0 ? 'DR' : 'CR'}
                           </span>
-                          {party.address && (
-                            <span className="text-xs text-slate-500 block truncate max-w-sm mt-0.5">
-                              {party.address}
-                            </span>
-                          )}
-                          {party.email && (
-                            <span className="text-xs text-slate-400 block truncate max-w-sm">
-                              {party.email}
-                            </span>
-                          )}
-                          {currentUser?.isAdmin && (
-                            <div 
-                              onClick={(e) => handleCopyPartyId(e, party.id)}
-                              className="inline-flex items-center gap-1.5 px-2 py-0.5 mt-1 rounded bg-slate-100/90 hover:bg-slate-200/90 text-slate-600 hover:text-slate-900 border border-slate-200/80 text-[10px] font-mono cursor-pointer transition select-all group max-w-fit"
-                              title="Click to copy database Document ID"
-                            >
-                              <span className="text-slate-400 font-sans font-bold text-[8.5px] uppercase tracking-wider">ID:</span>
-                              <span className="truncate max-w-[160px] sm:max-w-[220px]">{party.id}</span>
-                              {copiedId === party.id ? (
-                                <Check size={11} className="text-emerald-600 shrink-0" />
-                              ) : (
-                                <Copy size={11} className="text-slate-400 group-hover:text-slate-600 shrink-0" />
-                              )}
-                            </div>
-                          )}
                         </div>
-                      </div>
-                    </td>
-
-                    <td className="py-4 px-4">
-                      {party.phone ? (
-                        <span className="text-xs text-slate-800 font-medium font-sans">
-                          {party.phone}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-slate-400 italic">No contact</span>
                       )}
-                    </td>
-
-                    <td className="py-4 px-4 text-right">
-                      <div className="font-bold text-xs sm:text-sm tabular-nums inline-flex items-baseline gap-1">
-                        <span className={party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-900"}>
-                          ₹{Math.abs(party.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                        <span className={`text-[10px] font-bold uppercase ${party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-500"}`}>
-                          {party.currentDue > 0 ? 'DR' : party.currentDue < 0 ? 'CR' : ''}
-                        </span>
+                      <div className="text-[#94A3B8] flex items-center ml-0.5 shrink-0">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
                       </div>
-                    </td>
-
-                    {currentUser?.isAdmin && (
-                      <td className="py-4 px-4 text-center">
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 uppercase tracking-wide">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          {party.status || 'ACTIVE'}
-                        </span>
-                      </td>
-                    )}
-
-                    <td className="py-4 px-4 text-right">
-                      <span className="inline-flex items-center justify-center w-7 h-7 text-slate-400 hover:text-slate-700 transition-colors">
-                        <ChevronRight size={16} />
-                      </span>
-                    </td>
-                  </tr>
+                    </div>
+                  </li>
                 );
               })}
+            </ul>
+          )}
 
-              {filteredParties.length === 0 && (
-                <tr>
-                  <td colSpan={currentUser?.isAdmin ? 5 : 4} className="py-12 text-center text-slate-500 text-sm font-medium">
-                    <div className="max-w-xs mx-auto space-y-3">
-                      <p>No parties found in this ledger.</p>
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowImportModal(true)}
-                          className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition flex items-center gap-1.5"
-                        >
-                          <Upload size={13} />
-                          <span>Import CSV / Excel</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowAddModal(true)}
-                          className="px-3 py-1.5 bg-[#0055a5] text-white hover:bg-blue-800 rounded-lg text-xs font-bold transition flex items-center gap-1.5"
-                        >
-                          <UserPlus size={13} />
-                          <span>Add Party</span>
-                        </button>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile View: High Density Compact List */}
-        <div className="block md:hidden divide-y divide-slate-100 bg-white">
-          {paginatedParties.map((party) => (
-            <div 
-              key={party.id} 
-              onClick={() => navigate(`/parties/${party.id}`)}
-              className="p-2 min-[400px]:p-2.5 hover:bg-slate-50 transition-colors flex items-center justify-between gap-2 cursor-pointer"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-md bg-blue-50/80 border border-blue-100 text-[#0055a5] flex items-center justify-center font-normal text-[11px] shrink-0 uppercase">
-                  {party.name.substring(0, 2).toUpperCase()}
-                </div>
-                <div className="min-w-0">
-                  <h4 className="font-normal text-slate-800 text-[11.5px] min-[400px]:text-xs truncate">{party.name}</h4>
-                  <p className="text-[9.5px] min-[400px]:text-[10px] text-slate-400 mt-0.5 truncate">{party.phone || 'No phone'}</p>
-                  {currentUser?.isAdmin && (
-                    <div 
-                      onClick={(e) => handleCopyPartyId(e, party.id)}
-                      className="inline-flex items-center gap-1 px-1.5 py-0.5 mt-0.5 rounded bg-slate-100 text-slate-600 text-[9px] font-mono cursor-pointer transition select-all max-w-fit"
-                      title="Click to copy party ID"
-                    >
-                      <span className="text-slate-400 font-sans text-[8px] font-bold">ID:</span>
-                      <span className="truncate max-w-[100px]">{party.id}</span>
-                      {copiedId === party.id ? (
-                        <Check size={9} className="text-emerald-600 shrink-0" />
-                      ) : (
-                        <Copy size={9} className="text-slate-400 shrink-0" />
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="text-right shrink-0">
-                <div className="font-normal text-[11.5px] min-[400px]:text-xs tabular-nums">
-                  <span className={party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-700"}>
-                    ₹{Math.abs(party.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </span>
-                  <span className={`text-[9px] ml-0.5 uppercase ${party.currentDue > 0 ? "text-rose-600" : party.currentDue < 0 ? "text-emerald-600" : "text-slate-500"}`}>
-                    {party.currentDue > 0 ? 'DR' : party.currentDue < 0 ? 'CR' : ''}
-                  </span>
-                </div>
-                {currentUser?.isAdmin && (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-normal text-emerald-600 uppercase mt-0.5">
-                    <span className="w-1 h-1 rounded-full bg-emerald-500"></span>
-                    {party.status || 'ACTIVE'}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-
-          {filteredParties.length === 0 && (
-            <div className="p-6 text-center text-slate-400 text-xs font-medium">
-              No parties found matching your search or filters.
+          {/* Empty Search State */}
+          {filteredParties.length === 0 && parties.length > 0 && (
+            <div className="text-center py-10 px-3 text-[#94A3B8] text-[11px]">
+              No customers found matching &quot;{search}&quot;
             </div>
           )}
-        </div>
 
-        {/* Footer: Pagination and count */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white text-xs text-slate-500 font-medium">
-          <div>
-            Showing {filteredParties.length > 0 ? ((currentPage - 1) * ITEMS_PER_PAGE) + 1 : 0} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredParties.length)} of {filteredParties.length} entries
-          </div>
-
-          <div className="flex items-center space-x-1.5">
-            <button
-              type="button"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              className="p-1.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-30 transition-colors"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            
-            {Array.from({ length: Math.max(totalPages, 1) }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => setCurrentPage(page)}
-                className={`w-8 h-8 flex items-center justify-center text-xs font-semibold rounded-lg border transition-colors ${
-                  currentPage === page
-                    ? 'bg-blue-50/80 border-blue-200 text-[#0055a5]'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-
-            <button
-              type="button"
-              disabled={currentPage === totalPages || totalPages === 0}
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              className="p-1.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-30 transition-colors"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Add Party Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
-                  <UserPlus size={18} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Add New Party Account</h3>
-                  <p className="text-xs text-slate-500">Register a new customer or vendor in {activeLedger.name}</p>
-                </div>
+          {/* Empty Ledger State (Offers 1-Click Demo Seed) */}
+          {!isLoading && parties.length === 0 && (
+            <div className="text-center py-10 px-4 space-y-2.5">
+              <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                <UserPlus size={18} />
               </div>
-              <button 
-                type="button" 
-                onClick={() => setShowAddModal(false)} 
-                className="text-slate-400 hover:text-slate-600 p-1"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Party / Company Name <span className="text-rose-500">*</span>
-                </label>
-                <input 
-                  required 
-                  type="text" 
-                  value={addName} 
-                  onChange={e => setAddName(e.target.value)} 
-                  className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:border-blue-600" 
-                  placeholder="e.g. Royal Bengal Foods" 
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Contact Phone Number
-                </label>
-                <input 
-                  type="text" 
-                  value={addPhone} 
-                  onChange={e => setAddPhone(e.target.value)} 
-                  className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 font-mono focus:border-blue-600" 
-                  placeholder="e.g. 9876543210" 
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Business Address
-                </label>
-                <input 
-                  type="text" 
-                  value={addAddress} 
-                  onChange={e => setAddAddress(e.target.value)} 
-                  className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:border-blue-600" 
-                  placeholder="e.g. Plot 42, Food Park, Kolkata" 
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Email Address
-                </label>
-                <input 
-                  type="email" 
-                  value={addEmail} 
-                  onChange={e => setAddEmail(e.target.value)} 
-                  className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:border-blue-600" 
-                  placeholder="e.g. accounts@royalbengalfoods.com" 
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Opening Balance (₹)
-                </label>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  value={addOpeningBalance} 
-                  onChange={e => setAddOpeningBalance(e.target.value)} 
-                  className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 font-mono focus:border-blue-600" 
-                  placeholder="0.00 (Positive = Due Dr, Negative = Advance Cr)" 
-                />
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Enter positive value if party owes money (Debit Dr), negative for advance (Credit Cr).
+                <h3 className="text-xs font-bold text-slate-800">No Customers in this Ledger</h3>
+                <p className="text-[10.5px] text-slate-500 mt-0.5 max-w-xs mx-auto">
+                  Add your first customer to start recording ledger transactions.
                 </p>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
-                <button 
-                  type="button" 
-                  disabled={isSubmitting} 
-                  onClick={() => setShowAddModal(false)} 
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              <div className="flex items-center justify-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  className="px-4 py-2 bg-[#1A73E8] hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
                 >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={isSubmitting} 
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors flex items-center gap-2 disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="animate-spin" size={14} />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Party Account'
-                  )}
+                  <Plus size={13} />
+                  <span>Add First Customer</span>
                 </button>
               </div>
-            </form>
+            </div>
+          )}
+        </main>
+
+        {/* ========================================================================= */}
+        {/* COMPACT FLOATING ACTION BUTTON (FAB)                                      */}
+        {/* ========================================================================= */}
+        <button 
+          onClick={() => setShowAddModal(true)}
+          className="fixed right-3 bottom-4 w-9 h-9 rounded-full bg-gradient-to-br from-[#1A73E8] to-[#0D62D9] text-white flex items-center justify-center shadow-md cursor-pointer z-20 hover:scale-105 active:scale-95 transition-transform" 
+          aria-label="Add Customer"
+          title="Add Customer"
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
+
+        {/* ========================================================================= */}
+        {/* FILTER & TOOLS MODAL / DRAWER                                             */}
+        {/* ========================================================================= */}
+        {showFilterDrawer && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-white rounded-xl w-full max-w-xs border border-slate-200 p-4 space-y-3 shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 className="font-bold text-sm text-[#0F172A]">Filter & Settings</h3>
+                <button 
+                  onClick={() => setShowFilterDrawer(false)}
+                  className="text-slate-400 hover:text-slate-600 p-0.5"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Interface Size Toggle */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">Interface Size</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleDensityChange('compact')}
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
+                      density === 'compact' 
+                        ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Compact (Default)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDensityChange('ultra')}
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
+                      density === 'ultra' 
+                        ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Ultra-Compact
+                  </button>
+                </div>
+              </div>
+
+              {/* Currency Selector */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">Currency Symbol</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: 'Rp', label: 'Rp' },
+                    { id: '₹', label: '₹' },
+                    { id: '$', label: '$' }
+                  ].map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => handleCurrencyChange(c.id)}
+                      className={`px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
+                        currency === c.id 
+                          ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sort Order */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1">Sort Customers By</label>
+                <select
+                  value={sortOrder}
+                  onChange={e => setSortOrder(e.target.value as any)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-700 focus:outline-none focus:border-blue-600 cursor-pointer"
+                >
+                  <option value="recent">Most Recent Transaction</option>
+                  <option value="name">Customer Name (A-Z)</option>
+                  <option value="due_desc">Due Balance: High to Low</option>
+                  <option value="due_asc">Due Balance: Low to High</option>
+                </select>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => { setShowFilterDrawer(false); setShowImportModal(true); }}
+                  className="w-full py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 flex items-center justify-center gap-1.5 transition"
+                >
+                  <Upload size={13} />
+                  <span>Import Excel / CSV</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowFilterDrawer(false)}
+                className="w-full py-2 bg-[#0F172A] text-white font-bold text-[11px] rounded-lg hover:bg-slate-800 transition"
+              >
+                Apply & Close
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Bulk CSV / Excel Import Modal */}
-      <BulkImportPartiesModal
-        isOpen={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        ledgerId={activeLedger.id}
-        ledgerName={activeLedger.name}
-        ledgerType={activeLedger.type}
-        existingParties={parties}
-        onSuccess={handleImportSuccess}
-      />
+        {/* ========================================================================= */}
+        {/* ADD CUSTOMER MODAL                                                        */}
+        {/* ========================================================================= */}
+        {showAddModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-white rounded-2xl w-full max-w-md border border-slate-200 overflow-hidden shadow-2xl">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                    <UserPlus size={16} />
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-base">Add New Customer</h3>
+                </div>
+                <button 
+                  onClick={() => setShowAddModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1"
+                >
+                  <X size={18} />
+                </button>
+              </div>
 
+              <form onSubmit={handleAddSubmit} className="p-5 space-y-3.5">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700">Customer Name *</label>
+                    <CaseIndicator isCaps={isCaps} toggleCaps={toggleManualCaps} />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={addName}
+                    onChange={e => setAddName(handleTextChange(e.target.value))}
+                    placeholder="e.g. Acme Corp"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Phone Number</label>
+                    <input
+                      type="text"
+                      value={addPhone}
+                      onChange={e => setAddPhone(e.target.value)}
+                      placeholder="+62 812 3456 7890"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Email Address</label>
+                    <input
+                      type="email"
+                      value={addEmail}
+                      onChange={e => setAddEmail(e.target.value)}
+                      placeholder="contact@acme.com"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Address / Location</label>
+                  <input
+                    type="text"
+                    value={addAddress}
+                    onChange={e => setAddAddress(handleTextChange(e.target.value))}
+                    placeholder="Street, City, Postal Code"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Opening Balance ({currency})
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={addOpeningBalance}
+                    onChange={e => setAddOpeningBalance(e.target.value)}
+                    placeholder="0"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Positive for debit / dues, negative for credit / advance.</p>
+                </div>
+
+                <div className="pt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="flex-1 py-2.5 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex-1 py-2.5 bg-gradient-to-r from-[#1A73E8] to-[#0D62D9] text-white text-xs font-bold rounded-xl hover:opacity-95 transition shadow-md flex items-center justify-center gap-1.5"
+                  >
+                    {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                    <span>Save Customer</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Import Modal */}
+        {showImportModal && activeLedger && (
+          <BulkImportPartiesModal
+            isOpen={showImportModal}
+            onClose={() => setShowImportModal(false)}
+            ledgerId={activeLedger.id}
+            ledgerName={activeLedger.name}
+            ledgerType={activeLedger.type}
+            existingParties={parties}
+            onSuccess={count => {
+              loadParties();
+              setImportSuccessMsg(`Imported ${count} customers successfully!`);
+              setTimeout(() => setImportSuccessMsg(null), 4000);
+            }}
+          />
+        )}
+
+      </div>
     </div>
   );
 }

@@ -14,6 +14,10 @@ interface PageHeaderProps {
   breadcrumbs?: BreadcrumbItem[];
   actions?: React.ReactNode;
   className?: string;
+  titleClassName?: string;
+  titleStyle?: React.CSSProperties;
+  subtitleClassName?: string;
+  subtitleStyle?: React.CSSProperties;
 }
 
 export default function PageHeader({
@@ -22,7 +26,11 @@ export default function PageHeader({
   badge,
   breadcrumbs,
   actions,
-  className = ''
+  className = '',
+  titleClassName = '',
+  titleStyle,
+  subtitleClassName = '',
+  subtitleStyle
 }: PageHeaderProps) {
   return (
     <div className={`mb-1 sm:mb-8 ${className}`}>
@@ -50,13 +58,19 @@ export default function PageHeader({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-4">
         <div>
           <div className="flex items-center gap-1.5 sm:gap-3 flex-wrap">
-            <h1 className="text-sm min-[400px]:text-base sm:text-3xl font-semibold sm:font-extrabold text-slate-900 tracking-tight font-sans">
+            <h1 
+              className={`text-sm min-[400px]:text-base sm:text-3xl font-semibold sm:font-extrabold text-slate-900 tracking-tight font-sans ${titleClassName}`}
+              style={titleStyle}
+            >
               {title}
             </h1>
             {badge}
           </div>
           {subtitle && (
-            <p className="text-[9.5px] sm:text-sm text-slate-500 mt-0.2 sm:mt-1 font-normal max-w-2xl">
+            <p 
+              className={`text-[9.5px] sm:text-sm text-slate-500 mt-0.2 sm:mt-1 font-normal max-w-2xl ${subtitleClassName}`}
+              style={subtitleStyle}
+            >
               {subtitle}
             </p>
           )}

@@ -20,6 +20,7 @@ import InvoiceSheets from './pages/InvoiceSheets';
 import AccountsMail from './pages/AccountsMail';
 import Statement from './pages/Statement';
 import TrNote from './pages/TrNote';
+import BillingDeclaration from './pages/BillingDeclaration';
 import SplashLoader from './components/SplashLoader';
 import OfflineIndicator from './components/OfflineIndicator';
 
@@ -147,9 +148,9 @@ const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }
   
   return (
-    <div className={`flex flex-col sm:flex-row h-screen bg-gray-50 overflow-hidden font-sans ${themeClass}`}>
+    <div className={`flex flex-col sm:flex-row h-screen bg-white sm:bg-gray-50 overflow-hidden font-sans ${themeClass}`}>
       <Navigation />
-      <main className="flex-1 overflow-y-auto w-full h-full relative pt-16 sm:pt-0">
+      <main className="flex-1 overflow-y-auto w-full h-full relative bg-white sm:bg-transparent">
         {children}
       </main>
     </div>
@@ -461,9 +462,11 @@ const AppContent: React.FC = () => {
           
           <Route path="/activities" element={
             <RequireAuth>
-              <AuthLayout>
-                <Activities />
-              </AuthLayout>
+              <RequireAdmin>
+                <AuthLayout>
+                  <Activities />
+                </AuthLayout>
+              </RequireAdmin>
             </RequireAuth>
           } />
           
@@ -477,9 +480,11 @@ const AppContent: React.FC = () => {
 
           <Route path="/tr-note" element={
             <RequireAuth>
-              <AuthLayout>
-                <TrNote />
-              </AuthLayout>
+              <RequireAdmin>
+                <AuthLayout>
+                  <TrNote />
+                </AuthLayout>
+              </RequireAdmin>
             </RequireAuth>
           } />
 
@@ -496,21 +501,37 @@ const AppContent: React.FC = () => {
 
           <Route path="/accounts-mail" element={
             <RequireAuth>
-              <AuthLayout>
-                <AccountsMail />
-              </AuthLayout>
+              <RequireAdmin>
+                <AuthLayout>
+                  <AccountsMail />
+                </AuthLayout>
+              </RequireAdmin>
             </RequireAuth>
           } />
 
           <Route path="/statement" element={
             <RequireAuth>
-              <AuthLayout>
-                <Statement />
-              </AuthLayout>
+              <RequireAdmin>
+                <AuthLayout>
+                  <Statement />
+                </AuthLayout>
+              </RequireAdmin>
             </RequireAuth>
           } />
 
           <Route path="/statements" element={<Navigate to="/statement" replace />} />
+          
+          <Route path="/declaration" element={
+            <RequireAuth>
+              <RequireAdmin>
+                <AuthLayout>
+                  <BillingDeclaration />
+                </AuthLayout>
+              </RequireAdmin>
+            </RequireAuth>
+          } />
+          <Route path="/billing-declaration" element={<Navigate to="/declaration" replace />} />
+          <Route path="/declarations" element={<Navigate to="/declaration" replace />} />
           
           <Route path="/admin" element={
             <RequireAuth>

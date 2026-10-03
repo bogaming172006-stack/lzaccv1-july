@@ -824,12 +824,12 @@ export default function ThermalReceiptModal({
                 </div>
               </div>
 
-              {/* 3. Party Information Card */}
-              <div className="border border-black/80 rounded p-1.5 my-1.5 bg-zinc-50/80 party-box">
-                <div className="text-[8px] uppercase text-zinc-600 font-bold party-tag">
+              {/* 3. Party Information - Simple text, no background color, no box border */}
+              <div className="py-1 my-1 party-box">
+                <div className="text-[8px] uppercase text-zinc-500 font-bold party-tag">
                   {partyLabel}:
                 </div>
-                <div className="font-extrabold text-black text-[12px] leading-snug party-name break-words">
+                <div className="font-bold text-black text-[12px] leading-snug party-name break-words">
                   {partyName.toUpperCase()}
                 </div>
                 {partyPhone && (
@@ -839,7 +839,7 @@ export default function ThermalReceiptModal({
                 )}
               </div>
 
-              {/* 4. Complete Accounting Reconciliation Statement */}
+              {/* 4. Complete Accounting Reconciliation Statement - Simple text, no background color */}
               <div className="my-1.5 recon-section">
                 <div className="flex justify-between items-center text-[8.5px] font-bold uppercase tracking-wider text-zinc-600 border-b border-black pb-0.5 mb-1 recon-header">
                   <span>Particulars</span>
@@ -862,26 +862,26 @@ export default function ThermalReceiptModal({
                   </span>
                 </div>
 
-                {/* Row 3: Net Current Closing Balance */}
-                <div className="net-closing-box flex justify-between items-center py-1 px-1.5 bg-black text-white font-bold rounded my-1 text-[11px] shadow-2xs">
-                  <span className="uppercase text-[9.5px] tracking-wide text-white">Net Current Balance:</span>
-                  <span className="font-mono tabular-nums text-white">
+                {/* Row 3: Net Current Closing Balance - Simple text, no black background box */}
+                <div className="net-closing-box flex justify-between items-center py-1 border-t border-black my-1 text-[11px] font-bold">
+                  <span className="uppercase text-[9.5px] tracking-wide text-black">Net Current Balance:</span>
+                  <span className="font-mono tabular-nums text-black">
                     {formatBalancePlain(afterOutstanding)}
                   </span>
                 </div>
               </div>
 
-              {/* 5. Live Amount in Words */}
+              {/* 5. Live Amount in Words - Simple text, no background color, no box border */}
               {formatAmountInWords(transaction.amount) && (
-                <div className="border border-zinc-400/80 rounded px-1.5 py-1 text-[8.5px] italic text-zinc-800 leading-tight uppercase bg-zinc-50/80 my-1 words-box">
+                <div className="py-1 text-[8.5px] italic text-zinc-800 leading-tight uppercase my-1 words-box">
                   <span className="font-bold not-italic text-[8px] block text-zinc-500">In Words:</span>
                   INR {formatAmountInWords(transaction.amount).toUpperCase()}
                 </div>
               )}
 
-              {/* 6. Remarks / Particulars Note */}
+              {/* 6. Remarks / Particulars Note - Simple text, no border */}
               {transaction.notes && (
-                <div className="border-l-2 border-black pl-1.5 py-0.5 my-1.5 text-[9px] notes-box">
+                <div className="py-0.5 my-1 text-[9px] notes-box">
                   <span className="font-bold uppercase text-black block text-[8px]">Particulars / Remarks:</span>
                   <span className="italic text-zinc-800 break-words">{transaction.notes.toUpperCase()}</span>
                 </div>

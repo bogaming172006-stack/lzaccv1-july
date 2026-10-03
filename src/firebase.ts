@@ -311,7 +311,7 @@ export async function recreateDatabaseTables(): Promise<{ success: boolean; mess
 
 export async function wipeAndRecreateDatabaseTables(): Promise<{ success: boolean; message: string }> {
   if (isLocalFallback) {
-    const tables = ['users', 'ledgers', 'parties', 'products', 'tracked_invoices', 'settings', 'transactions', 'balances', 'daily_summaries', 'dashboard_summary', 'cache_versions'];
+    const tables = ['users', 'ledgers', 'parties', 'products', 'tracked_invoices', 'settings', 'transactions', 'balances', 'daily_summaries', 'dashboard_summary', 'cache_versions', 'log'];
     for (const table of tables) {
       saveLocalCollection(table, []);
     }
@@ -328,7 +328,7 @@ export async function wipeAndRecreateDatabaseTables(): Promise<{ success: boolea
 
 export async function getDatabaseTableStats(): Promise<{ success: boolean; stats: { tableName: string; count: number; exists: boolean }[]; error?: string }> {
   if (isLocalFallback) {
-    const tables = ['users', 'ledgers', 'parties', 'products', 'tracked_invoices', 'settings', 'transactions', 'balances', 'daily_summaries', 'dashboard_summary', 'cache_versions'];
+    const tables = ['users', 'ledgers', 'parties', 'products', 'tracked_invoices', 'settings', 'transactions', 'balances', 'daily_summaries', 'dashboard_summary', 'cache_versions', 'log'];
     const stats = tables.map(name => {
       const list = getLocalCollection(name);
       return { tableName: name, count: list.length, exists: true };
@@ -346,7 +346,7 @@ export async function getDatabaseTableStats(): Promise<{ success: boolean; stats
 
 export async function backupDatabase(): Promise<{ [tableName: string]: any[] }> {
   if (isLocalFallback) {
-    const tables = ['users', 'ledgers', 'parties', 'products', 'tracked_invoices', 'settings', 'transactions', 'balances', 'daily_summaries', 'dashboard_summary', 'cache_versions'];
+    const tables = ['users', 'ledgers', 'parties', 'products', 'tracked_invoices', 'settings', 'transactions', 'balances', 'daily_summaries', 'dashboard_summary', 'cache_versions', 'log'];
     const backupData: { [tableName: string]: any[] } = {};
     for (const table of tables) {
       backupData[table] = getLocalCollection(table);
@@ -365,7 +365,7 @@ export async function backupDatabase(): Promise<{ [tableName: string]: any[] }> 
 
 export async function restoreDatabase(backupData: { [tableName: string]: any[] }): Promise<{ success: boolean; message: string }> {
   if (isLocalFallback) {
-    const tables = ['users', 'ledgers', 'parties', 'products', 'tracked_invoices', 'settings', 'transactions', 'balances', 'daily_summaries', 'dashboard_summary', 'cache_versions'];
+    const tables = ['users', 'ledgers', 'parties', 'products', 'tracked_invoices', 'settings', 'transactions', 'balances', 'daily_summaries', 'dashboard_summary', 'cache_versions', 'log'];
     for (const table of tables) {
       saveLocalCollection(table, backupData[table] || []);
     }
@@ -999,7 +999,7 @@ export function hasOfflineLocalData(): boolean {
 // Migrate offline LocalStorage data to the live Turso database
 export async function migrateOfflineDataToLiveTurso(): Promise<{ success: boolean; message: string }> {
   try {
-    const tables = ['users', 'ledgers', 'parties', 'products', 'tracked_invoices', 'settings', 'transactions', 'balances', 'daily_summaries', 'dashboard_summary', 'cache_versions'];
+    const tables = ['users', 'ledgers', 'parties', 'products', 'tracked_invoices', 'settings', 'transactions', 'balances', 'daily_summaries', 'dashboard_summary', 'cache_versions', 'log'];
     const backupData: { [tableName: string]: any[] } = {};
     
     for (const table of tables) {

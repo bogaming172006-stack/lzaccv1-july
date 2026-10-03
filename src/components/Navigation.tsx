@@ -202,113 +202,229 @@ export default function Navigation() {
 
       {/* Mobile Bottom More Drawer */}
       {showMobileMore && (
-        <div className="fixed inset-x-0 bottom-16 bg-white border-t border-slate-200 rounded-t-2xl shadow-2xl z-50 p-5 divide-y divide-slate-100 max-h-[75vh] overflow-y-auto sm:hidden animate-in slide-in-from-bottom duration-200">
-          <div className="flex justify-between items-center pb-3">
+        <div className="fixed inset-x-0 bottom-0 bg-white border-t border-slate-200 rounded-t-2xl shadow-2xl z-50 p-4 sm:p-5 pb-6 divide-y divide-slate-100 max-h-[82vh] overflow-y-auto sm:hidden animate-in slide-in-from-bottom duration-200">
+          <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-2.5 shrink-0" />
+          
+          <div className="flex justify-between items-center pb-2.5">
             <span className="font-bold text-xs uppercase tracking-wider text-slate-500">Greenzar ERP Modules</span>
             <button 
-              className="text-slate-400 hover:text-slate-600 p-1" 
+              className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors" 
               onClick={() => setShowMobileMore(false)}
             >
               <X size={18} />
             </button>
           </div>
-          
-          <div className="py-3 space-y-1">
-            <NavLink 
-              to="/tr-note" 
-              onClick={() => setShowMobileMore(false)} 
-              className={({ isActive }) => `flex items-center px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}
-            >
-              <FileCheck2 size={18} className="mr-3 text-[#0055a5]" />
-              TR Note (Adjustment)
-            </NavLink>
 
-            <NavLink 
-              to="/statement" 
-              onClick={() => setShowMobileMore(false)} 
-              className={({ isActive }) => `flex items-center px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}
-            >
-              <FileSpreadsheet size={18} className="mr-3 text-[#0055a5]" />
-              Account Statement
-            </NavLink>
-
-            <NavLink 
-              to="/activities" 
-              onClick={() => setShowMobileMore(false)} 
-              className={({ isActive }) => `flex items-center px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}
-            >
-              <Activity size={18} className="mr-3 text-slate-500" />
-              Overall Transaction
-            </NavLink>
-
-            {activeLedger?.type === 'SALE' && (
-              <NavLink 
-                to="/invoice-sheets" 
-                onClick={() => setShowMobileMore(false)} 
-                className={({ isActive }) => `flex items-center px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}
+          {/* Active Ledger Switcher & Sync */}
+          <div className="py-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Ledger:</span>
+              <button 
+                onClick={() => setShowLedgerMenu(!showLedgerMenu)}
+                className={`text-xs font-semibold ${
+                  isPurchase 
+                    ? 'text-purple-950 bg-purple-50 hover:bg-purple-100 border-purple-200' 
+                    : 'text-slate-800 bg-slate-100 hover:bg-slate-200 border-slate-200'
+                } px-2.5 py-1 rounded-lg border flex items-center gap-1 max-w-[150px] truncate`}
               >
-                <BookOpen size={18} className="mr-3 text-slate-500" />
-                Invoice Sheets
-              </NavLink>
-            )}
+                <span className="truncate">{activeLedger?.name || 'Ledger'}</span>
+                <ChevronDown size={12} className="opacity-60 shrink-0" />
+              </button>
+            </div>
 
-            {currentUser.isAdmin && (
+            <button
+              type="button"
+              onClick={handleRefreshDatabase}
+              disabled={isSyncing}
+              className={`p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors ${isSyncing ? 'cursor-not-allowed' : ''}`}
+              title="Refresh Database"
+            >
+              {syncSuccess ? (
+                <Check size={14} className="text-emerald-600" />
+              ) : (
+                <RefreshCw size={14} className={isSyncing ? "animate-spin text-blue-600" : ""} />
+              )}
+            </button>
+          </div>
+
+          {showLedgerMenu && (
+            <div className="py-2 space-y-1">
+              <div className="max-h-40 overflow-y-auto p-1 space-y-0.5 border border-slate-200 rounded-lg">
+                {ledgers.map(l => (
+                  <button
+                    key={l.id}
+                    onClick={() => { handleLedgerSwitch(l.id); setShowLedgerMenu(false); }}
+                    className={`w-full text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
+                      activeLedger?.id === l.id 
+                        ? l.type === 'PURCHASE' ? 'bg-purple-900 text-amber-300 font-medium' : 'bg-[#0055a5] text-white font-normal' 
+                        : 'text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    {l.name}
+                  </button>
+                ))}
+              </div>
+              {currentUser.isAdmin && (
+                <button 
+                  onClick={() => { setShowNewLedgerModal(true); setShowLedgerMenu(false); }}
+                  className="w-full flex items-center text-left px-2.5 py-1.5 text-xs text-[#0055a5] hover:bg-blue-50 rounded-lg font-medium"
+                >
+                  <Plus size={13} className="mr-1.5" />
+                  Add New Ledger
+                </button>
+              )}
+            </div>
+          )}
+          
+          <div className="py-2.5 space-y-0.5">
+            {currentUser.isAdmin ? (
               <>
-                <div className="pt-2 pb-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider px-3.5">Administration</span>
+                <NavLink 
+                  to="/tr-note" 
+                  onClick={() => setShowMobileMore(false)} 
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                >
+                  <FileCheck2 size={16} className="mr-2.5 text-[#0055a5]" />
+                  TR Note (Adjustment)
+                </NavLink>
+
+                <NavLink 
+                  to="/statement" 
+                  onClick={() => setShowMobileMore(false)} 
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                >
+                  <FileSpreadsheet size={16} className="mr-2.5 text-[#0055a5]" />
+                  Account Statement
+                </NavLink>
+
+                <NavLink 
+                  to="/declaration" 
+                  onClick={() => setShowMobileMore(false)} 
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                >
+                  <FileText size={16} className="mr-2.5 text-[#0055a5]" />
+                  Bill Declaration & Audit
+                </NavLink>
+
+                <NavLink 
+                  to="/activities" 
+                  onClick={() => setShowMobileMore(false)} 
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                >
+                  <Activity size={16} className="mr-2.5 text-slate-500" />
+                  Overall Transaction
+                </NavLink>
+
+                <NavLink 
+                  to="/invoice-sheets" 
+                  onClick={() => setShowMobileMore(false)} 
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                >
+                  <BookOpen size={16} className="mr-2.5 text-slate-500" />
+                  Invoice Sheets
+                </NavLink>
+
+                <div className="pt-2 pb-0.5">
+                  <span className="text-[9.5px] uppercase font-bold text-slate-400 tracking-wider px-3">Administration</span>
                 </div>
 
                 <NavLink 
                   to="/accounts-mail" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
                 >
-                  <FileSpreadsheet size={18} className="mr-3 text-emerald-600" />
+                  <FileSpreadsheet size={16} className="mr-2.5 text-emerald-600" />
                   Google Sheets Auto-Sync
                 </NavLink>
 
                 <NavLink 
                   to="/backup-restore" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
                 >
-                  <Database size={18} className="mr-3 text-blue-600" />
+                  <Database size={16} className="mr-2.5 text-blue-600" />
                   Backup & Restore
                 </NavLink>
                 
                 <NavLink 
                   to="/admin" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
                 >
-                  <Settings size={18} className="mr-3 text-slate-600" />
+                  <Settings size={16} className="mr-2.5 text-slate-600" />
                   User Management
                 </NavLink>
               </>
-            )}
+            ) : (
+              <>
+                <NavLink 
+                  to="/" 
+                  end
+                  onClick={() => setShowMobileMore(false)} 
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                >
+                  <LayoutDashboard size={16} className="mr-2.5 text-[#0055a5]" />
+                  Dashboard
+                </NavLink>
 
-            <div className="pt-2">
-              <PWAInstallButton variant="mobile-item" />
-            </div>
+                <NavLink 
+                  to="/parties" 
+                  onClick={() => setShowMobileMore(false)} 
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                >
+                  <UsersIcon size={16} className="mr-2.5 text-[#0055a5]" />
+                  Party Ledger
+                </NavLink>
+
+                <NavLink 
+                  to="/master-entry" 
+                  onClick={() => setShowMobileMore(false)} 
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                >
+                  <CreditCard size={16} className="mr-2.5 text-[#0055a5]" />
+                  Input
+                </NavLink>
+
+                <NavLink 
+                  to="/log" 
+                  onClick={() => setShowMobileMore(false)} 
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                >
+                  <FileText size={16} className="mr-2.5 text-[#0055a5]" />
+                  Day Log
+                </NavLink>
+
+                <NavLink 
+                  to="/invoice-sheets" 
+                  onClick={() => setShowMobileMore(false)} 
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                >
+                  <BookOpen size={16} className="mr-2.5 text-[#0055a5]" />
+                  Invoice Sheet
+                </NavLink>
+              </>
+            )}
           </div>
 
-          <div className="pt-4">
-            <div className="flex items-center px-3.5 py-2.5 mb-3 bg-slate-50 rounded-lg border border-slate-200">
-              <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold mr-3 text-xs shadow-xs">
-                {currentUser.name.charAt(0).toUpperCase()}
+          <div className="pt-3">
+            <div className="flex items-center justify-between px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
+                  {currentUser.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="overflow-hidden min-w-0">
+                  <p className="font-bold text-xs text-slate-900 truncate leading-tight">{currentUser.name}</p>
+                  <p className="text-[9.5px] text-slate-500 uppercase tracking-wider font-semibold">{currentUser.isAdmin ? 'Administrator' : 'Standard User'}</p>
+                </div>
               </div>
-              <div className="overflow-hidden">
-                <p className="font-bold text-sm text-slate-900 truncate">{currentUser.name}</p>
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider">{currentUser.isAdmin ? 'Administrator' : 'Standard User'}</p>
-              </div>
+              <button 
+                onClick={() => { setShowMobileMore(false); logout(); }} 
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200 shrink-0"
+              >
+                <LogOut size={13} />
+                <span>Sign Out</span>
+              </button>
             </div>
-            <button 
-              onClick={() => { setShowMobileMore(false); logout(); }} 
-              className="w-full flex items-center justify-center px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200"
-            >
-              <LogOut size={16} className="mr-2" />
-              Sign Out
-            </button>
           </div>
         </div>
       )}
@@ -408,111 +524,91 @@ export default function Navigation() {
 
         {/* Sidebar Nav Links */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 custom-scrollbar">
-          
-          {/* Section 1: Financial Ledgers */}
-          <div>
-            <span className="px-3 text-[11px] font-normal uppercase tracking-wider text-slate-400 block mb-1.5">
-              Financial Accounting
-            </span>
-            <nav className="space-y-0.5">
-              <NavLink
-                to="/"
-                end
-                className={({ isActive }) =>
-                  `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
-                    isActive
-                      ? 'bg-[#0055a5] text-white shadow-xs font-normal'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <LayoutDashboard size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                    <span>Dashboard</span>
-                  </>
-                )}
-              </NavLink>
+          {!currentUser.isAdmin ? (
+            <div>
+              <span className="px-3 text-[11px] font-normal uppercase tracking-wider text-slate-400 block mb-1.5">
+                Main Menu
+              </span>
+              <nav className="space-y-0.5">
+                <NavLink
+                  to="/"
+                  end
+                  className={({ isActive }) =>
+                    `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                      isActive
+                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-[#0055a5] text-white shadow-xs font-normal')
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <LayoutDashboard size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                      <span>Dashboard</span>
+                    </>
+                  )}
+                </NavLink>
 
-              <NavLink
-                to="/parties"
-                className={({ isActive }) =>
-                  `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
-                    isActive
-                      ? 'bg-[#0055a5] text-white shadow-xs font-normal'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <UsersIcon size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                    <span>Parties & Ledgers</span>
-                  </>
-                )}
-              </NavLink>
+                <NavLink
+                  to="/parties"
+                  className={({ isActive }) =>
+                    `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                      isActive
+                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-[#0055a5] text-white shadow-xs font-normal')
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <UsersIcon size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                      <span>Party Ledger</span>
+                    </>
+                  )}
+                </NavLink>
 
-              <NavLink
-                to="/master-entry"
-                className={({ isActive }) =>
-                  `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
-                    isActive
-                      ? 'bg-[#0055a5] text-white shadow-xs font-normal'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <CreditCard size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                    <span>Input</span>
-                  </>
-                )}
-              </NavLink>
+                <NavLink
+                  to="/master-entry"
+                  className={({ isActive }) =>
+                    `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                      isActive
+                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-[#0055a5] text-white shadow-xs font-normal')
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <CreditCard size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                      <span>Input</span>
+                    </>
+                  )}
+                </NavLink>
 
-              <NavLink
-                to="/tr-note"
-                className={({ isActive }) =>
-                  `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
-                    isActive
-                      ? 'bg-[#0055a5] text-white shadow-xs font-normal'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <FileCheck2 size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                    <span>TR Note</span>
-                  </>
-                )}
-              </NavLink>
+                <NavLink
+                  to="/log"
+                  className={({ isActive }) =>
+                    `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                      isActive
+                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-[#0055a5] text-white shadow-xs font-normal')
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <FileText size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                      <span>Day Log</span>
+                    </>
+                  )}
+                </NavLink>
 
-              <NavLink
-                to="/statement"
-                className={({ isActive }) =>
-                  `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
-                    isActive
-                      ? 'bg-[#0055a5] text-white shadow-xs font-normal'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <FileSpreadsheet size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                    <span>Statement</span>
-                  </>
-                )}
-              </NavLink>
-
-              {activeLedger?.type === 'SALE' && (
                 <NavLink
                   to="/invoice-sheets"
                   className={({ isActive }) =>
                     `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                       isActive
-                        ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-[#0055a5] text-white shadow-xs font-normal')
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                     }`
                   }
@@ -520,120 +616,264 @@ export default function Navigation() {
                   {({ isActive }) => (
                     <>
                       <BookOpen size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                      <span>Invoice Sheets</span>
-                    </>
-                  )}
-                </NavLink>
-              )}
-            </nav>
-          </div>
-
-          {/* Section 2: Management & Audit */}
-          <div>
-            <span className="px-3 text-[11px] font-normal uppercase tracking-wider text-slate-400 block mb-1.5">
-              Operations & Audit
-            </span>
-            <nav className="space-y-0.5">
-              <NavLink
-                to="/log"
-                className={({ isActive }) =>
-                  `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
-                    isActive
-                      ? 'bg-[#0055a5] text-white shadow-xs font-normal'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <FileText size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                    <span>Day Log</span>
-                  </>
-                )}
-              </NavLink>
-
-              <NavLink
-                to="/activities"
-                className={({ isActive }) =>
-                  `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
-                    isActive
-                      ? 'bg-[#0055a5] text-white shadow-xs font-normal'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <Activity size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                    <span>Overall Transaction</span>
-                  </>
-                )}
-              </NavLink>
-            </nav>
-          </div>
-
-          {/* Section 3: System Administration (Admin Only) */}
-          {currentUser.isAdmin && (
-            <div>
-              <span className="px-3 text-[11px] font-normal uppercase tracking-wider text-slate-400 block mb-1.5">
-                System Administration
-              </span>
-              <nav className="space-y-0.5">
-                <NavLink
-                  to="/accounts-mail"
-                  className={({ isActive }) =>
-                    `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
-                      isActive
-                        ? 'bg-[#0055a5] text-white shadow-xs font-normal'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
-                    }`
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <FileSpreadsheet size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-emerald-600'}`} />
-                      <span>Google Sheets Sync</span>
-                    </>
-                  )}
-                </NavLink>
-
-                <NavLink
-                  to="/backup-restore"
-                  className={({ isActive }) =>
-                    `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
-                      isActive
-                        ? 'bg-[#0055a5] text-white shadow-xs font-normal'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
-                    }`
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <Database size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-blue-600'}`} />
-                      <span>Backup & Restore</span>
-                    </>
-                  )}
-                </NavLink>
-
-                <NavLink
-                  to="/admin"
-                  className={({ isActive }) =>
-                    `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
-                      isActive
-                        ? 'bg-[#0055a5] text-white shadow-xs font-normal'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
-                    }`
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <Settings size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                      <span>User Management</span>
+                      <span>Invoice Sheet</span>
                     </>
                   )}
                 </NavLink>
               </nav>
             </div>
+          ) : (
+            <>
+              {/* Section 1: Financial Ledgers */}
+              <div>
+                <span className="px-3 text-[11px] font-normal uppercase tracking-wider text-slate-400 block mb-1.5">
+                  Financial Accounting
+                </span>
+                <nav className="space-y-0.5">
+                  <NavLink
+                    to="/"
+                    end
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <LayoutDashboard size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                        <span>Dashboard</span>
+                      </>
+                    )}
+                  </NavLink>
+
+                  <NavLink
+                    to="/parties"
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <UsersIcon size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                        <span>Party Ledger</span>
+                      </>
+                    )}
+                  </NavLink>
+
+                  <NavLink
+                    to="/master-entry"
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <CreditCard size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                        <span>Input</span>
+                      </>
+                    )}
+                  </NavLink>
+
+                  <NavLink
+                    to="/tr-note"
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <FileCheck2 size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                        <span>TR Note</span>
+                      </>
+                    )}
+                  </NavLink>
+
+                  <NavLink
+                    to="/statement"
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <FileSpreadsheet size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                        <span>Statement</span>
+                      </>
+                    )}
+                  </NavLink>
+
+                  {activeLedger?.type === 'SALE' && (
+                    <NavLink
+                      to="/invoice-sheets"
+                      className={({ isActive }) =>
+                        `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                          isActive
+                            ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          <BookOpen size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                          <span>Invoice Sheets</span>
+                        </>
+                      )}
+                    </NavLink>
+                  )}
+                </nav>
+              </div>
+
+              {/* Section 2: Management & Audit */}
+              <div>
+                <span className="px-3 text-[11px] font-normal uppercase tracking-wider text-slate-400 block mb-1.5">
+                  Operations & Audit
+                </span>
+                <nav className="space-y-0.5">
+                  <NavLink
+                    to="/log"
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <FileText size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                        <span>Day Log</span>
+                      </>
+                    )}
+                  </NavLink>
+
+                  <NavLink
+                    to="/declaration"
+                    className={({ isActive }) =>
+                      `flex items-center justify-between px-3 py-2 text-[13px] rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <div className="flex items-center">
+                          <FileCheck2 size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                          <span>Bill Declaration</span>
+                        </div>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-medium ${
+                          isActive ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700'
+                        }`}>
+                          Stock
+                        </span>
+                      </>
+                    )}
+                  </NavLink>
+
+                  <NavLink
+                    to="/activities"
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <Activity size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                        <span>Overall Transaction</span>
+                      </>
+                    )}
+                  </NavLink>
+                </nav>
+              </div>
+
+              {/* Section 3: System Administration (Admin Only) */}
+              <div>
+                <span className="px-3 text-[11px] font-normal uppercase tracking-wider text-slate-400 block mb-1.5">
+                  System Administration
+                </span>
+                <nav className="space-y-0.5">
+                  <NavLink
+                    to="/accounts-mail"
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <FileSpreadsheet size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-emerald-600'}`} />
+                        <span>Google Sheets Sync</span>
+                      </>
+                    )}
+                  </NavLink>
+
+                  <NavLink
+                    to="/backup-restore"
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <Database size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-blue-600'}`} />
+                        <span>Backup & Restore</span>
+                      </>
+                    )}
+                  </NavLink>
+
+                  <NavLink
+                    to="/admin"
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <Settings size={16} className={`mr-2.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                        <span>User Management</span>
+                      </>
+                    )}
+                  </NavLink>
+                </nav>
+              </div>
+            </>
           )}
         </div>
 
@@ -679,89 +919,6 @@ export default function Navigation() {
       </aside>
 
       {/* ========================================================================= */}
-      {/* MOBILE TOP BAR - Clean Compact Style */}
-      {/* ========================================================================= */}
-      <header className="sm:hidden fixed top-0 left-0 right-0 h-13 bg-white border-b border-slate-200 flex items-center px-3 justify-between z-40 shadow-2xs text-slate-900">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-white border border-slate-200/90 rounded-lg shadow-2xs overflow-hidden flex items-center justify-center shrink-0">
-            <video
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="auto"
-              className="w-full h-full object-cover pointer-events-none select-none"
-            >
-              <source src="/loading.webm" type="video/webm" />
-              <source src="/loading.mp4" type="video/mp4" />
-            </video>
-          </div>
-          <span className="font-medium text-xs tracking-tight text-slate-900">Greenzar Acc</span>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <PWAInstallButton variant="header" />
-
-          <button
-            type="button"
-            onClick={handleRefreshDatabase}
-            disabled={isSyncing}
-            className={`p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors ${isSyncing ? 'cursor-not-allowed' : ''}`}
-            title="Refresh Database"
-          >
-            {syncSuccess ? (
-              <Check size={14} className="text-emerald-600" />
-            ) : (
-              <RefreshCw size={14} className={isSyncing ? "animate-spin text-blue-600" : ""} />
-            )}
-          </button>
-
-          <button 
-            onClick={() => setShowLedgerMenu(!showLedgerMenu)}
-            className={`text-xs font-semibold ${
-              isPurchase 
-                ? 'text-purple-950 bg-purple-50 hover:bg-purple-100 border-purple-200' 
-                : 'text-slate-800 bg-slate-100 hover:bg-slate-200 border-slate-200'
-            } px-2.5 py-1 rounded-lg border flex items-center gap-1 max-w-[130px] truncate transition-colors`}
-          >
-            <span className="truncate">{activeLedger?.name || 'Ledger'}</span>
-            <ChevronDown size={12} className="opacity-60 shrink-0" />
-          </button>
-        </div>
-
-        {showLedgerMenu && (
-          <div className="absolute top-13 right-3 w-52 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in duration-150">
-            <div className="max-h-48 overflow-y-auto p-1 space-y-0.5">
-              {ledgers.map(l => (
-                <button
-                  key={l.id}
-                  onClick={() => handleLedgerSwitch(l.id)}
-                  className={`w-full text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
-                    activeLedger?.id === l.id 
-                      ? l.type === 'PURCHASE' ? 'bg-purple-900 text-amber-300 font-medium' : 'bg-[#0055a5] text-white font-normal' 
-                      : 'text-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  {l.name}
-                </button>
-              ))}
-            </div>
-            {currentUser.isAdmin && (
-              <div className="border-t border-slate-100 p-1 bg-slate-50">
-                <button 
-                  onClick={() => { setShowNewLedgerModal(true); setShowLedgerMenu(false); }}
-                  className="w-full flex items-center text-left px-2.5 py-1.5 text-xs text-[#0055a5] hover:bg-blue-50 rounded-lg font-medium"
-                >
-                  <Plus size={13} className="mr-1.5" />
-                  Add Ledger
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </header>
-
-      {/* ========================================================================= */}
       {/* MOBILE BOTTOM NAVIGATION BAR (Compact Modern 5-Slot Layout) */}
       {/* ========================================================================= */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-slate-200/90 flex items-center justify-around px-1 z-40 shadow-[0_-3px_12px_rgba(0,0,0,0.05)] text-slate-500">
@@ -775,7 +932,7 @@ export default function Navigation() {
           }
         >
           <LayoutDashboard size={18} className="mb-0.5" />
-          <span>Overview</span>
+          <span>Dashboard</span>
         </NavLink>
 
         <NavLink
@@ -807,7 +964,7 @@ export default function Navigation() {
               <span className={`text-[10px] mt-6.5 font-medium ${
                 isActive ? (isPurchase ? 'text-purple-800 font-bold' : 'text-[#0055a5] font-bold') : 'text-slate-500'
               }`}>
-                Voucher
+                Input
               </span>
             </>
           )}

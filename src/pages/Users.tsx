@@ -205,7 +205,7 @@ function AddUserModal({ onClose }: AddUserModalProps) {
             />
             <label htmlFor="isAdmin" className="font-bold text-slate-800 cursor-pointer select-none text-xs flex items-center gap-1.5">
               <span>Admin</span>
-              <span className="text-[11px] font-normal text-slate-500">({isAdmin ? 'Full administrative access' : 'Standard operator access'})</span>
+              <span className="text-[11px] font-normal text-slate-500">({isAdmin ? 'Full administrative access' : 'Access: Dashboard, Party Ledger, Input, Day Log & Invoice Sheet only'})</span>
             </label>
           </div>
 

@@ -29,6 +29,7 @@ import { getFilteredCacheItems } from '../lib/idbCache';
 import { syncCollection } from '../lib/syncCache';
 import { logUserActivity } from '../lib/activityLogger';
 import { formatAmountInWords } from '../lib/numberToWords';
+import { useLedgerTextCase, CaseIndicator } from '../lib/textCaseHelper';
 import ThermalReceiptModal from '../components/ThermalReceiptModal';
 import PageHeader from '../components/ui/PageHeader';
 import { Card, CardHeader, CardBody } from '../components/ui/Card';
@@ -67,6 +68,7 @@ export default function TrNote() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const { isCaps, toggleManualCaps, handleTextChange, formatText } = useLedgerTextCase();
 
   // Thermal Receipt Modal State
   const [receiptTx, setReceiptTx] = useState<Transaction | null>(null);
@@ -205,10 +207,11 @@ export default function TrNote() {
   };
 
   const handlePresetNote = (preset: string) => {
+    const formattedPreset = formatText(preset);
     if (!note) {
-      setNote(preset);
-    } else if (!note.includes(preset)) {
-      setNote(`${note.trim()}, ${preset}`);
+      setNote(formattedPreset);
+    } else if (!note.includes(formattedPreset)) {
+      setNote(`${note.trim()}, ${formattedPreset}`);
     }
     amountRef.current?.focus();
   };
@@ -634,7 +637,10 @@ export default function TrNote() {
                   <span className="w-4.5 h-4.5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">3</span>
                   <span>Note (Adjustment Reason)</span>
                 </label>
-                <span className="text-[11px] text-slate-500 italic">Appears on receipt</span>
+                <div className="flex items-center gap-2">
+                  <CaseIndicator isCaps={isCaps} onToggle={toggleManualCaps} />
+                  <span className="text-[11px] text-slate-500 italic hidden sm:inline">Appears on receipt</span>
+                </div>
               </div>
 
               <textarea
@@ -642,7 +648,7 @@ export default function TrNote() {
                 rows={2}
                 required
                 value={note}
-                onChange={e => setNote(e.target.value)}
+                onChange={e => handleTextChange(e, setNote)}
                 placeholder="e.g. Discount given on invoice #1042, rate difference adjustment, shortage deduction..."
                 className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 resize-none"
               />
@@ -650,8 +656,7 @@ export default function TrNote() {
               {/* 1-Click Quick Note Chips */}
               <div className="mt-2 flex flex-wrap gap-1.5 items-center">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
-                  <Sparkles size={11} className="text-amber-500" />
-                  Quick:
+                 
                 </span>
                 {NOTE_PRESETS.map((preset) => (
                   <button
@@ -748,7 +753,7 @@ export default function TrNote() {
 
               <div className="flex items-center gap-1 text-[11px] text-slate-500 font-mono">
                 <Receipt size={13} className="text-slate-400" />
-                <span>73mm/80mm Ready</span>
+                <span> </span>
               </div>
             </div>
 

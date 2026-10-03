@@ -100,6 +100,9 @@ export interface Transaction {
   notes: string;
   timestamp: number;
   runningBalance?: number;
+  beforeAmount?: number;
+  beforeBalance?: number;
+  paymentMode?: string;
 }
 
 export interface DailySummary {
@@ -138,6 +141,22 @@ export interface TrackedInvoice {
   type: 'DEBIT' | 'CREDIT';
   timestamp: number;
   partyId?: string;
+}
+
+export interface LogEntry {
+  id: string; // transaction id or log id
+  transactionId?: string;
+  ledgerId: string;
+  date: string; // e.g. "2026-09-25"
+  partyId: string;
+  partyName: string;
+  type: 'DEBIT' | 'CREDIT';
+  amount: number;
+  beforeAmount?: number; // party balance before this transaction
+  afterAmount: number; // calculated balance after amount
+  invoiceNo?: string;
+  notes?: string;
+  timestamp: number;
 }
 
 export interface CacheVersions {

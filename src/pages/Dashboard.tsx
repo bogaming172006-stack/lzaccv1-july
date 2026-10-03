@@ -18,13 +18,35 @@ import {
   Building2,
   CheckCircle2,
   Clock,
-  ArrowRight
+  ArrowRight,
+  RefreshCw,
+  AlertTriangle,
+  AlertCircle,
+  Search,
+  X,
+  Package,
+  Layers,
+  Check,
+  Eye,
+  Phone,
+  MapPin,
+  Truck,
+  ExternalLink
 } from 'lucide-react';
 import { useLedger } from '../LedgerContext';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { format, subMonths, startOfMonth, endOfMonth, startOfDay, endOfDay, parseISO } from 'date-fns';
+import { useAuth } from '../AuthContext';
+import { format, startOfDay, endOfDay, parseISO } from 'date-fns';
 import { syncCollection } from '../lib/syncCache';
 import { getFilteredCacheItems } from '../lib/idbCache';
+import { 
+  BillingBill, 
+  BillingBillItem,
+  fetchBillingBills, 
+  fetchBillItems,
+  computeDeclarationSummary,
+  getTodayKolkataDate,
+  findMatchingParty 
+} from '../lib/billingService';
 import CompanyLogo from '../components/CompanyLogo';
 import PageHeader from '../components/ui/PageHeader';
 import StatCard from '../components/ui/StatCard';
@@ -34,6 +56,8 @@ import { Card, CardHeader, CardBody } from '../components/ui/Card';
 import { Party, Transaction, DashboardSummary, LEDGER_TYPE_LABELS, Ledger } from '../types';
 
 export default function Dashboard() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.isAdmin ?? false;
   const { activeLedger, ledgers, createLedger, setActiveLedgerId } = useLedger();
   const navigate = useNavigate();
   const [allLedgerTxs, setAllLedgerTxs] = useState<Transaction[]>([]);
@@ -45,6 +69,68 @@ export default function Dashboard() {
   const [newLedgerType, setNewLedgerType] = useState<Ledger['type']>('SALE');
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreatingLedger, setIsCreatingLedger] = useState(false);
+
+  // Stock Database Today's Bills State
+  const [stockDate, setStockDate] = useState<string>(() => getTodayKolkataDate());
+  const [stockBills, setStockBills] = useState<BillingBill[]>([]);
+  const [isStockLoading, setIsStockLoading] = useState<boolean>(false);
+  const [stockError, setStockError] = useState<string | null>(null);
+  const [orderStatusFilter, setOrderStatusFilter] = useState<'DELIVERED_OR_APPROVED' | 'DELIVERED' | 'APPROVED' | 'PENDING' | 'OTHER' | 'ALL'>('DELIVERED_OR_APPROVED');
+  const [stockFilterTab, setStockFilterTab] = useState<'pending' | 'all' | 'debited'>('pending');
+  const [stockSearchQuery, setStockSearchQuery] = useState<string>('');
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState<{
+    bill: BillingBill;
+    isDebited: boolean;
+    matchedTx?: Transaction;
+  } | null>(null);
+  const [orderItems, setOrderItems] = useState<BillingBillItem[]>([]);
+  const [isLoadingItems, setIsLoadingItems] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!selectedOrderDetails?.bill) {
+      setOrderItems([]);
+      setIsLoadingItems(false);
+      return;
+    }
+    let isCancelled = false;
+    setIsLoadingItems(true);
+    const billIdOrNo = selectedOrderDetails.bill.id || selectedOrderDetails.bill.bill_no;
+    fetchBillItems(billIdOrNo)
+      .then(items => {
+        if (!isCancelled) {
+          setOrderItems(items || []);
+          setIsLoadingItems(false);
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching order items:', err);
+        if (!isCancelled) {
+          setOrderItems([]);
+          setIsLoadingItems(false);
+        }
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedOrderDetails?.bill?.id, selectedOrderDetails?.bill?.bill_no]);
+
+  const loadStockBills = async (dateToFetch?: string) => {
+    setIsStockLoading(true);
+    setStockError(null);
+    try {
+      const targetDate = dateToFetch || stockDate || getTodayKolkataDate();
+      const res = await fetchBillingBills(targetDate);
+      if (res.success) {
+        setStockBills(res.bills);
+      } else {
+        setStockError(res.error || 'Failed to fetch bills from stock database');
+      }
+    } catch (err: any) {
+      setStockError(err.message || 'Error fetching stock database bills');
+    } finally {
+      setIsStockLoading(false);
+    }
+  };
 
   // Load and Sync Local Cache
   const syncDashboardData = async () => {
@@ -86,42 +172,103 @@ export default function Dashboard() {
 
   useEffect(() => {
     syncDashboardData();
+    loadStockBills(stockDate);
 
     const handleSync = () => {
       syncDashboardData();
+      loadStockBills(stockDate);
     };
     window.addEventListener('database-synced', handleSync);
     return () => {
       window.removeEventListener('database-synced', handleSync);
     };
-  }, [activeLedger?.id]);
+  }, [activeLedger?.id, stockDate]);
 
-  // Generate 12-month column chart data for all months
-  const chartData = useMemo(() => {
-    const data = [];
-    const now = new Date();
-    // 12 months rolling (from 11 months ago up to current month)
-    for (let i = 11; i >= 0; i--) {
-      const monthDate = subMonths(now, i);
-      const start = startOfMonth(monthDate).getTime();
-      const end = endOfMonth(monthDate).getTime();
-      
-      const monthTxs = allLedgerTxs.filter(t => t.timestamp >= start && t.timestamp <= end);
-      const debit = monthTxs.filter(t => t.type === 'DEBIT').reduce((acc, t) => acc + (t.amount || 0), 0);
-      const credit = monthTxs.filter(t => t.type === 'CREDIT').reduce((acc, t) => acc + (t.amount || 0), 0);
-      const txCount = monthTxs.length;
-      
-      data.push({
-        name: format(monthDate, 'MMM'),
-        fullMonth: format(monthDate, 'MMMM yyyy'),
-        debit,
-        credit,
-        net: debit - credit,
-        txCount
+  // Order Status Filter: If DELIVERED or APPROVED then only these orders are showing
+  const statusFilteredBills = useMemo(() => {
+    if (orderStatusFilter === 'DELIVERED_OR_APPROVED') {
+      return stockBills.filter(b => {
+        const s = (b.status || '').toUpperCase().trim();
+        return s === 'DELIVERED' || s === 'APPROVED';
       });
     }
-    return data;
-  }, [allLedgerTxs]);
+    if (orderStatusFilter === 'DELIVERED') {
+      return stockBills.filter(b => (b.status || '').toUpperCase().trim() === 'DELIVERED');
+    }
+    if (orderStatusFilter === 'APPROVED') {
+      return stockBills.filter(b => (b.status || '').toUpperCase().trim() === 'APPROVED');
+    }
+    if (orderStatusFilter === 'PENDING') {
+      return stockBills.filter(b => (b.status || '').toUpperCase().trim() === 'PENDING');
+    }
+    if (orderStatusFilter === 'OTHER') {
+      return stockBills.filter(b => {
+        const s = (b.status || '').toUpperCase().trim();
+        return s !== 'DELIVERED' && s !== 'APPROVED' && s !== 'PENDING';
+      });
+    }
+    return stockBills;
+  }, [stockBills, orderStatusFilter]);
+
+  // Today's Stock Database Verification & Summary for Status-Filtered Orders
+  const todayStockSummary = useMemo(() => {
+    return computeDeclarationSummary(statusFilteredBills, transactions, stockDate);
+  }, [statusFilteredBills, transactions, stockDate]);
+
+  // Filtered Stock Bills for Display
+  const displayedStockBills = useMemo(() => {
+    const q = stockSearchQuery.trim().toLowerCase();
+    const pending = todayStockSummary.pendingBills;
+    const debited = todayStockSummary.debitedBills;
+
+    let list: { bill: BillingBill; isDebited: boolean; matchedTx?: Transaction }[] = [];
+
+    if (stockFilterTab === 'pending') {
+      list = pending.map(b => ({ bill: b, isDebited: false }));
+    } else if (stockFilterTab === 'debited') {
+      list = debited.map(d => ({ bill: d.bill, isDebited: true, matchedTx: d.transaction }));
+    } else {
+      list = statusFilteredBills.map(b => {
+        const found = debited.find(d => d.bill.id === b.id);
+        return {
+          bill: b,
+          isDebited: !!found,
+          matchedTx: found?.transaction
+        };
+      });
+    }
+
+    if (!q) return list;
+
+    return list.filter(item => {
+      const b = item.bill;
+      return (
+        b.bill_no.toLowerCase().includes(q) ||
+        (b.customer_name && b.customer_name.toLowerCase().includes(q)) ||
+        (b.salesman_name && b.salesman_name.toLowerCase().includes(q)) ||
+        (b.vehicle_number && b.vehicle_number.toLowerCase().includes(q)) ||
+        (b.status && b.status.toLowerCase().includes(q)) ||
+        String(b.total_amount).includes(q)
+      );
+    });
+  }, [todayStockSummary, statusFilteredBills, stockFilterTab, stockSearchQuery]);
+
+  // Direct Enter Bill in Ledger
+  const handleEnterBill = (bill: BillingBill) => {
+    const matchedParty = findMatchingParty(bill.customer_name, parties);
+    navigate('/master-entry', {
+      state: {
+        fromBillingDeclaration: true,
+        billNo: bill.bill_no,
+        amount: String(bill.total_amount),
+        partyId: matchedParty ? matchedParty.id : undefined,
+        partyName: bill.customer_name,
+        notes: `Bill #${bill.bill_no} - ${bill.customer_name}${bill.remark ? ` (${bill.remark})` : ''}`,
+        date: bill.bill_date || stockDate || getTodayKolkataDate(),
+        voucherType: 'DEBIT'
+      }
+    });
+  };
 
   if (!activeLedger) {
     const handleCreateLedgerSubmit = async (e: React.FormEvent) => {
@@ -269,329 +416,578 @@ export default function Dashboard() {
   const todayDebitCount = todayTxs.filter(t => t.type === 'DEBIT').length;
   const todayCreditCount = todayTxs.filter(t => t.type === 'CREDIT').length;
 
-  const debitColor = '#e11d48'; // Clear Red for Debit
-  const creditColor = '#059669'; // Clear Green for Credit
+  const todayStr = getTodayKolkataDate();
+  const yesterdayStr = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    try {
+      return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    } catch {
+      return d.toISOString().slice(0, 10);
+    }
+  })();
+
+  const renderOrderStatusBadge = (status?: string) => {
+    const s = (status || '').toUpperCase().trim();
+    if (s === 'DELIVERED') {
+      return <span className="text-[9px] font-medium text-emerald-700">Delivered</span>;
+    }
+    if (s === 'APPROVED') {
+      return <span className="text-[9px] font-medium text-blue-700">Approved</span>;
+    }
+    if (s === 'PENDING') {
+      return <span className="text-[9px] font-medium text-amber-700">Pending</span>;
+    }
+    if (s === 'CHECK_IN') {
+      return <span className="text-[9px] font-medium text-purple-700">Check In</span>;
+    }
+    if (s === 'VERIFYING') {
+      return <span className="text-[9px] font-medium text-indigo-700">Verifying</span>;
+    }
+    if (s === 'CANCELLED') {
+      return <span className="text-[9px] font-medium text-rose-700">Cancelled</span>;
+    }
+    return <span className="text-[9px] font-medium text-slate-600">{status || 'Unknown'}</span>;
+  };
 
   return (
-    <div className="p-2 min-[400px]:p-3 sm:p-8 pt-1 min-[400px]:pt-1.5 sm:pt-8 max-w-7xl mx-auto w-full pb-20 sm:pb-8 space-y-2 sm:space-y-6">
+    <div className="w-full max-w-xl md:max-w-2xl mx-auto p-4 sm:p-5 bg-white min-h-screen pb-20 font-customer">
       
-      {/* Page Header */}
-      <PageHeader
-        title="Financial Overview"
-      />
-
-      {/* ========================================================================= */}
-      {/* HERO FINANCIAL METRICS: BIG TOTAL OUTSTANDING + TODAY'S CREDIT & DEBIT   */}
-      {/* ========================================================================= */}
-      <div className="space-y-2 sm:space-y-4">
-        
-        {/* 1. Big Card: Total Party Outstanding - Exact Sapphire Blue Theme */}
-        <div className="bg-[#0055a5] rounded-lg sm:rounded-2xl p-2.5 min-[400px]:p-3.5 sm:p-8 text-white shadow-2xs sm:shadow-md relative overflow-hidden border border-[#004b91]">
-          {/* Subtle Background Accent */}
-          <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
-
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-6">
-            <div className="space-y-0.5 sm:space-y-2.5">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-white text-[9px] min-[400px]:text-[10px] sm:text-[11px] font-normal sm:font-bold uppercase tracking-wider">
-                  {isExpense ? 'Total Expenses (Payable)' : 'Total Outstanding'}
-                </span>
-                <span className="text-[9.5px] min-[400px]:text-[10.5px] sm:text-xs text-blue-100 font-normal">
-                  • {totalDebtorsCount} {totalDebtorsCount === 1 ? (isExpense ? 'expense head' : 'party') : (isExpense ? 'expense heads' : 'parties')} with balance
-                </span>
-              </div>
-
-              {/* High-Impact Amount */}
-              <div className="pt-0.5 sm:pt-1">
-                <span className="text-lg min-[400px]:text-xl sm:text-5xl font-normal sm:font-extrabold tracking-tight tabular-nums text-white flex items-baseline gap-1 select-all font-sans flex-wrap">
-                  <span className="text-base min-[400px]:text-lg sm:text-4xl text-blue-100 font-normal">₹</span>
-                  <span>
-                    {totalOutstanding.toLocaleString('en-IN', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2
-                    })}
-                  </span>
-                  <span className="ml-1 sm:ml-2 text-[10px] min-[400px]:text-xs sm:text-lg font-normal sm:font-semibold uppercase text-blue-200">
-                    DR
-                  </span>
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-start gap-2 sm:gap-3 shrink-0 pt-1 md:pt-0 border-t md:border-t-0 border-blue-400/30">
-              <button
-                onClick={() => navigate('/parties')}
-                className="px-2.5 py-1 sm:px-5 sm:py-2.5 bg-white text-[#0055a5] hover:bg-blue-50 font-normal sm:font-bold text-[10.5px] min-[400px]:text-[11px] sm:text-xs rounded-md sm:rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-98"
-              >
-                <Users size={13} className="text-[#0055a5]" />
-                <span>All Parties ({parties.length})</span>
-                <ArrowRight size={11} className="text-[#0055a5]" />
-              </button>
-
-              {totalAdvancePayables > 0 && (
-                <div className="text-[9.5px] min-[400px]:text-[10.5px] sm:text-[11px] text-white flex items-center gap-1 px-1 py-0.5">
-                  <span className="font-normal text-blue-100">Advance:</span>
-                  <span className="font-normal sm:font-bold text-emerald-300">
-                    ₹{totalAdvancePayables.toLocaleString('en-IN', { minimumFractionDigits: 2 })} Cr
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* 2. Side-by-Side: Today's Debit & Today's Credit (Debit first, Credit second) */}
-        <div className="grid grid-cols-2 gap-1.5 sm:gap-4">
-          
-          {/* Card A: Todays Debit */}
-          <div className="bg-white rounded-lg sm:rounded-xl border border-slate-200 border-l-3 sm:border-l-4 border-l-rose-500 p-2 min-[400px]:p-2.5 sm:p-5 shadow-2xs hover:shadow-xs transition-all">
-            <div className="flex items-start justify-between gap-1">
-              <div className="space-y-0.5 min-w-0 flex-1">
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
-                  <p className="text-[9px] min-[400px]:text-[10px] sm:text-xs font-normal sm:font-bold uppercase tracking-wider text-slate-500 font-sans truncate">
-                    Todays Debit
-                  </p>
-                </div>
-                <div className="text-xs min-[400px]:text-sm sm:text-3xl font-normal sm:font-extrabold text-rose-600 tracking-tight font-sans select-all pt-0.5">
-                  <AmountDisplay 
-                    amount={todayDebit} 
-                    type="DEBIT" 
-                    showDrCr={false} 
-                    size="sm" 
-                  />
-                </div>
-              </div>
-
-              <div className="p-0.5 sm:p-2 text-rose-600 shrink-0 hidden min-[380px]:flex items-center justify-center">
-                <ArrowDownRight className="w-3.5 h-3.5 sm:w-6 sm:h-6" />
-              </div>
-            </div>
-
-            <div className="mt-1 pt-1 sm:mt-3 sm:pt-3 border-t border-slate-100 flex items-center justify-between text-[9px] min-[400px]:text-[10px] sm:text-xs text-slate-500">
-              <span className="font-normal truncate">
-                {todayDebitCount} {todayDebitCount === 1 ? 'voucher' : 'vouchers'}
-              </span>
-              <button
-                onClick={() => navigate('/log')}
-                className="text-rose-700 hover:text-rose-900 font-normal sm:font-bold transition-colors shrink-0 ml-1"
-              >
-                Log →
-              </button>
-            </div>
-          </div>
-
-          {/* Card B: Todays Credit */}
-          <div className="bg-white rounded-lg sm:rounded-xl border border-slate-200 border-l-3 sm:border-l-4 border-l-emerald-500 p-2 min-[400px]:p-2.5 sm:p-5 shadow-2xs hover:shadow-xs transition-all">
-            <div className="flex items-start justify-between gap-1">
-              <div className="space-y-0.5 min-w-0 flex-1">
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                  <p className="text-[9px] min-[400px]:text-[10px] sm:text-xs font-normal sm:font-bold uppercase tracking-wider text-slate-500 font-sans truncate">
-                    Todays Credit
-                  </p>
-                </div>
-                <div className="text-xs min-[400px]:text-sm sm:text-3xl font-normal sm:font-extrabold text-emerald-600 tracking-tight font-sans select-all pt-0.5">
-                  <AmountDisplay 
-                    amount={todayCredit} 
-                    type="CREDIT" 
-                    showDrCr={false} 
-                    size="sm" 
-                  />
-                </div>
-              </div>
-
-              <div className="p-0.5 sm:p-2 text-emerald-600 shrink-0 hidden min-[380px]:flex items-center justify-center">
-                <ArrowUpRight className="w-3.5 h-3.5 sm:w-6 sm:h-6" />
-              </div>
-            </div>
-
-            <div className="mt-1 pt-1 sm:mt-3 sm:pt-3 border-t border-slate-100 flex items-center justify-between text-[9px] min-[400px]:text-[10px] sm:text-xs text-slate-500">
-              <span className="font-normal truncate">
-                {todayCreditCount} {todayCreditCount === 1 ? 'receipt' : 'receipts'}
-              </span>
-              <button
-                onClick={() => navigate('/log')}
-                className="text-emerald-700 hover:text-emerald-900 font-normal sm:font-bold transition-colors shrink-0 ml-1"
-              >
-                Log →
-              </button>
-            </div>
-          </div>
-
-        </div>
-
+      {/* Top Header */}
+      <div className="mb-4">
+        <h1 className="text-xl font-bold text-[#0F172A] tracking-tight">
+          Financial Overview
+        </h1>
+        <p className="text-[13px] text-[#64748B] mt-0.5">
+          {activeLedger.name} • {LEDGER_TYPE_LABELS[activeLedger.type] || activeLedger.type}
+        </p>
       </div>
 
-      {/* Main Charts & Activity Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 sm:gap-6">
-        
-        {/* 12-Month Cashflow Column Chart (2 Cols) */}
-        <Card className="lg:col-span-2">
-          <div className="px-2.5 sm:px-5 py-2 sm:py-4 border-b border-slate-100 flex items-center justify-between gap-2 bg-slate-50/50">
-            <div>
-              <h3 className="text-[11.5px] sm:text-base font-normal sm:font-bold text-slate-900 tracking-tight font-sans">
-                12-Month History
-              </h3>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-4 text-[9.5px] sm:text-xs font-normal sm:font-semibold">
-              <div className="flex items-center gap-1 sm:gap-1.5">
-                <span className="w-2 h-2 rounded-2xs bg-rose-600"></span>
-                <span className="text-slate-600">Dr</span>
-              </div>
-              <div className="flex items-center gap-1 sm:gap-1.5">
-                <span className="w-2 h-2 rounded-2xs bg-emerald-600"></span>
-                <span className="text-slate-600">Cr</span>
-              </div>
+      {/* Total Outstanding Banner */}
+      <div className="bg-gradient-to-br from-[#0056B3] to-[#004494] text-white rounded-2xl p-4 sm:p-5 shadow-[0_4px_14px_rgba(0,86,179,0.28)] mb-4">
+        <div className="text-[11.5px] font-semibold tracking-wider uppercase opacity-90 mb-2">
+          {isExpense ? 'Total Expenses (Payable)' : 'Total Outstanding'} • {totalDebtorsCount} {totalDebtorsCount === 1 ? 'party' : 'parties'} with balance
+        </div>
+        <div className="text-[23px] sm:text-[26px] font-bold tracking-tight mb-4 flex items-baseline select-all tabular-nums">
+          <span className="text-[21px] mr-0.5 font-normal">₹</span>
+          <span>{totalOutstanding.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span className="text-[13px] font-semibold ml-1.5 tracking-wider">DR</span>
+        </div>
+        <div className="flex justify-between items-center gap-2.5 flex-wrap">
+          <div className="bg-[rgba(0,42,94,0.65)] border border-white/15 px-3 py-1.5 rounded-full text-xs font-semibold text-[#34D399] flex items-center gap-1">
+            <span>Advance:</span>
+            <span>₹{(totalAdvancePayables / 10000000).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/parties')}
+            className="bg-white text-[#0056B3] hover:bg-blue-50 border-none rounded-full px-3.5 py-1.5 text-[12.5px] font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+          >
+            <Users size={14} className="text-[#0056B3]" />
+            <span>All Parties ({parties.length}) →</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Today's Debit & Credit Cards */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        {/* Debit Card */}
+        <div className="bg-white rounded-2xl p-3.5 border border-[#E2E8F0] border-l-4 border-l-[#EF4444] shadow-xs relative">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#EF4444]"></span>
+              Todays Debit
+            </span>
+            <div className="w-6 h-6 rounded-md bg-[#FEE2E2] text-[#DC2626] flex items-center justify-center shrink-0">
+              <ArrowDownRight size={14} strokeWidth={2.5} />
             </div>
           </div>
-
-          <div className="p-2 min-[400px]:p-3 sm:p-5">
-            <div className="h-[150px] min-[400px]:h-[170px] sm:h-[310px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 5, left: -15, bottom: 0 }} barGap={2} barCategoryGap="15%">
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={{ stroke: '#e2e8f0' }} 
-                    tickLine={false} 
-                    tick={{ fontSize: 9, fill: '#64748b', fontWeight: 400 }} 
-                    dy={4} 
-                  />
-                  <YAxis 
-                    width={50}
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 9, fill: '#64748b', fontWeight: 400 }} 
-                    tickFormatter={(value) => `₹${value >= 100000 ? (value / 100000).toFixed(0) + 'L' : value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`} 
-                  />
-                  <Tooltip 
-                    cursor={{ fill: 'rgba(241, 245, 249, 0.6)' }}
-                    content={({ active, payload, label }) => {
-                      if (active && payload && payload.length) {
-                        const data = payload[0].payload;
-                        return (
-                          <div className="bg-slate-900 text-white p-2 sm:p-3 rounded-lg sm:rounded-xl shadow-xl border border-slate-800 text-[10px] sm:text-xs space-y-1.5 min-w-[140px] sm:min-w-[170px]">
-                            <div className="font-normal sm:font-bold border-b border-slate-800 pb-1 text-slate-200 flex items-center justify-between">
-                              <span>{data.fullMonth}</span>
-                              <span className="text-[9px] font-normal text-slate-400">{data.txCount} entries</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="flex items-center gap-1 text-rose-400 font-normal sm:font-semibold">
-                                <span className="w-1.5 h-1.5 rounded-2xs bg-rose-500"></span>
-                                Dr:
-                              </span>
-                              <span className="font-normal sm:font-bold tabular-nums">
-                                ₹{Number(data.debit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="flex items-center gap-1 text-emerald-400 font-normal sm:font-semibold">
-                                <span className="w-1.5 h-1.5 rounded-2xs bg-emerald-500"></span>
-                                Cr:
-                              </span>
-                              <span className="font-normal sm:font-bold tabular-nums">
-                                ₹{Number(data.credit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                            <div className="pt-1 border-t border-slate-800 flex items-center justify-between text-[9px] sm:text-[11px]">
-                              <span className="text-slate-400 font-normal">Net:</span>
-                              <span className={`font-normal sm:font-bold tabular-nums ${data.net >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                ₹{Math.abs(data.net).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {data.net >= 0 ? 'Dr' : 'Cr'}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Bar 
-                    dataKey="debit" 
-                    name="Debit (Dr)" 
-                    fill={debitColor} 
-                    radius={[3, 3, 0, 0]} 
-                    maxBarSize={14}
-                  />
-                  <Bar 
-                    dataKey="credit" 
-                    name="Credit (Cr)" 
-                    fill={creditColor} 
-                    radius={[3, 3, 0, 0]} 
-                    maxBarSize={14}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <div className="text-[17px] font-bold text-[#0F172A] mb-2.5 tabular-nums">
+            ₹ {todayDebit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-        </Card>
-
-        {/* Recent Transactions Feed (1 Col) */}
-        <Card className="flex flex-col">
-          <div className="px-2.5 sm:px-5 py-2 sm:py-4 border-b border-slate-100 flex items-center justify-between gap-2 bg-slate-50/50">
-            <div>
-              <h3 className="text-[11.5px] sm:text-base font-normal sm:font-bold text-slate-900 tracking-tight font-sans">
-                Recent Entries
-              </h3>
-            </div>
+          <div className="flex justify-between items-center text-[11.5px] text-[#64748B]">
+            <span>{todayDebitCount} {todayDebitCount === 1 ? 'voucher' : 'vouchers'}</span>
             <button
+              type="button"
               onClick={() => navigate('/log')}
-              className="text-[10.5px] sm:text-xs font-normal sm:font-bold text-blue-600 hover:text-blue-800 transition-colors"
+              className="font-semibold text-[#DC2626] hover:underline cursor-pointer"
             >
-              All →
+              Log →
             </button>
           </div>
+        </div>
 
-          <div className="flex-1 overflow-y-auto max-h-[220px] sm:max-h-[300px] divide-y divide-slate-100 p-0">
-            {transactions.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 py-8 sm:py-12 px-4">
-                <FileText className="mx-auto mb-1.5 text-slate-300" size={22} />
-                <p className="text-[11px] sm:text-xs font-normal sm:font-semibold">No recent transactions</p>
-              </div>
-            ) : (
-              transactions.sort((a, b) => b.timestamp - a.timestamp).slice(0, 8).map(tx => {
-                const party = parties.find(p => p.id === tx.partyId);
-                return (
-                  <div 
-                    key={tx.id} 
-                    onClick={() => party && navigate(`/parties/${party.id}`)}
-                    className="p-2 min-[400px]:p-2.5 sm:p-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between gap-2 cursor-pointer"
-                  >
-                    <div className="flex items-center min-w-0">
-                      <div className={`shrink-0 mr-1.5 sm:mr-2.5 flex items-center justify-center ${
-                        tx.type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'
-                      }`}>
-                        {tx.type === 'DEBIT' ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] min-[400px]:text-[11.5px] sm:text-xs font-normal sm:font-bold text-slate-800 truncate">{party?.name || 'Unknown Party'}</p>
-                        <div className="flex items-center gap-1 text-[9px] min-[400px]:text-[9.5px] sm:text-[11px] text-slate-400 mt-0.5">
-                          <span>{format(tx.timestamp, 'dd MMM, HH:mm')}</span>
-                          {tx.invoiceNo && (
-                            <>
-                              <span>•</span>
-                              <span className="text-slate-600 font-normal">#{tx.invoiceNo}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <AmountDisplay 
-                        amount={tx.amount} 
-                        type={tx.type} 
-                        showDrCr={true} 
-                        size="xs" 
-                      />
-                    </div>
-                  </div>
-                );
-              })
-            )}
+        {/* Credit Card */}
+        <div className="bg-white rounded-2xl p-3.5 border border-[#E2E8F0] border-l-4 border-l-[#10B981] shadow-xs relative">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
+              Todays Credit
+            </span>
+            <div className="w-6 h-6 rounded-md bg-[#DCFCE7] text-[#059669] flex items-center justify-center shrink-0">
+              <ArrowUpRight size={14} strokeWidth={2.5} />
+            </div>
           </div>
-        </Card>
+          <div className="text-[17px] font-bold text-[#0F172A] mb-2.5 tabular-nums">
+            ₹ {todayCredit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div className="flex justify-between items-center text-[11.5px] text-[#64748B]">
+            <span>{todayCreditCount} {todayCreditCount === 1 ? 'receipt' : 'receipts'}</span>
+            <button
+              type="button"
+              onClick={() => navigate('/log')}
+              className="font-semibold text-[#059669] hover:underline cursor-pointer"
+            >
+              Log →
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Status Tabs */}
+      <div className="flex gap-4 border-b border-[#E2E8F0] pb-2 mb-3.5 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setStockFilterTab('pending')}
+          className={`text-[13px] font-semibold whitespace-nowrap pb-1.5 cursor-pointer transition ${
+            stockFilterTab === 'pending'
+              ? 'text-[#DC2626] border-b-2 border-[#DC2626] -mb-[10px] font-bold'
+              : 'text-[#64748B] hover:text-[#0F172A]'
+          }`}
+        >
+          Not Entered ({todayStockSummary.pendingBills.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setStockFilterTab('all')}
+          className={`text-[13px] font-semibold whitespace-nowrap pb-1.5 cursor-pointer transition ${
+            stockFilterTab === 'all'
+              ? 'text-[#0F172A] border-b-2 border-[#0F172A] -mb-[10px] font-bold'
+              : 'text-[#64748B] hover:text-[#0F172A]'
+          }`}
+        >
+          All Matching ({statusFilteredBills.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setStockFilterTab('debited')}
+          className={`text-[13px] font-semibold whitespace-nowrap pb-1.5 cursor-pointer transition ${
+            stockFilterTab === 'debited'
+              ? 'text-[#059669] border-b-2 border-[#059669] -mb-[10px] font-bold'
+              : 'text-[#64748B] hover:text-[#0F172A]'
+          }`}
+        >
+          Entered ({todayStockSummary.debitedBills.length})
+        </button>
+      </div>
+
+      {/* Search Box */}
+      <div className="flex items-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-3.5 py-2.5 gap-2.5 mb-4">
+        <Search size={16} className="text-[#94A3B8] shrink-0" strokeWidth={2.2} />
+        <input
+          type="text"
+          placeholder="Search bill no, customer, salesman..."
+          value={stockSearchQuery}
+          onChange={e => setStockSearchQuery(e.target.value)}
+          className="border-none outline-none bg-transparent w-full text-[13.5px] text-[#0F172A] placeholder:text-[#94A3B8]"
+        />
+        {stockSearchQuery && (
+          <button
+            type="button"
+            onClick={() => setStockSearchQuery('')}
+            className="text-[#94A3B8] hover:text-slate-600 cursor-pointer"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* Parties List */}
+      <div id="partiesSection" className="mb-6">
+        <div className="grid grid-cols-[85px_1fr_95px] sm:grid-cols-[100px_1fr_120px] text-[11px] font-bold text-[#64748B] tracking-wider px-2 pb-2 border-b border-[#F1F5F9] uppercase">
+          <span>ORDER NO</span>
+          <span>CUSTOMER NAME</span>
+          <span className="text-right">ORDER STATUS</span>
+        </div>
+
+        {isStockLoading && stockBills.length === 0 ? (
+          <div className="py-8 text-center text-slate-400 flex flex-col items-center justify-center gap-1">
+            <Loader2 size={18} className="animate-spin text-blue-600" />
+            <p className="text-xs">Loading orders...</p>
+          </div>
+        ) : stockError ? (
+          <div className="p-4 text-center text-amber-700 text-xs flex items-center justify-center gap-2">
+            <AlertTriangle size={14} className="shrink-0 text-amber-600" />
+            <span>{stockError}</span>
+            <button
+              type="button"
+              onClick={() => loadStockBills(stockDate)}
+              className="underline font-semibold ml-1 cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        ) : displayedStockBills.length === 0 ? (
+          <div className="py-8 text-center text-slate-400 px-4">
+            <Package size={20} className="mx-auto mb-1 text-slate-300" />
+            <p className="text-xs font-medium text-slate-600">No matching orders found</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Orders created in billing will appear here live.</p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-[#F1F5F9] list-none p-0 m-0">
+            {displayedStockBills.map(({ bill, isDebited }) => {
+              const matchedParty = findMatchingParty(bill.customer_name, parties);
+              const formattedTime = (() => {
+                if (!bill.created_at) return '';
+                try {
+                  return format(new Date(bill.created_at), 'HH:mm');
+                } catch {
+                  return '';
+                }
+              })();
+              const balanceText = matchedParty 
+                ? `Balance: ₹ ${Math.abs(matchedParty.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })} ${matchedParty.currentDue >= 0 ? 'DR' : 'CR'}`
+                : `Amount: ₹ ${Number(bill.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+              return (
+                <li
+                  key={bill.id || bill.bill_no}
+                  onClick={() => setSelectedOrderDetails({ bill, isDebited })}
+                  className="grid grid-cols-[85px_1fr_95px] sm:grid-cols-[100px_1fr_120px] items-center py-3.5 px-2 hover:bg-[#F8FAFC] cursor-pointer transition-colors"
+                >
+                  <div className="min-w-0 pr-1">
+                    <strong className="block text-[13.5px] font-bold text-[#0F172A] leading-tight">
+                      #{bill.bill_no}
+                    </strong>
+                    <span className="block text-[11px] text-[#94A3B8] mt-0.5">
+                      {formattedTime || 'Today'}
+                    </span>
+                  </div>
+
+                  <div className="min-w-0 pr-2">
+                    <h4 className="text-[13.5px] font-bold text-[#0F172A] leading-tight truncate">
+                      {bill.customer_name}
+                    </h4>
+                    <p className="text-[11.5px] text-[#64748B] mt-0.5 truncate">
+                      {balanceText}
+                    </p>
+                  </div>
+
+                  <div className="text-right flex flex-col items-end shrink-0">
+                    <span className="text-[11.5px] font-semibold text-[#059669]">
+                      {bill.status ? bill.status.charAt(0).toUpperCase() + bill.status.slice(1).toLowerCase() : 'Delivered'}
+                    </span>
+                    {isDebited ? (
+                      <span className="text-[10px] text-slate-400 font-medium mt-0.5">Entered</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEnterBill(bill);
+                        }}
+                        className="text-[10px] font-bold text-[#DC2626] hover:underline cursor-pointer mt-0.5"
+                      >
+                        Not Entered →
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* ORDER DETAILS MODAL                                                       */}
+      {/* ========================================================================= */}
+      {selectedOrderDetails && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setSelectedOrderDetails(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 text-[#0055a5] flex items-center justify-center font-bold">
+                  <Package size={16} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+                      Order Details #{selectedOrderDetails.bill.bill_no}
+                    </h3>
+                    {renderOrderStatusBadge(selectedOrderDetails.bill.status)}
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    Filter Date: <span className="font-mono text-slate-700">{stockDate}</span> • Status: <span className="font-semibold text-slate-700">{selectedOrderDetails.bill.status || 'CREATED'}</span>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedOrderDetails(null)}
+                className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body - Simple text, no background color, no borders */}
+            <div className="p-4 sm:p-5 space-y-3 max-h-[75vh] overflow-y-auto text-xs text-slate-700">
+              {/* Customer / Party */}
+              <div className="space-y-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-slate-400">
+                      Customer / Party
+                    </span>
+                    <h4 className="text-sm font-bold text-slate-900">
+                      {selectedOrderDetails.bill.customer_name || 'Anonymous Customer'}
+                    </h4>
+                  </div>
+                  {(() => {
+                    const match = findMatchingParty(selectedOrderDetails.bill.customer_name, parties);
+                    return match ? (
+                      <span className="text-[10px] font-medium text-emerald-700">
+                        ✓ Matched: {match.name}
+                      </span>
+                    ) : null;
+                  })()}
+                </div>
+
+                <div className="text-[11px] text-slate-600 space-y-0.5">
+                  {selectedOrderDetails.bill.phone_number && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400">Phone:</span>
+                      <span>{selectedOrderDetails.bill.phone_number}</span>
+                    </div>
+                  )}
+                  {selectedOrderDetails.bill.customer_address && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400">Address:</span>
+                      <span className="truncate">{selectedOrderDetails.bill.customer_address}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Financial & Order Specs - Simple text */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+                <div>
+                  <span className="text-[10px] uppercase font-medium text-slate-400 block">Order Amount</span>
+                  <span className="text-sm sm:text-base font-bold text-slate-900 font-mono">
+                    ₹{Number(selectedOrderDetails.bill.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-medium text-slate-400 block">Total Qty</span>
+                  <span className="text-sm sm:text-base font-semibold text-slate-800">
+                    {selectedOrderDetails.bill.total_qty || 0} pcs
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-medium text-slate-400 block">Total Weight</span>
+                  <span className="text-sm sm:text-base font-semibold text-slate-800">
+                    {selectedOrderDetails.bill.total_weight ? `${selectedOrderDetails.bill.total_weight} kg` : 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-medium text-slate-400 block">Bill Type</span>
+                  <span className="text-sm sm:text-base font-semibold text-slate-800 uppercase">
+                    {selectedOrderDetails.bill.bill_type ? selectedOrderDetails.bill.bill_type.replace('_', ' ') : 'Standard'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Order Items Breakdown (Name, Qty, Rate, Amount) */}
+              <div className="pt-2">
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                  <div className="flex items-center gap-1.5">
+                    <Package size={13} className="text-[#0055a5]" />
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-600">
+                      Ordered Items {orderItems.length > 0 ? `(${orderItems.length})` : ''}
+                    </span>
+                  </div>
+                  {orderItems.length > 0 && (
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      Total: {orderItems.reduce((acc, it) => acc + (Number(it.qty) || 0), 0)} pcs
+                    </span>
+                  )}
+                </div>
+
+                {isLoadingItems ? (
+                  <div className="py-4 text-center text-slate-400 flex items-center justify-center gap-1.5 text-xs">
+                    <Loader2 size={13} className="animate-spin text-[#0055a5]" />
+                    <span>Loading ordered items...</span>
+                  </div>
+                ) : orderItems.length === 0 ? (
+                  <div className="py-3 text-center text-slate-400 text-[11px] italic bg-slate-50/50 rounded-lg my-1">
+                    No individual item details found for this bill.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto mt-1 border border-slate-100 rounded-lg">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="text-[9px] uppercase font-semibold text-slate-400 bg-slate-50/60 border-b border-slate-100">
+                          <th className="py-1.5 px-2 w-7">#</th>
+                          <th className="py-1.5 px-2">Item Name</th>
+                          <th className="py-1.5 px-2 text-center w-16">Qty</th>
+                          <th className="py-1.5 px-2 text-right w-20">Rate</th>
+                          <th className="py-1.5 px-2 text-right w-24">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-[11px]">
+                        {orderItems.map((item, idx) => {
+                          const itemQty = Number(item.qty) || 0;
+                          const itemRate = Number(item.rate) || 0;
+                          const itemTotal = Number(item.line_total) || (itemQty * itemRate);
+                          return (
+                            <tr key={item.id || idx} className="hover:bg-slate-50/50">
+                              <td className="py-1.5 px-2 text-slate-400 text-[10px] tabular-nums">
+                                {idx + 1}
+                              </td>
+                              <td className="py-1.5 px-2 font-medium text-slate-900">
+                                {item.product_name}
+                                {item.mark_text && (
+                                  <span className="ml-1 text-[8.5px] text-amber-600">({item.mark_text})</span>
+                                )}
+                              </td>
+                              <td className="py-1.5 px-2 text-center font-bold text-slate-800 tabular-nums">
+                                {itemQty}
+                              </td>
+                              <td className="py-1.5 px-2 text-right text-slate-500 tabular-nums">
+                                ₹{itemRate.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="py-1.5 px-2 text-right font-bold text-slate-900 tabular-nums">
+                                ₹{itemTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t border-slate-200 font-bold text-slate-900 bg-slate-50/70 text-[11px]">
+                          <td colSpan={2} className="py-1.5 px-2 text-[10px] uppercase text-slate-500">
+                            Total
+                          </td>
+                          <td className="py-1.5 px-2 text-center tabular-nums text-slate-900">
+                            {orderItems.reduce((acc, it) => acc + (Number(it.qty) || 0), 0)} pcs
+                          </td>
+                          <td className="py-1.5 px-2"></td>
+                          <td className="py-1.5 px-2 text-right tabular-nums text-slate-900">
+                            ₹{orderItems.reduce((acc, it) => acc + (Number(it.line_total) || (Number(it.qty || 0) * Number(it.rate || 0))), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Transport & Dispatch Details - Simple text */}
+              <div className="space-y-1 pt-1 text-[11px]">
+                <span className="text-[10px] uppercase font-semibold text-slate-400 block">
+                  Logistics & Transport
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div>
+                    <span className="text-slate-400 text-[10px] block">Vehicle No:</span>
+                    <span className="font-semibold text-slate-800">{selectedOrderDetails.bill.vehicle_number || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px] block">Driver:</span>
+                    <span className="font-semibold text-slate-800">{selectedOrderDetails.bill.driver_name || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px] block">Driver Contact:</span>
+                    <span className="font-semibold text-slate-800">{selectedOrderDetails.bill.driver_contact || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px] block">Salesman:</span>
+                    <span className="font-semibold text-slate-800">{selectedOrderDetails.bill.salesman_name || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px] block">UPI / Ref:</span>
+                    <span className="font-mono text-slate-800">{selectedOrderDetails.bill.payment_upi || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px] block">Order Date:</span>
+                    <span className="font-mono text-slate-800">{selectedOrderDetails.bill.bill_date || stockDate}</span>
+                  </div>
+                </div>
+
+                {selectedOrderDetails.bill.remark && (
+                  <div className="pt-1">
+                    <span className="text-slate-400 text-[10px] block">Remark / Notes:</span>
+                    <p className="text-slate-700 italic text-[11px]">{selectedOrderDetails.bill.remark}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Ledger Debit Status - Simple text */}
+              <div className="pt-2 flex items-center justify-between gap-3 text-xs">
+                <div>
+                  <p className={`font-semibold text-xs sm:text-sm ${selectedOrderDetails.isDebited ? 'text-emerald-700' : 'text-slate-800'}`}>
+                    {selectedOrderDetails.isDebited ? 'Entered in Ledger' : 'Not Yet Entered in Ledger'}
+                  </p>
+                  <p className="text-[10.5px] text-slate-500 mt-0.5">
+                    {selectedOrderDetails.isDebited 
+                      ? 'This stock database order has already been verified and debited.' 
+                      : 'This stock order is waiting to be recorded into your ledger books.'}
+                  </p>
+                </div>
+
+                {!selectedOrderDetails.isDebited ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const b = selectedOrderDetails.bill;
+                      setSelectedOrderDetails(null);
+                      handleEnterBill(b);
+                    }}
+                    className="px-3 py-1.5 bg-[#0055a5] hover:bg-blue-800 text-white rounded-md text-xs font-semibold shadow-xs transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={13} />
+                    <span>Enter in Ledger</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedOrderDetails(null);
+                      navigate('/log');
+                    }}
+                    className="px-3 py-1.5 text-emerald-800 hover:text-emerald-950 hover:bg-emerald-50 rounded-md text-xs font-semibold transition-colors shrink-0 cursor-pointer"
+                  >
+                    View in Log
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
+              <span className="text-slate-400 text-[10.5px]">
+                Created: {selectedOrderDetails.bill.created_at ? new Date(selectedOrderDetails.bill.created_at).toLocaleString() : 'N/A'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedOrderDetails(null)}
+                className="px-3.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

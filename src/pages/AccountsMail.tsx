@@ -2296,7 +2296,7 @@ export default function AccountsMail() {
                               <tr key={rowIdx} className={rowIdx === 0 ? "bg-amber-50/50 text-amber-950 font-bold border-b border-amber-100" : "hover:bg-slate-50/40"}>
                                 <td className="p-2.5 text-center text-slate-400 bg-slate-50 border-r border-slate-150 font-bold">{rowIdx + 1}</td>
                                 {Array.from({ length: colsCount }).map((_, colIdx) => {
-                                  const cellVal = isRowArray ? row[colIdx] : (colIdx === 0 ? row.partyName : (colIdx === 1 ? row.outstandingAmount : row.email));
+                                  const cellVal = isRowArray ? row[colIdx] : (colIdx === 0 ? (row as any)?.partyName : (colIdx === 1 ? (row as any)?.outstandingAmount : (row as any)?.email));
                                   return (
                                     <td key={colIdx} className="p-2.5 border-r border-slate-100 truncate max-w-[200px]" title={cellVal ? String(cellVal) : ''}>
                                       {cellVal !== undefined ? String(cellVal) : <span className="text-gray-300 italic">Empty</span>}
