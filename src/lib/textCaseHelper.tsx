@@ -90,25 +90,44 @@ export function useLedgerTextCase() {
   }, []);
 
   const handleTextChange = useCallback((
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-    setter: (val: string) => void
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string,
+    setter?: (val: string) => void
   ) => {
+    // If called with a string directly (e.g. handleTextChange("value") or handleTextChange("value", setter))
+    if (typeof e === 'string') {
+      const formatted = formatLedgerText(e, isCaps);
+      if (setter) setter(formatted);
+      return formatted;
+    }
+
+    if (!e || !e.target) {
+      return '';
+    }
+
     const target = e.target;
-    const start = target.selectionStart;
-    const end = target.selectionEnd;
-    const original = target.value;
+    const start = target.selectionStart ?? null;
+    const end = target.selectionEnd ?? null;
+    const original = target.value ?? '';
     const formatted = formatLedgerText(original, isCaps);
 
-    setter(formatted);
+    if (setter) {
+      setter(formatted);
+    }
 
     // Maintain cursor position
-    if (start !== null && end !== null) {
+    if (start !== null && end !== null && typeof target.setSelectionRange === 'function') {
       requestAnimationFrame(() => {
-        if (target) {
-          target.setSelectionRange(start, end);
+        try {
+          if (target && typeof target.setSelectionRange === 'function') {
+            target.setSelectionRange(start, end);
+          }
+        } catch (err) {
+          // ignore selection range errors on inputs that do not support it
         }
       });
     }
+
+    return formatted;
   }, [isCaps]);
 
   return {
@@ -125,13 +144,15 @@ export function useLedgerTextCase() {
  */
 export const CaseIndicator: React.FC<{
   isCaps: boolean;
-  onToggle: () => void;
+  onToggle?: () => void;
+  toggleCaps?: () => void;
   className?: string;
-}> = ({ isCaps, onToggle, className = '' }) => {
+}> = ({ isCaps, onToggle, toggleCaps, className = '' }) => {
+  const handleToggle = onToggle || toggleCaps || (() => {});
   return (
     <button
       type="button"
-      onClick={onToggle}
+      onClick={handleToggle}
       title={
         isCaps
           ? 'Caps Lock is ON: Text will be in ALL CAPS. Click to switch to Capitalize Every Word.'

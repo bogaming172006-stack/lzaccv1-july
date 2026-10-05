@@ -163,6 +163,19 @@ export default function MasterEntry() {
       return;
     }
 
+    // 1. Instant local match from already loaded today's bills with 0 database reads
+    const cleanTarget = trimmed.toLowerCase().replace(/^(inv|bill)[-\s:]*/i, '').replace(/^#+/, '').trim();
+    const localMatch = todayPendingBills.find(b => {
+      const bNo = (b.bill_no || '').toLowerCase().replace(/^(inv|bill)[-\s:]*/i, '').replace(/^#+/, '').trim();
+      return bNo === cleanTarget;
+    });
+
+    if (localMatch) {
+      setBillingMatch(localMatch);
+      setIsSearchingBilling(false);
+      return;
+    }
+
     let isCancelled = false;
     setIsSearchingBilling(true);
 
@@ -181,7 +194,7 @@ export default function MasterEntry() {
       } finally {
         if (!isCancelled) setIsSearchingBilling(false);
       }
-    }, 250);
+    }, 400);
 
     return () => {
       isCancelled = true;
@@ -1244,42 +1257,21 @@ export default function MasterEntry() {
 
                 return filtered.map(bill => {
                   const key = bill.id || bill.bill_no;
-                  const isExpanded = expandedBillId === key;
-                  const items = modalBillItems[key] || [];
-                  const isLoading = loadingModalItems[key] || false;
-                  const matchedParty = findMatchingParty(bill.customer_name, parties);
 
                   return (
                     <div key={key} className="p-3 sm:p-3.5 rounded-xl border border-slate-200/90 hover:border-blue-300 bg-white hover:bg-slate-50/40 transition-all shadow-2xs">
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center justify-between gap-3">
                         <div className="space-y-1 min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-slate-900 text-sm sm:text-base">
-                              #{bill.bill_no}
-                            </span>
-                            {bill.bill_date && (
-                              <span className="text-[11px] text-slate-400 font-mono">
-                                {bill.bill_date}
-                              </span>
-                            )}
-                          </div>
+                          <span className="font-mono font-bold text-slate-900 text-sm sm:text-base block">
+                            #{bill.bill_no}
+                          </span>
 
                           <p className="font-semibold text-slate-900 text-xs sm:text-sm truncate">
                             {bill.customer_name}
                           </p>
 
-                          <div className="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap">
-                            {bill.salesman_name && (
-                              <span>Salesman: {bill.salesman_name}</span>
-                            )}
-                            {bill.total_qty ? (
-                              <span>• {bill.total_qty} pcs</span>
-                            ) : null}
-                            {matchedParty && (
-                              <span className="text-emerald-700 font-medium text-[10.5px]">
-                                • Party: {matchedParty.name}
-                              </span>
-                            )}
+                          <div className="text-[11px] font-medium text-slate-500">
+                            Total Qty: <span className="font-bold text-slate-800">{bill.total_qty ?? 0} pcs</span>
                           </div>
                         </div>
 
@@ -1288,78 +1280,18 @@ export default function MasterEntry() {
                             ₹{Number(bill.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </div>
 
-                          <div className="flex items-center gap-1.5 mt-2 justify-end">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleExpandBill(bill)}
-                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10.5px] font-medium transition-colors flex items-center gap-1 cursor-pointer"
-                            >
-                              <Package size={11} className="text-slate-500" />
-                              {isExpanded ? 'Hide Items' : 'View Items'}
-                              {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                            </button>
-
+                          <div className="mt-2 flex justify-end">
                             <button
                               type="button"
                               onClick={() => handleSelectBillFromModal(bill)}
-                              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10.5px] font-bold transition-colors flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
                             >
-                              <Check size={12} strokeWidth={2.5} />
+                              <Check size={13} strokeWidth={2.5} />
                               Apply
                             </button>
                           </div>
                         </div>
                       </div>
-
-                      {/* Expanded Items Table */}
-                      {isExpanded && (
-                        <div className="mt-3 pt-2.5 border-t border-slate-100 animate-in fade-in duration-150">
-                          {isLoading ? (
-                            <div className="py-3 text-center text-slate-400 flex items-center justify-center gap-1.5 text-xs">
-                              <Loader2 size={13} className="animate-spin text-blue-600" />
-                              <span>Loading bill items...</span>
-                            </div>
-                          ) : items.length === 0 ? (
-                            <p className="text-[11px] text-slate-400 italic py-1">
-                              No individual items found.
-                            </p>
-                          ) : (
-                            <div className="overflow-x-auto rounded-lg border border-slate-100">
-                              <table className="w-full text-left text-[11px]">
-                                <thead>
-                                  <tr className="bg-slate-50 text-[9px] uppercase font-semibold text-slate-400 border-b border-slate-100">
-                                    <th className="py-1 px-2">Item Name</th>
-                                    <th className="py-1 px-2 text-center w-14">Qty</th>
-                                    <th className="py-1 px-2 text-right w-16">Rate</th>
-                                    <th className="py-1 px-2 text-right w-20">Amount</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                  {items.map((it, idx) => (
-                                    <tr key={it.id || idx} className="hover:bg-slate-50/60">
-                                      <td className="py-1 px-2 font-medium text-slate-800">
-                                        {it.product_name}
-                                        {it.mark_text && (
-                                          <span className="text-[9px] text-amber-600 ml-1">({it.mark_text})</span>
-                                        )}
-                                      </td>
-                                      <td className="py-1 px-2 text-center font-bold tabular-nums text-slate-700">
-                                        {it.qty}
-                                      </td>
-                                      <td className="py-1 px-2 text-right tabular-nums text-slate-500">
-                                        ₹{Number(it.rate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                      </td>
-                                      <td className="py-1 px-2 text-right font-bold tabular-nums text-slate-900">
-                                        ₹{Number(it.line_total || ((it.qty || 0) * (it.rate || 0))).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   );
                 });
@@ -1493,7 +1425,7 @@ export default function MasterEntry() {
       {/* Success Notification Banner Modal */}
       {showSuccess && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 text-center space-y-4 border border-slate-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4 border border-slate-200">
             <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
               <Check size={28} />
             </div>
@@ -1502,34 +1434,36 @@ export default function MasterEntry() {
               <p className="text-xs text-slate-500 mt-0.5">Recorded in {activeLedger?.name}</p>
             </div>
 
-            {lastSavedTx && (
+            <div className="flex items-center gap-2.5 pt-1">
+              {lastSavedTx && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReceiptTx(lastSavedTx.transaction);
+                    setReceiptPartyName(lastSavedTx.partyName);
+                    setReceiptPartyPhone(lastSavedTx.partyPhone);
+                    setShowSuccess(false);
+                  }}
+                  className="flex-1 py-2.5 px-3 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer truncate"
+                >
+                  <Printer size={14} className="shrink-0" />
+                  <span className="truncate">Print Receipt</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
-                  setReceiptTx(lastSavedTx.transaction);
-                  setReceiptPartyName(lastSavedTx.partyName);
-                  setReceiptPartyPhone(lastSavedTx.partyPhone);
                   setShowSuccess(false);
+                  if (invoiceRef.current) {
+                    invoiceRef.current.focus();
+                  }
                 }}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                className="flex-1 py-2.5 px-3 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white rounded-xl text-xs font-bold flex items-center justify-center transition-all cursor-pointer truncate"
               >
-                <Printer size={15} />
-                Download / Print Receipt
+                <span className="truncate">Post Next (Enter)</span>
               </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => {
-                setShowSuccess(false);
-                if (invoiceRef.current) {
-                  invoiceRef.current.focus();
-                }
-              }}
-              className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold cursor-pointer"
-            >
-              Post Next Voucher (Enter)
-            </button>
+            </div>
           </div>
         </div>
       )}

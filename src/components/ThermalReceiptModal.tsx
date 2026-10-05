@@ -819,9 +819,9 @@ export default function ThermalReceiptModal({
             type="button"
             onClick={handleBluetoothPrint}
             disabled={bluetoothStatus.state === 'connecting' || bluetoothStatus.state === 'printing'}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-blue-600 bg-blue-50/70 hover:bg-blue-100 text-left transition-all cursor-pointer group disabled:opacity-50"
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-left transition-all cursor-pointer group disabled:opacity-50"
           >
-            <div className="w-8 h-8 rounded-md bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+            <div className="w-8 h-8 rounded-md bg-slate-800 text-white flex items-center justify-center shrink-0 shadow-2xs">
               {bluetoothStatus.state === 'connecting' || bluetoothStatus.state === 'printing' ? (
                 <Loader2 size={15} className="animate-spin text-white" />
               ) : (
@@ -832,7 +832,7 @@ export default function ThermalReceiptModal({
               <span className="font-bold text-xs text-slate-900 block truncate">
                 Bluetooth Printer
               </span>
-              <span className="text-[10px] text-blue-800/70 block truncate">
+              <span className="text-[10px] text-slate-500 block truncate">
                 {cachedBtName ? cachedBtName : 'Wireless 80mm'}
               </span>
             </div>

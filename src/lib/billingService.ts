@@ -148,32 +148,100 @@ export function findMatchingParty(
   return undefined;
 }
 
+// Client-side cache to minimize repeated network reads to stock database
+interface CacheItem<T> {
+  data: T;
+  timestamp: number;
+}
+
+const clientBillsCache = new Map<string, CacheItem<{
+  success: boolean;
+  bills: BillingBill[];
+  date: string;
+  totalAmount: number;
+}>>();
+
+const clientLookupCache = new Map<string, CacheItem<{
+  found: boolean;
+  bill: BillingBill | null;
+  matches: BillingBill[];
+}>>();
+
+let clientDatesCache: CacheItem<BillingDateOption[]> | null = null;
+const clientBillItemsCache = new Map<string, CacheItem<BillingBillItem[]>>();
+
 /**
- * Fetch bills for a given date from the billing API
+ * Invalidate client-side stock cache
  */
-export async function fetchBillingBills(date?: string): Promise<{
+export function invalidateStockCache(date?: string) {
+  if (date) {
+    clientBillsCache.delete(date);
+  } else {
+    clientBillsCache.clear();
+    clientLookupCache.clear();
+    clientDatesCache = null;
+    clientBillItemsCache.clear();
+  }
+}
+
+/**
+ * Fetch bills for a given date from the billing API with client-side caching
+ */
+export async function fetchBillingBills(date?: string, forceRefresh = false): Promise<{
   success: boolean;
   bills: BillingBill[];
   date: string;
   totalAmount: number;
   error?: string;
+  cached?: boolean;
 }> {
   const targetDate = date || getTodayKolkataDate();
+  const now = Date.now();
+  const isToday = targetDate === getTodayKolkataDate();
+  const TTL = isToday ? 2 * 60 * 1000 : 30 * 60 * 1000; // 2 min for today, 30 min for past dates
+
+  // Check client cache if not forcing refresh
+  if (!forceRefresh) {
+    const cached = clientBillsCache.get(targetDate);
+    if (cached && (now - cached.timestamp < TTL)) {
+      return {
+        ...cached.data,
+        cached: true
+      };
+    }
+  }
+
   try {
-    const res = await fetch(`/api/billing/bills?date=${encodeURIComponent(targetDate)}`);
+    const url = `/api/billing/bills?date=${encodeURIComponent(targetDate)}${forceRefresh ? '&refresh=1' : ''}`;
+    const res = await fetch(url);
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       throw new Error(errData.error || `HTTP error ${res.status}`);
     }
     const data = await res.json();
-    return {
+    const payload = {
       success: true,
       bills: data.bills || [],
       date: data.date || targetDate,
       totalAmount: data.totalAmount || 0,
     };
+
+    clientBillsCache.set(targetDate, {
+      data: payload,
+      timestamp: now
+    });
+
+    return payload;
   } catch (err: any) {
     console.error('Error in fetchBillingBills:', err);
+    // Return stale cache if available on network error
+    const stale = clientBillsCache.get(targetDate);
+    if (stale) {
+      return {
+        ...stale.data,
+        cached: true
+      };
+    }
     return {
       success: false,
       bills: [],
@@ -185,7 +253,7 @@ export async function fetchBillingBills(date?: string): Promise<{
 }
 
 /**
- * Lookup bill by bill number (exact or partial)
+ * Lookup bill by bill number with local cache lookup first
  */
 export async function lookupBill(billNo: string): Promise<{
   found: boolean;
@@ -197,17 +265,50 @@ export async function lookupBill(billNo: string): Promise<{
     return { found: false, bill: null, matches: [] };
   }
 
+  const cleanNo = normalizeBillNumber(trimmed);
+  const now = Date.now();
+
+  // 1. Check if already present in any loaded bills in client cache
+  for (const entry of clientBillsCache.values()) {
+    if (entry.data?.bills) {
+      const localMatch = entry.data.bills.find(b => {
+        const bNo = normalizeBillNumber(b.bill_no);
+        return bNo === cleanNo || bNo.includes(cleanNo) || cleanNo.includes(bNo);
+      });
+      if (localMatch) {
+        return {
+          found: true,
+          bill: localMatch,
+          matches: [localMatch]
+        };
+      }
+    }
+  }
+
+  // 2. Check client lookup cache
+  const cached = clientLookupCache.get(cleanNo);
+  if (cached && (now - cached.timestamp < 10 * 60 * 1000)) {
+    return cached.data;
+  }
+
   try {
     const res = await fetch(`/api/billing/lookup/${encodeURIComponent(trimmed)}`);
     if (!res.ok) {
       return { found: false, bill: null, matches: [] };
     }
     const data = await res.json();
-    return {
+    const result = {
       found: !!data.found,
       bill: data.bill || null,
       matches: data.matches || [],
     };
+
+    clientLookupCache.set(cleanNo, {
+      data: result,
+      timestamp: now
+    });
+
+    return result;
   } catch (err) {
     console.error('Error looking up bill:', err);
     return { found: false, bill: null, matches: [] };
@@ -215,17 +316,29 @@ export async function lookupBill(billNo: string): Promise<{
 }
 
 /**
- * Fetch available dates in billing database with bill counts
+ * Fetch available dates in billing database with 10-minute client caching
  */
-export async function fetchBillingDates(): Promise<BillingDateOption[]> {
+export async function fetchBillingDates(forceRefresh = false): Promise<BillingDateOption[]> {
+  const now = Date.now();
+  if (!forceRefresh && clientDatesCache && (now - clientDatesCache.timestamp < 10 * 60 * 1000)) {
+    return clientDatesCache.data;
+  }
+
   try {
     const res = await fetch('/api/billing/dates');
-    if (!res.ok) return [];
+    if (!res.ok) return clientDatesCache?.data || [];
     const data = await res.json();
-    return data.dates || [];
+    const dates = data.dates || [];
+
+    clientDatesCache = {
+      data: dates,
+      timestamp: now
+    };
+
+    return dates;
   } catch (err) {
     console.error('Error fetching billing dates:', err);
-    return [];
+    return clientDatesCache?.data || [];
   }
 }
 
@@ -274,15 +387,30 @@ export function computeDeclarationSummary(
 }
 
 /**
- * Fetch bill items for a given bill ID or bill number
+ * Fetch bill items for a given bill ID or bill number with 30-minute client cache
  */
 export async function fetchBillItems(billIdOrNo?: string | null): Promise<BillingBillItem[]> {
   if (!billIdOrNo) return [];
+  const cacheKey = billIdOrNo.toLowerCase();
+  const now = Date.now();
+
+  const cached = clientBillItemsCache.get(cacheKey);
+  if (cached && (now - cached.timestamp < 30 * 60 * 1000)) {
+    return cached.data;
+  }
+
   try {
     const res = await fetch(`/api/billing/bills/${encodeURIComponent(billIdOrNo)}/items`);
     if (!res.ok) return [];
     const data = await res.json();
-    return data.items || [];
+    const items = data.items || [];
+
+    clientBillItemsCache.set(cacheKey, {
+      data: items,
+      timestamp: now
+    });
+
+    return items;
   } catch (err) {
     console.error('Failed to fetch bill items:', err);
     return [];

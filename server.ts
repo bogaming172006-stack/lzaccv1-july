@@ -1122,6 +1122,7 @@ app.get("/api/parties/live", async (req, res) => {
 
 // ---------------------------------------------------------
 // TURSO BILLING DATABASE INTEGRATION (READ-ONLY BILL DECLARATION)
+// OPTIMIZED WITH HIGH-EFFICIENCY IN-MEMORY CACHE TO MINIMIZE READS
 // ---------------------------------------------------------
 const BILLING_DB_URL = (
   process.env.BILLING_DB_URL || 
@@ -1152,13 +1153,47 @@ function getTodayKolkataDate(): string {
   }
 }
 
-// 1. Get bills filtered by date (defaults to today)
+// Low-read in-memory cache structures
+interface StockCacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+const stockBillsCache = new Map<string, StockCacheEntry<any>>();
+const stockLookupCache = new Map<string, StockCacheEntry<any>>();
+const stockItemsCache = new Map<string, StockCacheEntry<any>>();
+let stockDatesCache: StockCacheEntry<any> | null = null;
+
+// Dynamic TTL: Today's date = 4 minutes (240s), Historical/Past dates = 1 hour (3600s)
+function getStockBillsCacheTTL(targetDate: string): number {
+  const today = getTodayKolkataDate();
+  return targetDate === today ? 4 * 60 * 1000 : 60 * 60 * 1000;
+}
+
+// 1. Get bills filtered by date (defaults to today) - with intelligent caching
 app.get("/api/billing/bills", async (req, res) => {
   try {
     const rawDate = (req.query.date as string || "").trim();
+    const forceRefresh = req.query.refresh === "1" || req.query.force === "true";
     const targetDate = rawDate || getTodayKolkataDate();
-    const client = getBillingClient();
 
+    // Set HTTP Cache-Control header so browser and proxies cache for 2 minutes
+    res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=300");
+
+    // Check cache
+    const cacheKey = targetDate;
+    const cached = stockBillsCache.get(cacheKey);
+    const ttl = getStockBillsCacheTTL(targetDate);
+    const now = Date.now();
+
+    if (!forceRefresh && cached && (now - cached.timestamp < ttl)) {
+      return res.json({
+        ...cached.data,
+        cached: true,
+        cacheAgeMs: now - cached.timestamp
+      });
+    }
+
+    const client = getBillingClient();
     const queryRes = await client.execute({
       sql: `SELECT 
         id, 
@@ -1187,16 +1222,35 @@ app.get("/api/billing/bills", async (req, res) => {
 
     const bills = queryRes.rows || [];
     const totalAmount = bills.reduce((sum: number, b: any) => sum + (Number(b.total_amount) || 0), 0);
-
-    res.json({
+    const payload = {
       success: true,
       date: targetDate,
       count: bills.length,
       totalAmount,
       bills
+    };
+
+    // Store in memory cache
+    stockBillsCache.set(cacheKey, {
+      data: payload,
+      timestamp: now
     });
+
+    res.json(payload);
   } catch (err: any) {
     console.error("Error fetching bills from billing DB:", err);
+
+    // If fetch failed but we have any stale cache, return stale data instead of failing
+    const targetDate = (req.query.date as string || "").trim() || getTodayKolkataDate();
+    const stale = stockBillsCache.get(targetDate);
+    if (stale) {
+      return res.json({
+        ...stale.data,
+        stale: true,
+        warning: "Served from stale cache due to database connection issue"
+      });
+    }
+
     res.status(500).json({ 
       success: false, 
       error: err.message || String(err) 
@@ -1204,12 +1258,26 @@ app.get("/api/billing/bills", async (req, res) => {
   }
 });
 
-// 2. Lookup bill by bill number (exact or partial)
+// 2. Lookup bill by bill number (exact or partial) - with 15-minute caching
 app.get("/api/billing/lookup/:billNo", async (req, res) => {
   try {
     const rawBillNo = (req.params.billNo || "").trim();
     if (!rawBillNo) {
       return res.status(400).json({ success: false, error: "Missing bill number" });
+    }
+
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
+
+    const cacheKey = rawBillNo.toUpperCase();
+    const cached = stockLookupCache.get(cacheKey);
+    const now = Date.now();
+    const LOOKUP_TTL = 15 * 60 * 1000; // 15 mins
+
+    if (cached && (now - cached.timestamp < LOOKUP_TTL)) {
+      return res.json({
+        ...cached.data,
+        cached: true
+      });
     }
 
     const client = getBillingClient();
@@ -1254,12 +1322,19 @@ app.get("/api/billing/lookup/:billNo", async (req, res) => {
     const matches = queryRes.rows || [];
     const bestMatch = matches.length > 0 ? matches[0] : null;
 
-    res.json({
+    const payload = {
       success: true,
       found: matches.length > 0,
       bill: bestMatch,
       matches
+    };
+
+    stockLookupCache.set(cacheKey, {
+      data: payload,
+      timestamp: now
     });
+
+    res.json(payload);
   } catch (err: any) {
     console.error("Error looking up bill from billing DB:", err);
     res.status(500).json({ 
@@ -1269,12 +1344,26 @@ app.get("/api/billing/lookup/:billNo", async (req, res) => {
   }
 });
 
-// 2b. Get items for a bill by bill ID or bill number
+// 2b. Get items for a bill by bill ID or bill number - with 1-hour caching
 app.get("/api/billing/bills/:billId/items", async (req, res) => {
   try {
     const rawBillId = (req.params.billId || "").trim();
     if (!rawBillId) {
       return res.status(400).json({ success: false, error: "Missing bill ID" });
+    }
+
+    res.setHeader("Cache-Control", "public, max-age=600, stale-while-revalidate=1800");
+
+    const cacheKey = rawBillId.toLowerCase();
+    const cached = stockItemsCache.get(cacheKey);
+    const now = Date.now();
+    const ITEMS_TTL = 60 * 60 * 1000; // 1 hour
+
+    if (cached && (now - cached.timestamp < ITEMS_TTL)) {
+      return res.json({
+        ...cached.data,
+        cached: true
+      });
     }
 
     const client = getBillingClient();
@@ -1314,11 +1403,18 @@ app.get("/api/billing/bills/:billId/items", async (req, res) => {
       }
     }
 
-    res.json({
+    const payload = {
       success: true,
       count: items.length,
       items
+    };
+
+    stockItemsCache.set(cacheKey, {
+      data: payload,
+      timestamp: now
     });
+
+    res.json(payload);
   } catch (err: any) {
     console.error("Error fetching bill items from billing DB:", err);
     res.status(500).json({ 
@@ -1328,9 +1424,20 @@ app.get("/api/billing/bills/:billId/items", async (req, res) => {
   }
 });
 
-// 3. Get recent bill dates with totals for date picker
+// 3. Get recent bill dates with totals for date picker - with 15-minute caching
 app.get("/api/billing/dates", async (req, res) => {
   try {
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=900");
+
+    const now = Date.now();
+    const DATES_TTL = 15 * 60 * 1000; // 15 mins
+    if (stockDatesCache && (now - stockDatesCache.timestamp < DATES_TTL)) {
+      return res.json({
+        ...stockDatesCache.data,
+        cached: true
+      });
+    }
+
     const client = getBillingClient();
     const queryRes = await client.execute(`
       SELECT 
@@ -1344,12 +1451,25 @@ app.get("/api/billing/dates", async (req, res) => {
       LIMIT 30
     `);
 
-    res.json({
+    const payload = {
       success: true,
       dates: queryRes.rows || []
-    });
+    };
+
+    stockDatesCache = {
+      data: payload,
+      timestamp: now
+    };
+
+    res.json(payload);
   } catch (err: any) {
     console.error("Error fetching bill dates from billing DB:", err);
+    if (stockDatesCache) {
+      return res.json({
+        ...stockDatesCache.data,
+        stale: true
+      });
+    }
     res.status(500).json({ 
       success: false, 
       error: err.message || String(err) 
