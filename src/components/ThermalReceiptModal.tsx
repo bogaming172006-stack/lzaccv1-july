@@ -791,7 +791,7 @@ export default function ThermalReceiptModal({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.8);
     doc.setTextColor(15, 23, 42);
-    doc.text('Want to know current ledger outstanding?', centerX, currentY + 3.2, { align: 'center' });
+    doc.text('Want to know ledger Statement?', centerX, currentY + 3.2, { align: 'center' });
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     doc.setTextColor(30, 41, 59);
