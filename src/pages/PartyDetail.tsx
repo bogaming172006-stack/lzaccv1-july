@@ -601,6 +601,12 @@ export default function PartyDetail() {
     doc.text('UPI ID:', 14, currentY);
     doc.setFont('helvetica', 'normal');
     doc.text('9874682388@ibl', 26, currentY);
+    currentY += 6;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(8.5);
+    doc.text('WhatsApp Ledger Helpline: Want to know current ledger outstanding? Just WhatsApp "PDF" to 7501273632', 14, currentY);
 
     return doc;
   };

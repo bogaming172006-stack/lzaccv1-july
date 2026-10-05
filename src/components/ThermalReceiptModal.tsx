@@ -34,19 +34,19 @@ interface ThermalReceiptModalProps {
 }
 
 export function getReceiptTitle(ledgerType?: Ledger['type'], txType?: 'DEBIT' | 'CREDIT') {
-  if (ledgerType === 'EXPENSE') {
-    return txType === 'DEBIT' ? 'EXPENSE PAYMENT VOUCHER' : 'EXPENSE REFUND RECEIPT';
+  if (txType === 'DEBIT') {
+    if (ledgerType === 'EXPENSE') return 'DEBIT ENTRY (EXPENSE)';
+    if (ledgerType === 'PURCHASE') return 'DEBIT ENTRY (PAYMENT)';
+    if (ledgerType === 'CASH_BANK') return 'DEBIT ENTRY (PAYMENT)';
+    if (ledgerType === 'SALE') return 'DEBIT ENTRY (SALE INVOICE)';
+    return 'DEBIT ENTRY';
+  } else {
+    if (ledgerType === 'EXPENSE') return 'CREDIT ENTRY (REFUND)';
+    if (ledgerType === 'PURCHASE') return 'CREDIT ENTRY (PURCHASE INVOICE)';
+    if (ledgerType === 'CASH_BANK') return 'CREDIT ENTRY (RECEIPT)';
+    if (ledgerType === 'SALE') return 'CREDIT ENTRY (PAYMENT RECEIVED)';
+    return 'CREDIT ENTRY';
   }
-  if (ledgerType === 'CASH_BANK') {
-    return txType === 'DEBIT' ? 'PAYMENT VOUCHER' : 'RECEIPT VOUCHER';
-  }
-  if (ledgerType === 'PURCHASE') {
-    return txType === 'DEBIT' ? 'PAYMENT VOUCHER' : 'PURCHASE INVOICE RECEIPT';
-  }
-  if (ledgerType === 'SALE') {
-    return txType === 'CREDIT' ? 'PAYMENT RECEIPT' : 'SALES INVOICE RECEIPT';
-  }
-  return txType === 'CREDIT' ? 'PAYMENT RECEIPT' : 'TRANSACTION VOUCHER';
 }
 
 export function getPartyLabel(ledgerType?: Ledger['type'], txType?: 'DEBIT' | 'CREDIT') {
@@ -110,7 +110,14 @@ export default function ThermalReceiptModal({
   const hasWebBluetooth = isWebBluetoothSupported();
   const cachedBtName = getCachedPrinterName();
 
-  const receiptTitle = customTitle || getReceiptTitle(ledgerType, transaction.type);
+  const isDebit = transaction.type === 'DEBIT';
+  const resolvedTitle = customTitle 
+    ? (customTitle.toUpperCase().includes('DEBIT') || customTitle.toUpperCase().includes('CREDIT')
+        ? customTitle 
+        : `${isDebit ? 'DEBIT' : 'CREDIT'} - ${customTitle}`)
+    : getReceiptTitle(ledgerType, transaction.type);
+
+  const receiptTitle = resolvedTitle;
   const partyLabel = getPartyLabel(ledgerType, transaction.type);
 
   const afterOutstanding = transaction.runningBalance ?? 0;
@@ -591,10 +598,11 @@ export default function ThermalReceiptModal({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.2);
     doc.setTextColor(80, 80, 80);
-    doc.text('TYPE :', leftX, currentY);
+    doc.text('ENTRY TYPE :', leftX, currentY);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text(transaction.type === 'DEBIT' ? 'DEBIT (-)' : 'CREDIT (+)', leftX + 14, currentY);
+    doc.setFontSize(8.2);
+    doc.text(isDebit ? 'DEBIT (DR)' : 'CREDIT (CR)', leftX + 18, currentY);
 
     doc.setTextColor(80, 80, 80);
     doc.text('TIME :', col2LabelX, currentY);
@@ -682,11 +690,11 @@ export default function ThermalReceiptModal({
     // Row 2: This Entry
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.8);
-    doc.text(`2. This Entry [ ${transaction.type} ] :`, leftX, currentY);
+    doc.text(`2. This Entry [ ${isDebit ? 'DEBIT (DR)' : 'CREDIT (CR)'} ] :`, leftX, currentY);
     doc.setFont('courier', 'bold');
     doc.setFontSize(8);
-    const entrySign = transaction.type === 'DEBIT' ? '+' : '-';
-    doc.text(`${entrySign} ${formatPdfCurrency(transaction.amount, false)}`, rightX, currentY, { align: 'right' });
+    const entrySign = isDebit ? '+' : '-';
+    doc.text(`${entrySign} ${formatPdfCurrency(transaction.amount, false)} ${isDebit ? 'DR' : 'CR'}`, rightX, currentY, { align: 'right' });
     currentY += 2.8;
 
     // Row 3: Net Closing Balance Box (High-Contrast Symmetrical Inverted Box)
@@ -774,7 +782,23 @@ export default function ThermalReceiptModal({
     doc.text(`* ${formattedInvoiceNo} *`, centerX, currentY, { align: 'center' });
     currentY += 4;
 
-    // 11. Footer Audit
+    // 11. WhatsApp Ledger Query Box
+    currentY += 2;
+    doc.setDrawColor(120, 120, 120);
+    doc.setLineWidth(0.25);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(leftX, currentY, contentWidth, 8.5, 1, 1, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Want to know current ledger outstanding?', centerX, currentY + 3.2, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Just WhatsApp "PDF" to this number: 7501273632', centerX, currentY + 6.6, { align: 'center' });
+    currentY += 10.5;
+
+    // 12. Footer Audit
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.2);
     doc.setTextColor(80, 80, 80);
@@ -917,7 +941,10 @@ export default function ThermalReceiptModal({
                     {ledgerName}
                   </div>
                 )}
-                <div className="text-[10px] font-bold text-zinc-800 uppercase tracking-widest mt-1">
+                <div className="text-[11px] font-extrabold uppercase tracking-wider mt-1 px-3 py-0.5 border-2 border-black inline-block rounded">
+                  {isDebit ? '★ DEBIT ENTRY ★' : '★ CREDIT ENTRY ★'}
+                </div>
+                <div className="text-[9.5px] font-bold text-zinc-700 uppercase tracking-widest mt-0.5">
                   -- {receiptTitle} --
                 </div>
               </div>
@@ -930,6 +957,14 @@ export default function ThermalReceiptModal({
                 <div className="flex justify-between items-baseline">
                   <span className="text-zinc-600">Bill No: #{formattedInvoiceNo}</span>
                   <span className="text-zinc-600">{formattedDate}</span>
+                </div>
+                <div className="flex justify-between items-center py-0.5">
+                  <span className="text-zinc-700 font-bold">ENTRY TYPE:</span>
+                  <span className={`font-black text-[10px] uppercase px-1.5 py-0.5 rounded ${
+                    isDebit ? 'bg-black text-white' : 'border border-black text-black'
+                  }`}>
+                    {isDebit ? 'DEBIT (DR)' : 'CREDIT (CR)'}
+                  </span>
                 </div>
                 <div className="flex justify-between items-baseline">
                   <span className="font-bold text-black truncate max-w-[170px]">{partyLabel}: {partyName}</span>
@@ -989,9 +1024,9 @@ export default function ThermalReceiptModal({
               {/* 4. Total Amount (Prominent Simple Bold) */}
               <div className="py-1">
                 <div className="flex justify-between items-baseline text-sm font-bold text-black">
-                  <span>TOTAL:</span>
+                  <span className="font-extrabold">{isDebit ? 'DEBIT AMOUNT:' : 'CREDIT AMOUNT:'}</span>
                   <span className="text-base font-extrabold tabular-nums">
-                    ₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {isDebit ? 'DR' : 'CR'}
                   </span>
                 </div>
                 {formatAmountInWords(transaction.amount) && (
@@ -1035,6 +1070,16 @@ export default function ThermalReceiptModal({
                 <div className="text-center w-24">
                   <div className="border-t border-dotted border-zinc-400 mb-0.5"></div>
                   <span>Authorized Sign</span>
+                </div>
+              </div>
+
+              {/* WhatsApp PDF Help Note */}
+              <div className="border border-dashed border-zinc-400 rounded-md p-1.5 mt-2.5 text-center bg-zinc-50/80">
+                <div className="text-[9px] font-bold text-black uppercase tracking-tight">
+                  Want to know current ledger outstanding?
+                </div>
+                <div className="text-[8.5px] text-zinc-800 mt-0.5 font-medium">
+                  Just WhatsApp <span className="font-extrabold text-black">"PDF"</span> to this number: <span className="font-extrabold text-black">7501273632</span>
                 </div>
               </div>
 

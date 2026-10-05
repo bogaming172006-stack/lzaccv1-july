@@ -137,13 +137,17 @@ export function buildEscPosReceipt(data: ReceiptPrintData): Uint8Array {
   if (data.ledgerName) {
     pushLine(data.ledgerName);
   }
+  bytes.push(0x1b, 0x45, 0x01); // Bold ON
+  pushLine(data.type === 'DEBIT' ? '*** DEBIT ENTRY ***' : '*** CREDIT ENTRY ***');
+  bytes.push(0x1b, 0x45, 0x00); // Bold OFF
   pushLine(`-- ${data.title.toUpperCase()} --`);
   pushLine(divider);
 
   // 4. Meta & Party info (Left aligned)
   bytes.push(0x1b, 0x61, 0x00); // Left align
   pushTwoCols(`Bill: #${data.invoiceNo}`, data.date);
-  pushTwoCols(`Party: ${data.partyName}`, data.time);
+  pushTwoCols(`ENTRY: ${data.type === 'DEBIT' ? 'DEBIT (DR)' : 'CREDIT (CR)'}`, data.time);
+  pushLine(`Party: ${data.partyName}`);
   if (data.partyPhone) {
     pushLine(`Phone: ${data.partyPhone}`);
   }
@@ -181,7 +185,9 @@ export function buildEscPosReceipt(data: ReceiptPrintData): Uint8Array {
   // 6. Total Amount (Prominent Bold Center / TwoCols)
   bytes.push(0x1b, 0x45, 0x01); // Bold ON
   bytes.push(0x1d, 0x21, 0x01); // Double height
-  pushTwoCols('TOTAL:', formatRupeesPlain(data.amount));
+  const amountLabel = data.type === 'DEBIT' ? 'DEBIT TOTAL:' : 'CREDIT TOTAL:';
+  const amountVal = `${formatRupeesPlain(data.amount)} ${data.type === 'DEBIT' ? 'DR' : 'CR'}`;
+  pushTwoCols(amountLabel, amountVal);
   bytes.push(0x1d, 0x21, 0x00); // Normal size
   bytes.push(0x1b, 0x45, 0x00); // Bold OFF
 
@@ -215,7 +221,16 @@ export function buildEscPosReceipt(data: ReceiptPrintData): Uint8Array {
   pushTwoCols("Receiver's Sign", "Authorized Sign");
   bytes.push(0x0a);
 
-  // 10. Audit Footer
+  // 10. WhatsApp Ledger Query Box
+  pushLine(divider);
+  bytes.push(0x1b, 0x61, 0x01); // Center
+  bytes.push(0x1b, 0x45, 0x01); // Bold ON
+  pushLine('Want to know current ledger outstanding?');
+  pushLine('Just WhatsApp "PDF" to this number: 7501273632');
+  bytes.push(0x1b, 0x45, 0x00); // Bold OFF
+  pushLine(divider);
+
+  // 11. Audit Footer
   bytes.push(0x1b, 0x61, 0x01); // Center
   pushLine('* Thank you for your business! *');
   bytes.push(0x0a);
