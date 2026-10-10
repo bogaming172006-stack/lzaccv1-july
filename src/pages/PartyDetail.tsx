@@ -1365,60 +1365,6 @@ export default function PartyDetail() {
                 </button>
               </div>
 
-              {/* Interface Size Toggle */}
-              <div>
-                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">Interface Size</label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleDensityChange('compact')}
-                    className={`px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
-                      density === 'compact' 
-                        ? 'border-blue-600 bg-blue-50 text-blue-700' 
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    Compact (Default)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDensityChange('ultra')}
-                    className={`px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
-                      density === 'ultra' 
-                        ? 'border-blue-600 bg-blue-50 text-blue-700' 
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    Ultra-Compact
-                  </button>
-                </div>
-              </div>
-
-              {/* Currency Selector */}
-              <div>
-                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">Currency Symbol</label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[
-                    { id: '₹', label: '₹ (INR / Rs.)' },
-                    { id: 'Rs.', label: 'Rs.' },
-                    { id: '$', label: '$ (USD)' }
-                  ].map(c => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => handleCurrencyChange(c.id)}
-                      className={`px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
-                        currency === c.id 
-                          ? 'border-blue-600 bg-blue-50 text-blue-700' 
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
                 <button
                   type="button"

@@ -942,7 +942,7 @@ export default function ThermalReceiptModal({
                   </div>
                 )}
                 <div className="text-[11px] font-extrabold uppercase tracking-wider mt-1 px-3 py-0.5 border-2 border-black inline-block rounded">
-                  {isDebit ? '★ DEBIT ENTRY ★' : '★ CREDIT ENTRY ★'}
+                  {isDebit ? ' DEBIT ENTRY ' : ' CREDIT ENTRY '}
                 </div>
                 <div className="text-[9.5px] font-bold text-zinc-700 uppercase tracking-widest mt-0.5">
                   -- {receiptTitle} --
@@ -1084,7 +1084,7 @@ export default function ThermalReceiptModal({
               </div>
 
               <div className="text-center text-[9px] text-zinc-500 font-semibold mt-2">
-                * Thank you for your business! *
+                 Thank you for your business! 
               </div>
             </div>
           </div>

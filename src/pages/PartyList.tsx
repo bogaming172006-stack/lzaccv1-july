@@ -268,41 +268,53 @@ export default function PartyList() {
     return parties.filter(p => p.currentDue < 0).reduce((acc, p) => acc + Math.abs(p.currentDue), 0);
   }, [parties]);
 
+  const debtorsCount = useMemo(() => parties.filter(p => p.currentDue > 0).length, [parties]);
+  const creditorsCount = useMemo(() => parties.filter(p => p.currentDue < 0).length, [parties]);
+
   return (
     <div className={`w-full min-h-screen bg-white sm:bg-[#F8FAFC] pb-16 font-customer ${density === 'ultra' ? 'text-[11px]' : 'text-xs'}`}>
       <div className="w-full min-h-screen bg-white flex flex-col relative sm:max-w-xl md:max-w-2xl sm:mx-auto sm:border-x sm:border-slate-100 sm:shadow-xs transition-all">
         
         {/* ========================================================================= */}
-        {/* COMPACT HEADER BAR                                                        */}
+        {/* HEADER BAR                                                                */}
         {/* ========================================================================= */}
-        <header className="px-3 py-1.5 flex items-center justify-between bg-white sticky top-0 z-20 border-b border-slate-100">
-          <div className="flex items-center gap-2">
+        <header className="px-3.5 py-2.5 flex items-center justify-between bg-white sticky top-0 z-20 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
             <button 
               onClick={() => navigate('/')}
-              className="p-1 text-[#0F172A] rounded-md hover:bg-slate-100 active:opacity-60 transition" 
+              className="p-1 -ml-1 text-[#0F172A] rounded-lg hover:bg-slate-100 active:opacity-60 transition cursor-pointer" 
               aria-label="Go back"
             >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="19" y1="12" x2="5" y2="12"></line>
                 <polyline points="12 19 5 12 12 5"></polyline>
               </svg>
             </button>
-            <div className="flex items-center gap-1.5">
-              <h1 className="text-sm font-bold text-[#0F172A] tracking-tight">Customers</h1>
-              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600">
+            <div className="flex items-center gap-2">
+              <h1 className="text-base sm:text-lg font-bold text-[#0F172A] tracking-tight">Customers</h1>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#E2E8F0]/70 text-[#475569]">
                 {parties.length}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
+            <button 
+              type="button"
+              onClick={() => setShowAddModal(true)}
+              className="w-8 h-8 rounded-full bg-[#1A73E8] hover:bg-[#1557B0] text-white flex items-center justify-center shadow-xs transition-transform active:scale-95 cursor-pointer"
+              title="Add Customer"
+              aria-label="Add Customer"
+            >
+              <Plus size={18} strokeWidth={2.8} />
+            </button>
             <button 
               onClick={() => setShowFilterDrawer(true)}
-              className="p-1 text-[#1E3A8A] rounded-md hover:bg-slate-100 active:opacity-60 transition" 
-              aria-label="Filter"
+              className="p-1.5 text-[#334155] rounded-lg hover:bg-slate-100 active:opacity-60 transition cursor-pointer" 
+              aria-label="Filter & Tools"
               title="Filter & Tools"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E3A8A" strokeWidth="2.3" strokeLinecap="round">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round">
                 <line x1="3" y1="6" x2="21" y2="6"></line>
                 <line x1="6" y1="12" x2="18" y2="12"></line>
                 <line x1="10" y1="18" x2="14" y2="18"></line>
@@ -311,9 +323,46 @@ export default function PartyList() {
           </div>
         </header>
 
+        {/* Summary Info Card in Header Section - Exactly 2 Options */}
+        <div className="px-3.5 pt-3 pb-2 bg-white">
+          <div className="bg-[#F0F7FF] border border-[#E0EDFB] rounded-2xl p-3 sm:p-3.5 shadow-2xs">
+            <div className="grid grid-cols-2 divide-x divide-[#D0E2F6]">
+              {/* Option 1: Total Outstanding */}
+              <div className="pr-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11.5px] font-semibold text-[#64748B] block">
+                    Total OT
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-rose-50 text-[#DC2626]">
+                    {debtorsCount} {debtorsCount === 1 ? 'party' : 'parties'}
+                  </span>
+                </div>
+                <span className="text-[18px] sm:text-[20px] font-bold text-[#DC2626] block mt-1 tabular-nums">
+                  ₹{totalReceivable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              {/* Option 2: Total Creditors */}
+              <div className="pl-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11.5px] font-semibold text-[#64748B] block">
+                    Total Creditors
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-50 text-[#059669]">
+                    {creditorsCount} {creditorsCount === 1 ? 'party' : 'parties'}
+                  </span>
+                </div>
+                <span className="text-[18px] sm:text-[20px] font-bold text-[#059669] block mt-1 tabular-nums">
+                  ₹{totalPayable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Import Banner Notification */}
         {importSuccessMsg && (
-          <div className="mx-3 my-1 p-2 bg-emerald-50 border border-emerald-200 rounded-md text-[10.5px] text-emerald-800 font-semibold flex items-center justify-between shadow-xs animate-in fade-in">
+          <div className="mx-3.5 my-1 p-2 bg-emerald-50 border border-emerald-200 rounded-md text-[10.5px] text-emerald-800 font-semibold flex items-center justify-between shadow-xs animate-in fade-in">
             <div className="flex items-center gap-1.5">
               <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
               <span>{importSuccessMsg}</span>
@@ -321,7 +370,7 @@ export default function PartyList() {
             <button 
               type="button" 
               onClick={() => setImportSuccessMsg(null)}
-              className="text-emerald-600 hover:text-emerald-800 p-0.5"
+              className="text-emerald-600 hover:text-emerald-800 p-0.5 cursor-pointer"
             >
               <X size={11} />
             </button>
@@ -329,40 +378,46 @@ export default function PartyList() {
         )}
 
         {/* ========================================================================= */}
-        {/* COMPACT SEARCH SECTION                                                    */}
+        {/* SEARCH & SORT SECTION                                                     */}
         {/* ========================================================================= */}
-        <div className="px-3 pt-1 pb-1.5 bg-white">
-          <div className="flex items-center bg-[#F1F5F9] rounded-lg px-2.5 py-1 gap-1.5">
+        <div className="px-3.5 py-1.5 bg-white flex items-center gap-2">
+          <div className="flex-1 flex items-center bg-[#F1F5F9] rounded-xl px-3 py-2 gap-2">
             <span className="text-[#64748B] flex items-center shrink-0">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="7.5"></circle>
-                <line x1="21" y1="21" x2="16.5" y2="16.5"></line>
-              </svg>
+              <Search size={15} strokeWidth={2.2} />
             </span>
             <input 
               type="text" 
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="border-none outline-none bg-transparent w-full text-[11px] text-[#1E293B] font-normal placeholder:text-[#94A3B8]" 
+              className="border-none outline-none bg-transparent w-full text-xs text-[#1E293B] font-normal placeholder:text-[#94A3B8]" 
               placeholder="Search customer..." 
               autoComplete="off"
             />
             {search && (
               <button 
                 onClick={() => setSearch('')}
-                className="text-[#94A3B8] hover:text-[#0F172A] p-0.5"
+                className="text-[#94A3B8] hover:text-[#0F172A] p-0.5 cursor-pointer"
               >
-                <X size={11} />
+                <X size={13} />
               </button>
             )}
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShowFilterDrawer(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-[#E2E8F0] hover:bg-slate-50 rounded-xl text-xs font-semibold text-[#334155] shadow-2xs shrink-0 cursor-pointer transition"
+          >
+            <SlidersHorizontal size={14} className="text-[#64748B]" />
+            <span>Sort & options</span>
+          </button>
         </div>
 
-        {/* Compact Quick Status Filter Pills */}
-        <div className="px-3 pb-1.5 flex items-center gap-1 overflow-x-auto no-scrollbar">
+        {/* Quick Status Filter Pills */}
+        <div className="px-3.5 pb-2 pt-0.5 flex items-center gap-2 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setStatusFilter('ALL')}
-            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors ${
+            className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
               statusFilter === 'ALL'
                 ? 'bg-[#0F172A] text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -372,23 +427,23 @@ export default function PartyList() {
           </button>
           <button
             onClick={() => setStatusFilter('DUE')}
-            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors ${
+            className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
               statusFilter === 'DUE'
-                ? 'bg-rose-600 text-white'
-                : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                ? 'bg-[#FEE2E2] text-[#DC2626]'
+                : 'bg-slate-50 text-slate-600 hover:bg-rose-50 hover:text-rose-600'
             }`}
           >
-            Debtors ({parties.filter(p => p.currentDue > 0).length})
+            Debtors ({debtorsCount})
           </button>
           <button
             onClick={() => setStatusFilter('ADVANCE')}
-            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors ${
+            className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
               statusFilter === 'ADVANCE'
-                ? 'bg-emerald-600 text-white'
-                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                ? 'bg-[#DCFCE7] text-[#059669]'
+                : 'bg-slate-50 text-slate-600 hover:bg-emerald-50 hover:text-emerald-600'
             }`}
           >
-            Creditors ({parties.filter(p => p.currentDue < 0).length})
+            Creditors ({creditorsCount})
           </button>
         </div>
 
@@ -521,60 +576,6 @@ export default function PartyList() {
                 >
                   <X size={16} />
                 </button>
-              </div>
-
-              {/* Interface Size Toggle */}
-              <div>
-                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">Interface Size</label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleDensityChange('compact')}
-                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
-                      density === 'compact' 
-                        ? 'border-blue-600 bg-blue-50 text-blue-700' 
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    Compact (Default)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDensityChange('ultra')}
-                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
-                      density === 'ultra' 
-                        ? 'border-blue-600 bg-blue-50 text-blue-700' 
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    Ultra-Compact
-                  </button>
-                </div>
-              </div>
-
-              {/* Currency Selector */}
-              <div>
-                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">Currency Symbol</label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[
-                    { id: '₹', label: '₹ (INR / Rs.)' },
-                    { id: 'Rs.', label: 'Rs.' },
-                    { id: '$', label: '$ (USD)' }
-                  ].map(c => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => handleCurrencyChange(c.id)}
-                      className={`px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
-                        currency === c.id 
-                          ? 'border-blue-600 bg-blue-50 text-blue-700' 
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* Sort Order */}
