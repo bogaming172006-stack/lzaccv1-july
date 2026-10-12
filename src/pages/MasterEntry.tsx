@@ -49,6 +49,7 @@ import PageHeader from '../components/ui/PageHeader';
 import { Card, CardHeader, CardBody } from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import AmountDisplay from '../components/ui/AmountDisplay';
+import SlideToChooseButton from '../components/SlideToChooseButton';
 
 export default function MasterEntry() {
   const { activeLedger } = useLedger();
@@ -93,13 +94,6 @@ export default function MasterEntry() {
   const [autoPrintReceipt, setAutoPrintReceipt] = useState(false);
   const [partyLockedByInvoice, setPartyLockedByInvoice] = useState(false);
   const [lockedInvoiceDetails, setLockedInvoiceDetails] = useState<{amount?: number, date?: number, type: 'DEBIT'|'CREDIT'} | null>(null);
-
-  // Interactive Bottom Slider Action Pill States
-  const [sliderOffset, setSliderOffset] = useState<number>(0);
-  const [isDraggingSlider, setIsDraggingSlider] = useState<boolean>(false);
-  const sliderStartXRef = useRef<number>(0);
-  const currentOffsetRef = useRef<number>(0);
-  const isDraggingRef = useRef<boolean>(false);
 
   const isSaleLedger = activeLedger?.type === 'SALE';
   const isExpenseLedger = activeLedger?.type === 'EXPENSE';
@@ -770,93 +764,6 @@ export default function MasterEntry() {
     await handlePreSubmitWithDirection(type);
   };
 
-  // Slider gestures: Slide left for Credit, Slide right for Debit
-  const maxSlide = 85;
-  const triggerThreshold = 46;
-
-  const handleSliderPointerDown = (e: React.PointerEvent) => {
-    if (isSubmitting) return;
-    sliderStartXRef.current = e.clientX;
-    currentOffsetRef.current = 0;
-    isDraggingRef.current = true;
-    setIsDraggingSlider(true);
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch (_) {}
-  };
-
-  const handleSliderPointerMove = (e: React.PointerEvent) => {
-    if (!isDraggingRef.current) return;
-    const deltaX = e.clientX - sliderStartXRef.current;
-    let newOffset = deltaX;
-
-    // Disallow sliding left if in Expense ledger
-    if (isExpenseLedger && newOffset < 0) {
-      newOffset = Math.max(-10, newOffset * 0.12);
-    }
-
-    newOffset = Math.max(-maxSlide, Math.min(maxSlide, newOffset));
-    currentOffsetRef.current = newOffset;
-    setSliderOffset(newOffset);
-  };
-
-  const handleSliderPointerUp = (e: React.PointerEvent) => {
-    if (!isDraggingRef.current) return;
-    isDraggingRef.current = false;
-    setIsDraggingSlider(false);
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch (_) {}
-
-    const offset = currentOffsetRef.current;
-    if (offset <= -triggerThreshold) {
-      // Slid left to CREDIT
-      if (isExpenseLedger) {
-        setAlertInfo({ message: "Credit vouchers are not allowed in an Expense Ledger.", isError: true });
-        setSliderOffset(0);
-        return;
-      }
-      setSliderOffset(-maxSlide);
-      try { navigator.vibrate?.(25); } catch (_) {}
-      setTimeout(() => {
-        handlePreSubmitWithDirection('CREDIT');
-        setTimeout(() => setSliderOffset(0), 380);
-      }, 100);
-    } else if (offset >= triggerThreshold) {
-      // Slid right to DEBIT
-      setSliderOffset(maxSlide);
-      try { navigator.vibrate?.(25); } catch (_) {}
-      setTimeout(() => {
-        handlePreSubmitWithDirection('DEBIT');
-        setTimeout(() => setSliderOffset(0), 380);
-      }, 100);
-    } else {
-      // Spring back to center
-      setSliderOffset(0);
-    }
-  };
-
-  const handleSliderPointerCancel = () => {
-    isDraggingRef.current = false;
-    setIsDraggingSlider(false);
-    setSliderOffset(0);
-  };
-
-  const handleTriggerActionWithAnimation = (directionType: 'DEBIT' | 'CREDIT') => {
-    if (isSubmitting) return;
-    if (directionType === 'CREDIT' && isExpenseLedger) {
-      setAlertInfo({ message: "Credit vouchers are not allowed in an Expense Ledger.", isError: true });
-      return;
-    }
-    const targetOffset = directionType === 'CREDIT' ? -maxSlide : maxSlide;
-    setSliderOffset(targetOffset);
-    try { navigator.vibrate?.(20); } catch (_) {}
-    setTimeout(() => {
-      handlePreSubmitWithDirection(directionType);
-      setTimeout(() => setSliderOffset(0), 380);
-    }, 180);
-  };
-
   const handleConfirmSubmit = async () => {
     if (isSubmitting || !selectedParty || !activeLedger) return;
     
@@ -1141,98 +1048,18 @@ export default function MasterEntry() {
             />
           </div>
 
-          {/* Row 4: Bottom Slider Action Pill (Credit / Debit) */}
+          {/* Row 4: Slide to Choose (Credit / Debit) */}
           <div className="flex flex-col items-center pt-5 pb-1">
-            <div className="relative flex items-center h-[52px] w-[280px] sm:w-[300px] rounded-full p-1 border border-slate-200/90 shadow-[0_4px_16px_rgba(0,0,0,0.06)] bg-white select-none">
-              {/* Credit Pill (Left Button) */}
-              <button
-                type="button"
-                onClick={() => handleTriggerActionWithAnimation('CREDIT')}
-                disabled={isSubmitting || (isSaleLedger && !invoiceNo.trim()) || isExpenseLedger}
-                className={`w-1/2 h-full rounded-l-full flex items-center justify-center gap-1.5 font-bold text-xs sm:text-[13px] text-[#16A34A] transition-all cursor-pointer border-none pl-3.5 pr-2 ${
-                  sliderOffset < -15
-                    ? 'bg-[#bbf7d0] shadow-inner font-extrabold'
-                    : 'bg-[#DCFCE7]/75 hover:bg-[#DCFCE7]'
-                } ${isExpenseLedger ? 'opacity-30 cursor-not-allowed' : ''}`}
-                title={isExpenseLedger ? 'Credit not allowed in expense ledger' : 'Slide left or Tap to Record Credit Voucher'}
-              >
-                <ArrowLeft size={16} strokeWidth={2.8} className={`text-[#16A34A] transition-transform ${sliderOffset < -15 ? '-translate-x-1' : ''}`} />
-                <span className={`transition-all ${sliderOffset < -25 ? 'scale-105 font-black text-emerald-800' : ''}`}>Credit</span>
-              </button>
-
-              {/* Debit Pill (Right Button) */}
-              <button
-                type="button"
-                onClick={() => handleTriggerActionWithAnimation('DEBIT')}
-                disabled={isSubmitting || (isSaleLedger && !invoiceNo.trim())}
-                className={`w-1/2 h-full rounded-r-full flex items-center justify-center gap-1.5 font-bold text-xs sm:text-[13px] text-[#DC2626] transition-all cursor-pointer border-none pr-3.5 pl-2 ${
-                  sliderOffset > 15
-                    ? 'bg-[#fecdd3] shadow-inner font-extrabold'
-                    : 'bg-[#FEE2E2]/75 hover:bg-[#FEE2E2]'
-                }`}
-                title="Slide right or Tap to Record Debit Voucher"
-              >
-                <span className={`transition-all ${sliderOffset > 25 ? 'scale-105 font-black text-rose-800' : ''}`}>Debit</span>
-                <ArrowRight size={16} strokeWidth={2.8} className={`text-[#DC2626] transition-transform ${sliderOffset > 15 ? 'translate-x-1' : ''}`} />
-              </button>
-
-              {/* Draggable Center Knob with Diamond Icon */}
-              <div
-                onPointerDown={handleSliderPointerDown}
-                onPointerMove={handleSliderPointerMove}
-                onPointerUp={handleSliderPointerUp}
-                onPointerCancel={handleSliderPointerCancel}
-                style={{
-                  transform: `translate(calc(-50% + ${sliderOffset}px), -50%)`,
-                  transition: isDraggingSlider ? 'none' : 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                  touchAction: 'none'
-                }}
-                className={`absolute left-1/2 top-1/2 w-11 h-11 rounded-full bg-white shadow-[0_2px_10px_rgba(0,0,0,0.16)] border border-slate-200 flex items-center justify-center z-20 select-none cursor-grab active:cursor-grabbing active:scale-95 transition-shadow ${
-                  sliderOffset < -20
-                    ? 'ring-2 ring-emerald-500/60 shadow-emerald-200'
-                    : sliderOffset > 20
-                    ? 'ring-2 ring-rose-500/60 shadow-rose-200'
-                    : ''
-                }`}
-              >
-                <div className="flex items-center gap-0.5 text-slate-700 pointer-events-none">
-                  <ChevronLeft 
-                    size={11} 
-                    strokeWidth={3} 
-                    className={`transition-colors ${sliderOffset < -10 ? 'text-[#16A34A] -translate-x-0.5' : 'text-slate-400'}`} 
-                  />
-                  {/* Diamond Icon matching mockup */}
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className="shrink-0">
-                    <rect 
-                      x="4.5" 
-                      y="4.5" 
-                      width="15" 
-                      height="15" 
-                      rx="3.5" 
-                      transform="rotate(45 12 12)" 
-                      stroke={sliderOffset < -20 ? '#16A34A' : sliderOffset > 20 ? '#DC2626' : '#334155'} 
-                      strokeWidth="2.8" 
-                    />
-                  </svg>
-                  <ChevronRight 
-                    size={11} 
-                    strokeWidth={3} 
-                    className={`transition-colors ${sliderOffset > 10 ? 'text-[#DC2626] translate-x-0.5' : 'text-slate-400'}`} 
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Helper Slider Prompt */}
-            <div className="mt-1.5 text-[10.5px] font-medium text-slate-400 text-center tracking-wide select-none">
-              {sliderOffset <= -triggerThreshold ? (
-                <span className="text-emerald-600 font-bold animate-pulse">Release to Confirm Credit ←</span>
-              ) : sliderOffset >= triggerThreshold ? (
-                <span className="text-rose-600 font-bold animate-pulse">Release to Confirm Debit →</span>
-              ) : (
-                <span>Slide knob left for Credit &bull; right for Debit</span>
-              )}
-            </div>
+            <SlideToChooseButton
+              value={type}
+              onChange={(newType) => setType(newType)}
+              onSlideComplete={(confirmedType) => {
+                handlePreSubmitWithDirection(confirmedType);
+              }}
+              disabled={isSubmitting || (isSaleLedger && !invoiceNo.trim())}
+              disableCredit={isExpenseLedger}
+              isSubmitting={isSubmitting}
+            />
           </div>
         </form>
       </div>
