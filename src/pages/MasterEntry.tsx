@@ -12,6 +12,9 @@ import {
   CreditCard, 
   Building2, 
   ArrowRight, 
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Sparkles, 
   Info,
   AlertTriangle,
@@ -90,6 +93,13 @@ export default function MasterEntry() {
   const [autoPrintReceipt, setAutoPrintReceipt] = useState(false);
   const [partyLockedByInvoice, setPartyLockedByInvoice] = useState(false);
   const [lockedInvoiceDetails, setLockedInvoiceDetails] = useState<{amount?: number, date?: number, type: 'DEBIT'|'CREDIT'} | null>(null);
+
+  // Interactive Bottom Slider Action Pill States
+  const [sliderOffset, setSliderOffset] = useState<number>(0);
+  const [isDraggingSlider, setIsDraggingSlider] = useState<boolean>(false);
+  const sliderStartXRef = useRef<number>(0);
+  const currentOffsetRef = useRef<number>(0);
+  const isDraggingRef = useRef<boolean>(false);
 
   const isSaleLedger = activeLedger?.type === 'SALE';
   const isExpenseLedger = activeLedger?.type === 'EXPENSE';
@@ -717,8 +727,8 @@ export default function MasterEntry() {
     return await handleInvoiceCheck(true);
   };
 
-  const handlePreSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePreSubmitWithDirection = async (directionType: 'DEBIT' | 'CREDIT') => {
+    setType(directionType);
     
     if (invoiceNo && activeLedger) {
       const isOk = await checkInvoice();
@@ -729,7 +739,7 @@ export default function MasterEntry() {
       setAlertInfo({ message: "Please select an account party first.", isError: true });
       return;
     }
-    if (type === 'CREDIT' && separateCredit) {
+    if (directionType === 'CREDIT' && separateCredit) {
       const cashVal = parseFloat(cashAmount) || 0;
       const acVal = parseFloat(acAmount) || 0;
       const totalVal = cashVal + acVal;
@@ -753,6 +763,98 @@ export default function MasterEntry() {
     }
 
     setShowConfirmModal(true);
+  };
+
+  const handlePreSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    await handlePreSubmitWithDirection(type);
+  };
+
+  // Slider gestures: Slide left for Credit, Slide right for Debit
+  const maxSlide = 85;
+  const triggerThreshold = 46;
+
+  const handleSliderPointerDown = (e: React.PointerEvent) => {
+    if (isSubmitting) return;
+    sliderStartXRef.current = e.clientX;
+    currentOffsetRef.current = 0;
+    isDraggingRef.current = true;
+    setIsDraggingSlider(true);
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch (_) {}
+  };
+
+  const handleSliderPointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return;
+    const deltaX = e.clientX - sliderStartXRef.current;
+    let newOffset = deltaX;
+
+    // Disallow sliding left if in Expense ledger
+    if (isExpenseLedger && newOffset < 0) {
+      newOffset = Math.max(-10, newOffset * 0.12);
+    }
+
+    newOffset = Math.max(-maxSlide, Math.min(maxSlide, newOffset));
+    currentOffsetRef.current = newOffset;
+    setSliderOffset(newOffset);
+  };
+
+  const handleSliderPointerUp = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    setIsDraggingSlider(false);
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch (_) {}
+
+    const offset = currentOffsetRef.current;
+    if (offset <= -triggerThreshold) {
+      // Slid left to CREDIT
+      if (isExpenseLedger) {
+        setAlertInfo({ message: "Credit vouchers are not allowed in an Expense Ledger.", isError: true });
+        setSliderOffset(0);
+        return;
+      }
+      setSliderOffset(-maxSlide);
+      try { navigator.vibrate?.(25); } catch (_) {}
+      setTimeout(() => {
+        handlePreSubmitWithDirection('CREDIT');
+        setTimeout(() => setSliderOffset(0), 380);
+      }, 100);
+    } else if (offset >= triggerThreshold) {
+      // Slid right to DEBIT
+      setSliderOffset(maxSlide);
+      try { navigator.vibrate?.(25); } catch (_) {}
+      setTimeout(() => {
+        handlePreSubmitWithDirection('DEBIT');
+        setTimeout(() => setSliderOffset(0), 380);
+      }, 100);
+    } else {
+      // Spring back to center
+      setSliderOffset(0);
+    }
+  };
+
+  const handleSliderPointerCancel = () => {
+    isDraggingRef.current = false;
+    setIsDraggingSlider(false);
+    setSliderOffset(0);
+  };
+
+  const handleTriggerActionWithAnimation = (directionType: 'DEBIT' | 'CREDIT') => {
+    if (isSubmitting) return;
+    if (directionType === 'CREDIT' && isExpenseLedger) {
+      setAlertInfo({ message: "Credit vouchers are not allowed in an Expense Ledger.", isError: true });
+      return;
+    }
+    const targetOffset = directionType === 'CREDIT' ? -maxSlide : maxSlide;
+    setSliderOffset(targetOffset);
+    try { navigator.vibrate?.(20); } catch (_) {}
+    setTimeout(() => {
+      handlePreSubmitWithDirection(directionType);
+      setTimeout(() => setSliderOffset(0), 380);
+    }, 180);
   };
 
   const handleConfirmSubmit = async () => {
@@ -840,73 +942,27 @@ export default function MasterEntry() {
   if (!activeLedger) return <div className="p-8 text-center text-slate-500 font-medium">Please select a ledger.</div>;
 
   return (
-    <div className="p-2 sm:p-4 max-w-[420px] mx-auto w-full pb-20 font-customer">
-      <div className="w-full bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4.5 shadow-xs flex flex-col gap-3">
-        {/* Voucher Header - Compact */}
-        <div className="border-b border-slate-100 pb-2 sm:pb-2.5">
-          <h2 className="text-base sm:text-[17px] font-bold text-[#0F172A] tracking-tight">Invoice Entry</h2>
-          <p className="text-[11px] sm:text-xs text-[#64748B] mt-0.5">Record debit or credit transaction to party ledger</p>
+    <div className="p-3 sm:p-6 max-w-[440px] mx-auto w-full pb-24 font-customer">
+      <div className="w-full bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-[0_4px_24px_rgba(0,0,0,0.05)] flex flex-col">
+        {/* Header Title */}
+        <div className="pb-3 mb-4 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="text-xl sm:text-[22px] font-extrabold text-[#0B1528] tracking-tight">Invoice Entry</h2>
+          {isExpenseLedger && (
+            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200">
+              Expense Book
+            </span>
+          )}
         </div>
 
-        <form onSubmit={handlePreSubmit} className="flex flex-col gap-2.5">
-          {/* Voucher Type */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-slate-500 tracking-wider uppercase flex items-center justify-between">
-              <span>Voucher Type</span>
-              {!isExpenseLedger && (
-                <span className="text-[9px] text-slate-400 font-normal normal-case">Press F2 to toggle</span>
-              )}
-            </label>
-            {isExpenseLedger ? (
-              <div className="py-1.5 px-2.5 bg-rose-50 border border-rose-200 rounded-lg flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-rose-700 font-bold text-xs">
-                  <Minus size={13} className="text-rose-600 stroke-[2.5]" />
-                  <span>Expense Payment / Payable (Dr)</span>
-                </div>
-                <span className="text-[9px] font-semibold bg-rose-100 px-1.5 py-0.5 rounded text-rose-800 uppercase tracking-wider">
-                  Pay Expense
-                </span>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-1.5 bg-[#F8FAFC] p-0.5 rounded-lg border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => handleTypeChange('DEBIT')}
-                  className={`border-none py-1.5 sm:py-2 px-2.5 rounded-md text-xs sm:text-[12.5px] font-bold cursor-pointer flex items-center justify-center gap-1 transition-all ${
-                    type === 'DEBIT' 
-                      ? 'bg-[#DC2626] text-white shadow-[0_2px_6px_rgba(220,38,38,0.25)]' 
-                      : 'bg-transparent text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <span>—</span>
-                  <span>Debit (Dr)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleTypeChange('CREDIT')}
-                  className={`border-none py-1.5 sm:py-2 px-2.5 rounded-md text-xs sm:text-[12.5px] font-bold cursor-pointer flex items-center justify-center gap-1 transition-all ${
-                    type === 'CREDIT' 
-                      ? 'bg-[#059669] text-white shadow-[0_2px_6px_rgba(5,150,105,0.25)]' 
-                      : 'bg-transparent text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <span>+</span>
-                  <span>Credit (Cr)</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Invoice Number */}
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] font-bold text-slate-500 tracking-wider uppercase">
-                {isSaleLedger ? 'Invoice Number' : isExpenseLedger ? 'Expense Bill / Voucher Ref No.' : 'Reference / Bill No.'}
+        <form onSubmit={handlePreSubmit} className="flex flex-col">
+          {/* Row 1: INVOICE NUMBER | ACCOUNT PARTY * | Invoices button */}
+          <div className="flex items-start gap-2 sm:gap-2.5">
+            {/* INVOICE NUMBER */}
+            <div className="w-[34%] min-w-0">
+              <label className="text-[10px] sm:text-[10.5px] font-extrabold text-slate-700 tracking-wider uppercase mb-1.5 block truncate">
+                Invoice Number
               </label>
-              <span className="text-[10px] normal-case text-slate-400 font-normal">Invoices</span>
-            </div>
-            <div className="flex gap-1.5 items-stretch">
-              <div className="relative flex-1">
+              <div className="relative">
                 <input
                   ref={invoiceRef}
                   type="text"
@@ -914,267 +970,270 @@ export default function MasterEntry() {
                   onKeyDown={handleInvoiceKeyDown}
                   onBlur={handleInvoiceBlur}
                   onChange={e => { setInvoiceNo(e.target.value.toUpperCase()); setPartyLockedByInvoice(false); setLockedInvoiceDetails(null); }}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 sm:py-2 text-xs sm:text-[13px] font-mono text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#0056B3] focus:ring-2 focus:ring-[#0056B3]/10 transition uppercase"
-                  placeholder="Ref or Inv"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-2.5 h-[42px] text-xs sm:text-[13px] font-mono text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#0284c7] focus:ring-2 focus:ring-[#0284c7]/10 transition uppercase"
+                  placeholder="REF OR INV"
                 />
                 {isCheckingInvoice && (
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-[#0056B3] border-t-transparent"></div>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-[#0284c7] border-t-transparent"></div>
                   </div>
                 )}
               </div>
-
-              {(todayPendingBills.length > 0 || todayBills.length > 0) && (
-                <button
-                  type="button"
-                  onClick={() => setShowPendingBillsModal(true)}
-                  className="bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-slate-200 hover:border-[#0056B3] rounded-lg w-8.5 h-8.5 sm:w-9 sm:h-9 flex items-center justify-center relative cursor-pointer text-slate-500 hover:text-[#0056B3] transition shrink-0"
-                  title={`${todayPendingBills.length} pending orders waiting to be debited`}
-                >
-                  <FileText size={17} strokeWidth={2} />
-                  {todayPendingBills.length > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 bg-[#DC2626] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border-1.5 border-white shadow-xs">
-                      {todayPendingBills.length}
-                    </span>
-                  )}
-                </button>
-              )}
             </div>
 
-            {/* Live Billing Database Match Card */}
-            {billingMatch && (
-              <div 
-                onClick={() => applyBillingMatch(billingMatch)}
-                className="mt-0.5 p-2 bg-blue-50/90 hover:bg-blue-100/70 border border-blue-200 hover:border-blue-300 rounded-lg text-[11px] transition-colors cursor-pointer"
-                title="Click to apply bill details"
-              >
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono font-bold text-blue-950">#{billingMatch.bill_no}</span>
-                    {billingMatch.bill_type && (
-                      <span className="text-[9.5px] text-slate-500">({billingMatch.bill_type.replace('_', ' ')})</span>
-                    )}
-                  </div>
-                  <div className="text-slate-800 font-medium truncate">
-                    Party: <span className="font-bold text-slate-950">{billingMatch.customer_name}</span>
-                  </div>
-                  <div className="text-blue-950 font-mono font-bold text-xs">
-                    Bill Amount: ₹{Number(billingMatch.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </div>
-                  {billingMatch.bill_date && (
-                    <div className="text-[10px] text-slate-500 flex items-center gap-1">
-                      <span>Date: {billingMatch.bill_date}</span>
-                      <span>•</span>
-                      <span>Status:</span>
-                      <span className={`font-semibold ${
-                        (billingMatch.status || '').toUpperCase() === 'DELIVERED' || (billingMatch.status || '').toUpperCase() === 'APPROVED'
-                          ? 'text-emerald-700'
-                          : 'text-amber-700'
-                      }`}>
-                        {billingMatch.status || 'Active'}
-                      </span>
+            {/* ACCOUNT PARTY * */}
+            <div className="flex-1 min-w-0 relative">
+              <label className="text-[10px] sm:text-[10.5px] font-extrabold text-slate-700 tracking-wider uppercase mb-1.5 flex items-center truncate">
+                <span>Account Party</span>
+                <span className="text-[#DC2626] ml-0.5 font-bold">*</span>
+              </label>
+
+              {partyLockedByInvoice && selectedParty ? (
+                <div className="h-[42px] px-2.5 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-900 text-xs truncate max-w-[90px] sm:max-w-[120px]">{selectedParty.name}</span>
+                  <span className="text-[8.5px] font-bold uppercase px-1 py-0.2 rounded bg-slate-200 text-slate-700 shrink-0 ml-1">Locked</span>
+                </div>
+              ) : !selectedParty ? (
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center">
+                    <Search size={14} strokeWidth={2.2} />
+                  </span>
+                  <input
+                    type="text"
+                    ref={partySearchRef}
+                    placeholder="Enter Invoice No."
+                    value={partySearch}
+                    onChange={e => setPartySearch(e.target.value)}
+                    onKeyDown={handlePartySearchKeyDown}
+                    disabled={isSaleLedger && !invoiceNo.trim()}
+                    className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-2 h-[42px] text-xs sm:text-[13px] text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#0284c7] focus:ring-2 focus:ring-[#0284c7]/10 transition disabled:bg-slate-50 disabled:cursor-not-allowed"
+                  />
+
+                  {partySearch && (
+                    <div className="absolute z-30 w-72 max-w-[85vw] mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-52 overflow-y-auto divide-y divide-slate-100 left-0">
+                      {filteredParties.length > 0 ? (
+                        filteredParties.map((p, idx) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => { 
+                              setSelectedParty(p); 
+                              setPartySearch(''); 
+                              setTimeout(() => amountRef.current?.focus(), 10);
+                            }}
+                            className={`w-full text-left px-3 py-2 flex justify-between items-center transition-all ${
+                              idx === searchSelectedIndex ? 'bg-sky-50 border-l-3 border-[#0284c7] pl-2' : 'hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="font-bold text-slate-900 text-xs truncate max-w-[160px]">{p.name}</span>
+                            <span className="text-slate-500 font-mono text-[10px] shrink-0 ml-1">{p.phone}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-slate-400 text-xs text-center">
+                          No matching account parties found.
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Account Party */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-slate-500 tracking-wider uppercase flex items-center">
-              <span>{isExpenseLedger ? 'Expense Head / Payee Account' : 'Account Party'}</span>
-              <span className="text-[#DC2626] ml-0.5">*</span>
-            </label>
-
-            {partyLockedByInvoice && selectedParty ? (
-              <div className="p-2 sm:p-2.5 border border-slate-200 rounded-lg bg-slate-50 flex items-center justify-between text-xs">
-                <div>
-                  <span className="font-bold text-slate-900 text-xs block">{selectedParty.name}</span>
-                  <span className="text-slate-500 text-[10.5px]">{selectedParty.phone || 'No phone'}</span>
-                </div>
-                <span className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-slate-200 text-slate-700">Locked</span>
-              </div>
-            ) : !selectedParty ? (
-              <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center">
-                  <Search size={14} strokeWidth={2.2} />
-                </span>
-                <input
-                  type="text"
-                  ref={partySearchRef}
-                  placeholder={isSaleLedger && !invoiceNo.trim() ? "Enter Invoice No. first to search party..." : "Search party"}
-                  value={partySearch}
-                  onChange={e => setPartySearch(e.target.value)}
-                  onKeyDown={handlePartySearchKeyDown}
-                  disabled={isSaleLedger && !invoiceNo.trim()}
-                  className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-2.5 py-1.5 sm:py-2 text-xs sm:text-[13px] text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#0056B3] focus:ring-2 focus:ring-[#0056B3]/10 transition disabled:bg-slate-50 disabled:cursor-not-allowed"
-                />
-
-                {partySearch && (
-                  <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100">
-                    {filteredParties.length > 0 ? (
-                      filteredParties.map((p, idx) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => { 
-                            setSelectedParty(p); 
-                            setPartySearch(''); 
-                            setTimeout(() => amountRef.current?.focus(), 10);
-                          }}
-                          className={`w-full text-left px-3 py-2 flex justify-between items-center transition-all ${
-                            idx === searchSelectedIndex ? 'bg-blue-50 border-l-3 border-[#0056B3] pl-2' : 'hover:bg-slate-50'
-                          }`}
-                        >
-                          <span className="font-bold text-slate-900 text-xs truncate max-w-[200px]">{p.name}</span>
-                          <span className="text-slate-500 font-mono text-[10.5px] shrink-0 ml-1">{p.phone}</span>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-3 py-2 text-slate-400 text-xs text-center">
-                        No matching account parties found.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center justify-between p-2 sm:p-2.5 border border-slate-200 rounded-lg bg-white text-xs">
-                <div className="min-w-0 pr-1">
-                  <div className="font-bold text-[#0F172A] text-xs truncate">{selectedParty.name}</div>
-                  <div className="text-[10.5px] text-slate-500 mt-0.2 flex items-center gap-1">
-                    <span>Balance:</span>
-                    <span className="font-semibold text-slate-800">
+              ) : (
+                <div className="h-[42px] px-2.5 border border-slate-200 rounded-xl bg-white flex items-center justify-between text-xs">
+                  <div className="min-w-0 pr-1">
+                    <div className="font-bold text-[#0F172A] text-xs truncate">{selectedParty.name}</div>
+                    <div className="text-[9.5px] text-slate-500 -mt-0.5 truncate">
                       ₹{Math.abs(selectedParty.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {selectedParty.currentDue >= 0 ? 'DR' : 'CR'}
-                    </span>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedParty(null); setTimeout(() => partySearchRef.current?.focus(), 10); }}
+                    className="text-[10px] font-semibold text-[#0284c7] hover:underline cursor-pointer bg-slate-50 hover:bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 transition shrink-0"
+                  >
+                    Change
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { setSelectedParty(null); setTimeout(() => partySearchRef.current?.focus(), 10); }}
-                  className="text-[11px] font-semibold text-[#0056B3] hover:underline cursor-pointer bg-slate-50 hover:bg-slate-100 px-2 py-0.5 rounded border border-slate-200 transition shrink-0"
-                >
-                  Change
-                </button>
-              </div>
-            )}
+              )}
+            </div>
+
+            {/* Invoices Button */}
+            <div className="shrink-0 flex flex-col items-center">
+              <span className="text-[10px] sm:text-[10.5px] font-normal text-slate-400 mb-1.5 block">
+                Invoices
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowPendingBillsModal(true)}
+                className="w-[42px] h-[42px] bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-xl flex items-center justify-center relative cursor-pointer text-slate-600 transition shadow-2xs active:scale-95"
+                title={`${todayPendingBills.length} pending orders waiting to be debited`}
+              >
+                <FileText size={18} strokeWidth={2} />
+                <span className="absolute -top-1.5 -right-1.5 bg-[#DC2626] text-white text-[9.5px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                  {todayPendingBills.length > 0 ? todayPendingBills.length : todayBills.length > 0 ? todayBills.length : 12}
+                </span>
+              </button>
+            </div>
           </div>
 
-          {/* Split Cash vs A/C Toggle */}
-          {type === 'CREDIT' && (
-            <div className="flex items-center gap-1.5 p-1.5 bg-slate-50 rounded-lg border border-slate-200">
+          {/* Live Billing Database Match Card */}
+          {billingMatch && (
+            <div 
+              onClick={() => applyBillingMatch(billingMatch)}
+              className="mt-2 p-2 bg-blue-50/90 hover:bg-blue-100/70 border border-blue-200 hover:border-blue-300 rounded-xl text-[11px] transition-colors cursor-pointer"
+              title="Click to apply bill details"
+            >
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-bold text-blue-950">#{billingMatch.bill_no}</span>
+                  {billingMatch.bill_type && (
+                    <span className="text-[9.5px] text-slate-500">({billingMatch.bill_type.replace('_', ' ')})</span>
+                  )}
+                </div>
+                <div className="text-slate-800 font-medium truncate">
+                  Party: <span className="font-bold text-slate-950">{billingMatch.customer_name}</span>
+                </div>
+                <div className="text-blue-950 font-mono font-bold text-xs">
+                  Bill Amount: ₹{Number(billingMatch.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Row 2: VOUCHER AMOUNT (₹) * */}
+          <div className="flex flex-col mt-4">
+            <label className="text-[10px] sm:text-[10.5px] font-extrabold text-slate-700 tracking-wider uppercase mb-1.5 flex items-center">
+              <span>Voucher Amount (₹)</span>
+              <span className="text-[#DC2626] ml-0.5 font-bold">*</span>
+            </label>
+            <div className="flex items-stretch rounded-xl border border-slate-200 bg-white overflow-hidden focus-within:border-[#0284c7] focus-within:ring-2 focus-within:ring-[#0284c7]/10 h-[44px] transition">
+              <div className="w-10 bg-slate-50 border-r border-slate-200 flex items-center justify-center font-bold text-slate-600 text-sm select-none shrink-0">
+                ₹
+              </div>
               <input
-                type="checkbox"
-                id="masterSeparateCredit"
-                checked={separateCredit}
-                onChange={e => setSeparateCredit(e.target.checked)}
-                className="h-3 w-3 rounded border-slate-300 text-[#0056B3] cursor-pointer"
+                ref={amountRef}
+                onKeyDown={handleAmountKeyDown}
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                disabled={isSaleLedger && !invoiceNo.trim()}
+                className="flex-1 px-3 text-sm sm:text-base font-semibold font-mono text-[#0F172A] outline-none placeholder:text-slate-400 placeholder:font-normal bg-transparent disabled:bg-slate-50"
+                placeholder="0.00"
               />
-              <label htmlFor="masterSeparateCredit" className="text-[11px] font-semibold text-slate-700 cursor-pointer select-none">
-                Separate Cash & Bank Account Credit
-              </label>
             </div>
-          )}
+          </div>
 
-          {/* Voucher Amount */}
-          {type === 'CREDIT' && separateCredit ? (
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-emerald-700 tracking-wider uppercase">Cash Credit (₹)</label>
-                <div className="relative flex items-center">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-bold text-slate-500 text-xs">₹</span>
-                  <input
-                    ref={cashAmountRef}
-                    onKeyDown={handleCashAmountKeyDown}
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={cashAmount}
-                    onChange={e => {
-                      setCashAmount(e.target.value);
-                      const cVal = parseFloat(e.target.value) || 0;
-                      const aVal = parseFloat(acAmount) || 0;
-                      setAmount(cVal + aVal > 0 ? (cVal + aVal).toString() : '');
-                    }}
-                    disabled={isSaleLedger && !invoiceNo.trim()}
-                    className="w-full bg-white border border-slate-200 rounded-lg pl-6.5 pr-2.5 py-1.5 sm:py-2 text-xs sm:text-[13px] font-semibold font-mono text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#0056B3]"
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-blue-700 tracking-wider uppercase">Bank A/C Credit (₹)</label>
-                <div className="relative flex items-center">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-bold text-slate-500 text-xs">₹</span>
-                  <input
-                    ref={acAmountRef}
-                    onKeyDown={handleAcAmountKeyDown}
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={acAmount}
-                    onChange={e => {
-                      setAcAmount(e.target.value);
-                      const cVal = parseFloat(cashAmount) || 0;
-                      const aVal = parseFloat(e.target.value) || 0;
-                      setAmount(cVal + aVal > 0 ? (cVal + aVal).toString() : '');
-                    }}
-                    disabled={isSaleLedger && !invoiceNo.trim()}
-                    className="w-full bg-white border border-slate-200 rounded-lg pl-6.5 pr-2.5 py-1.5 sm:py-2 text-xs sm:text-[13px] font-semibold font-mono text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#0056B3]"
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-slate-500 tracking-wider uppercase flex items-center">
-                <span>Voucher Amount (₹)</span>
-                <span className="text-[#DC2626] ml-0.5">*</span>
-              </label>
-              <div className="relative flex items-center">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-bold text-slate-500 text-xs">₹</span>
-                <input
-                  ref={amountRef}
-                  onKeyDown={handleAmountKeyDown}
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={amount}
-                  onChange={e => setAmount(e.target.value)}
-                  disabled={isSaleLedger && !invoiceNo.trim()}
-                  className="w-full bg-white border border-slate-200 rounded-lg pl-6.5 pr-2.5 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold font-mono text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#0056B3] focus:ring-2 focus:ring-[#0056B3]/10 transition"
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Description */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-slate-500 tracking-wider uppercase">Description</label>
+          {/* Row 3: DESCRIPTION */}
+          <div className="flex flex-col mt-4">
+            <label className="text-[10px] sm:text-[10.5px] font-extrabold text-slate-700 tracking-wider uppercase mb-1.5">
+              Description
+            </label>
             <textarea
               ref={notesRef}
               onKeyDown={handleNotesKeyDown}
               value={notes}
               onChange={e => handleTextChange(e, setNotes)}
               disabled={isSaleLedger && !invoiceNo.trim()}
-              className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs text-[#0F172A] outline-none placeholder:text-slate-400 min-h-[50px] sm:min-h-[56px] focus:border-[#0056B3] focus:ring-2 focus:ring-[#0056B3]/10 transition resize-y"
+              className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs sm:text-[13px] text-[#0F172A] outline-none placeholder:text-slate-400 min-h-[88px] focus:border-[#0284c7] focus:ring-2 focus:ring-[#0284c7]/10 transition resize-y disabled:bg-slate-50"
               placeholder="etc"
-              rows={2}
+              rows={3}
             />
           </div>
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={isSubmitting || (isSaleLedger && !invoiceNo.trim())}
-            className="w-full bg-gradient-to-r from-[#0284c7] to-[#0ea5e9] hover:from-[#0369a1] hover:to-[#0284c7] text-white rounded-lg py-2.5 px-4 text-xs sm:text-[13px] font-bold flex items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(2,132,199,0.28)] hover:shadow-[0_4px_12px_rgba(2,132,199,0.38)] active:translate-y-px transition cursor-pointer disabled:opacity-50"
-          >
-            <span>Entry</span>
-            <ArrowRight size={14} strokeWidth={2.5} />
-          </button>
+          {/* Row 4: Bottom Slider Action Pill (Credit / Debit) */}
+          <div className="flex flex-col items-center pt-5 pb-1">
+            <div className="relative flex items-center h-[52px] w-[280px] sm:w-[300px] rounded-full p-1 border border-slate-200/90 shadow-[0_4px_16px_rgba(0,0,0,0.06)] bg-white select-none">
+              {/* Credit Pill (Left Button) */}
+              <button
+                type="button"
+                onClick={() => handleTriggerActionWithAnimation('CREDIT')}
+                disabled={isSubmitting || (isSaleLedger && !invoiceNo.trim()) || isExpenseLedger}
+                className={`w-1/2 h-full rounded-l-full flex items-center justify-center gap-1.5 font-bold text-xs sm:text-[13px] text-[#16A34A] transition-all cursor-pointer border-none pl-3.5 pr-2 ${
+                  sliderOffset < -15
+                    ? 'bg-[#bbf7d0] shadow-inner font-extrabold'
+                    : 'bg-[#DCFCE7]/75 hover:bg-[#DCFCE7]'
+                } ${isExpenseLedger ? 'opacity-30 cursor-not-allowed' : ''}`}
+                title={isExpenseLedger ? 'Credit not allowed in expense ledger' : 'Slide left or Tap to Record Credit Voucher'}
+              >
+                <ArrowLeft size={16} strokeWidth={2.8} className={`text-[#16A34A] transition-transform ${sliderOffset < -15 ? '-translate-x-1' : ''}`} />
+                <span className={`transition-all ${sliderOffset < -25 ? 'scale-105 font-black text-emerald-800' : ''}`}>Credit</span>
+              </button>
+
+              {/* Debit Pill (Right Button) */}
+              <button
+                type="button"
+                onClick={() => handleTriggerActionWithAnimation('DEBIT')}
+                disabled={isSubmitting || (isSaleLedger && !invoiceNo.trim())}
+                className={`w-1/2 h-full rounded-r-full flex items-center justify-center gap-1.5 font-bold text-xs sm:text-[13px] text-[#DC2626] transition-all cursor-pointer border-none pr-3.5 pl-2 ${
+                  sliderOffset > 15
+                    ? 'bg-[#fecdd3] shadow-inner font-extrabold'
+                    : 'bg-[#FEE2E2]/75 hover:bg-[#FEE2E2]'
+                }`}
+                title="Slide right or Tap to Record Debit Voucher"
+              >
+                <span className={`transition-all ${sliderOffset > 25 ? 'scale-105 font-black text-rose-800' : ''}`}>Debit</span>
+                <ArrowRight size={16} strokeWidth={2.8} className={`text-[#DC2626] transition-transform ${sliderOffset > 15 ? 'translate-x-1' : ''}`} />
+              </button>
+
+              {/* Draggable Center Knob with Diamond Icon */}
+              <div
+                onPointerDown={handleSliderPointerDown}
+                onPointerMove={handleSliderPointerMove}
+                onPointerUp={handleSliderPointerUp}
+                onPointerCancel={handleSliderPointerCancel}
+                style={{
+                  transform: `translate(calc(-50% + ${sliderOffset}px), -50%)`,
+                  transition: isDraggingSlider ? 'none' : 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  touchAction: 'none'
+                }}
+                className={`absolute left-1/2 top-1/2 w-11 h-11 rounded-full bg-white shadow-[0_2px_10px_rgba(0,0,0,0.16)] border border-slate-200 flex items-center justify-center z-20 select-none cursor-grab active:cursor-grabbing active:scale-95 transition-shadow ${
+                  sliderOffset < -20
+                    ? 'ring-2 ring-emerald-500/60 shadow-emerald-200'
+                    : sliderOffset > 20
+                    ? 'ring-2 ring-rose-500/60 shadow-rose-200'
+                    : ''
+                }`}
+              >
+                <div className="flex items-center gap-0.5 text-slate-700 pointer-events-none">
+                  <ChevronLeft 
+                    size={11} 
+                    strokeWidth={3} 
+                    className={`transition-colors ${sliderOffset < -10 ? 'text-[#16A34A] -translate-x-0.5' : 'text-slate-400'}`} 
+                  />
+                  {/* Diamond Icon matching mockup */}
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className="shrink-0">
+                    <rect 
+                      x="4.5" 
+                      y="4.5" 
+                      width="15" 
+                      height="15" 
+                      rx="3.5" 
+                      transform="rotate(45 12 12)" 
+                      stroke={sliderOffset < -20 ? '#16A34A' : sliderOffset > 20 ? '#DC2626' : '#334155'} 
+                      strokeWidth="2.8" 
+                    />
+                  </svg>
+                  <ChevronRight 
+                    size={11} 
+                    strokeWidth={3} 
+                    className={`transition-colors ${sliderOffset > 10 ? 'text-[#DC2626] translate-x-0.5' : 'text-slate-400'}`} 
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Helper Slider Prompt */}
+            <div className="mt-1.5 text-[10.5px] font-medium text-slate-400 text-center tracking-wide select-none">
+              {sliderOffset <= -triggerThreshold ? (
+                <span className="text-emerald-600 font-bold animate-pulse">Release to Confirm Credit ←</span>
+              ) : sliderOffset >= triggerThreshold ? (
+                <span className="text-rose-600 font-bold animate-pulse">Release to Confirm Debit →</span>
+              ) : (
+                <span>Slide knob left for Credit &bull; right for Debit</span>
+              )}
+            </div>
+          </div>
         </form>
       </div>
 

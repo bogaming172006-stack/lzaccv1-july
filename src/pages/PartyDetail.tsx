@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType, doc, getDoc, collection, query, where, updateDoc, getDocs } from '../firebase';
 import { Party, Transaction } from '../types';
@@ -175,7 +175,17 @@ export default function PartyDetail() {
     return transactions.filter(t => t.type === 'CREDIT').reduce((acc, t) => acc + t.amount, 0);
   }, [transactions]);
 
-  const groupedTransactions = useMemo(() => {
+  // Progressive Pagination: Initial 10 transactions, +10 on drag up / scroll
+  const [visibleCount, setVisibleCount] = useState(10);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null);
+
+  // Reset to first 10 whenever search query or filter changes
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [activeFilter, searchQuery]);
+
+  const filteredTransactions = useMemo(() => {
     let items = [...transactions].sort((a, b) => b.timestamp - a.timestamp);
     if (activeFilter === 'debit') {
       items = items.filter(t => t.type === 'DEBIT');
@@ -190,15 +200,65 @@ export default function PartyDetail() {
         (t.invoiceNo || '').toLowerCase().includes(q)
       );
     }
+    return items;
+  }, [transactions, activeFilter, searchQuery]);
 
+  const displayedTransactions = useMemo(() => {
+    return filteredTransactions.slice(0, visibleCount);
+  }, [filteredTransactions, visibleCount]);
+
+  const hasMoreTransactions = visibleCount < filteredTransactions.length;
+
+  const [loadCountdown, setLoadCountdown] = useState<number | null>(null);
+
+  const handleLoadMoreTransactions = () => {
+    if (isLoadingMore || !hasMoreTransactions) return;
+    setIsLoadingMore(true);
+    setLoadCountdown(3);
+
+    setTimeout(() => {
+      setLoadCountdown(2);
+    }, 1000);
+
+    setTimeout(() => {
+      setLoadCountdown(1);
+    }, 2000);
+
+    setTimeout(() => {
+      setVisibleCount(prev => prev + 10);
+      setIsLoadingMore(false);
+      setLoadCountdown(null);
+    }, 3000); // 3-second hold drag duration
+  };
+
+  useEffect(() => {
+    if (!hasMoreTransactions || isLoadingMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          handleLoadMoreTransactions();
+        }
+      },
+      { threshold: 0.1, rootMargin: '120px' }
+    );
+
+    const target = loadMoreTriggerRef.current;
+    if (target) observer.observe(target);
+
+    return () => {
+      if (target) observer.unobserve(target);
+    };
+  }, [hasMoreTransactions, isLoadingMore, visibleCount]);
+
+  const groupedTransactions = useMemo(() => {
     const groups: Record<string, Transaction[]> = {};
-    items.forEach(tx => {
+    displayedTransactions.forEach(tx => {
       const dateStr = format(new Date(tx.timestamp), 'MMM d, yyyy');
       if (!groups[dateStr]) groups[dateStr] = [];
       groups[dateStr].push(tx);
     });
     return groups;
-  }, [transactions, activeFilter, searchQuery]);
+  }, [displayedTransactions]);
 
   const handleOpenEditTx = (tx: Transaction) => {
     setEditingTx(tx);
@@ -1343,7 +1403,49 @@ export default function PartyDetail() {
               </React.Fragment>
             ))}
 
-            {transactions.length === 0 && (
+            {/* Progressive Loading Indicator and Drag-Up Trigger */}
+            {hasMoreTransactions && (
+              <li className="list-none pt-2.5 pb-2">
+                <div ref={loadMoreTriggerRef} className="text-center">
+                  {isLoadingMore ? (
+                    <div className="py-2.5 px-3 bg-slate-100 rounded-xl flex flex-col items-center justify-center gap-1.5 text-xs font-semibold text-slate-700 animate-in fade-in shadow-2xs">
+                      <div className="flex items-center gap-2">
+                        <Loader2 size={15} className="animate-spin text-sky-600" />
+                        <span>Holding to load next 10 transactions...</span>
+                        <span className="font-mono text-sky-700 font-bold bg-sky-50 px-1.5 py-0.2 rounded text-[11px]">
+                          {loadCountdown ?? 3}s
+                        </span>
+                      </div>
+                      <div className="w-full max-w-[180px] bg-slate-200 h-1 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-sky-600 h-full transition-all duration-1000 ease-linear rounded-full"
+                          style={{ width: `${((4 - (loadCountdown ?? 3)) / 3) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleLoadMoreTransactions}
+                      className="w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 active:scale-98 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
+                    >
+                      <span>Drag up & hold 3s to load more</span>
+                      <span className="text-[10.5px] text-slate-500 font-normal">
+                        ({displayedTransactions.length} of {filteredTransactions.length})
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </li>
+            )}
+
+            {!hasMoreTransactions && filteredTransactions.length > 10 && (
+              <li className="list-none text-center py-2.5 text-[10px] text-slate-400 font-medium">
+                ✓ All {filteredTransactions.length} transactions loaded
+              </li>
+            )}
+
+            {filteredTransactions.length === 0 && (
               <li className="text-center py-10 px-3 text-[#94A3B8] text-[11px]">
                 No transactions recorded.
               </li>
