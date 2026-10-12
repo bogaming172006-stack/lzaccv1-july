@@ -1183,8 +1183,8 @@ export default function PartyDetail() {
         </div>
 
         {/* COMPACT FINANCIAL BALANCE BANNER */}
-        <div className="mx-3 my-1 bg-white border border-[#E2E8F0] rounded-xl p-2.5 shadow-2xs">
-          <div className="flex justify-between items-baseline pb-1.5 border-b border-[#F1F5F9]">
+        <div className="mx-3 my-1 bg-[#F1F5F9] border-none rounded-xl p-2.5 shadow-2xs">
+          <div className="flex justify-between items-baseline pb-1.5 border-b border-slate-200/70">
             <span className="text-[9px] font-bold text-[#64748B] uppercase tracking-[0.5px]">
               CURRENT BALANCE
             </span>
@@ -1225,7 +1225,7 @@ export default function PartyDetail() {
           <button
             type="button"
             onClick={() => { setTxAmount(''); setTxInvoiceNo(''); setTxNotes(''); setTxError(''); setShowTxModal('DEBIT'); }}
-            className="flex-1 py-1 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+            className="flex-1 py-1 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border-none rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
           >
             <Minus size={11} className="text-rose-600" />
             <span>+ Debit (Dr)</span>
@@ -1234,7 +1234,7 @@ export default function PartyDetail() {
           <button
             type="button"
             onClick={() => { setTxAmount(''); setTxCashAmount(''); setTxAcAmount(''); setTxInvoiceNo(''); setTxNotes(''); setTxError(''); setShowTxModal('CREDIT'); }}
-            className="flex-1 py-1 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+            className="flex-1 py-1 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-none rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
           >
             <Plus size={11} className="text-emerald-600" />
             <span>+ Credit (Cr)</span>
@@ -1246,30 +1246,30 @@ export default function PartyDetail() {
           <div className="flex gap-1">
             <button 
               onClick={() => setActiveFilter('all')}
-              className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border transition-all cursor-pointer ${
+              className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-full border-none transition-all cursor-pointer ${
                 activeFilter === 'all' 
-                  ? 'bg-[#0F172A] text-white border-[#0F172A]' 
-                  : 'border-[#E2E8F0] bg-white text-[#64748B] hover:bg-slate-50'
+                  ? 'bg-[#0F172A] text-white' 
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
               }`}
             >
               All
             </button>
             <button 
               onClick={() => setActiveFilter('debit')}
-              className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border transition-all cursor-pointer ${
+              className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-full border-none transition-all cursor-pointer ${
                 activeFilter === 'debit' 
-                  ? 'bg-[#0F172A] text-white border-[#0F172A]' 
-                  : 'border-[#E2E8F0] bg-white text-[#64748B] hover:bg-slate-50'
+                  ? 'bg-[#0F172A] text-white' 
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
               }`}
             >
               Debit
             </button>
             <button 
               onClick={() => setActiveFilter('credit')}
-              className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border transition-all cursor-pointer ${
+              className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-full border-none transition-all cursor-pointer ${
                 activeFilter === 'credit' 
-                  ? 'bg-[#0F172A] text-white border-[#0F172A]' 
-                  : 'border-[#E2E8F0] bg-white text-[#64748B] hover:bg-slate-50'
+                  ? 'bg-[#0F172A] text-white' 
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
               }`}
             >
               Credit
@@ -1283,7 +1283,7 @@ export default function PartyDetail() {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search..."
-              className="w-full pl-5 pr-1.5 py-0.5 bg-slate-50 border border-slate-200 rounded-full text-[10px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
+              className="w-full pl-5 pr-1.5 py-0.5 bg-slate-50 border-none rounded-full text-[10px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500/50"
             />
           </div>
         </div>
