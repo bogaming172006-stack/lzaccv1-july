@@ -927,7 +927,7 @@ export default function Navigation() {
           end
           className={({ isActive }) =>
             `flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] font-medium transition-colors ${
-              isActive ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#0055a5] font-bold') : 'text-slate-500 hover:text-slate-900'
+              isActive ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#0284c7] font-bold') : 'text-slate-500 hover:text-slate-900'
             }`
           }
         >
@@ -939,7 +939,7 @@ export default function Navigation() {
           to="/parties"
           className={({ isActive }) =>
             `flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] font-medium transition-colors ${
-              isActive ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#0055a5] font-bold') : 'text-slate-500 hover:text-slate-900'
+              isActive ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#0284c7] font-bold') : 'text-slate-500 hover:text-slate-900'
             }`
           }
         >
@@ -947,7 +947,7 @@ export default function Navigation() {
           <span>Parties</span>
         </NavLink>
 
-        {/* Compact Highlighted Master Entry Action */}
+        {/* Highlighted Master Entry Action - Sky Blue Button */}
         <NavLink
           to="/master-entry"
           className="flex flex-col items-center justify-center flex-1 h-full relative"
@@ -957,12 +957,12 @@ export default function Navigation() {
               <div className={`flex items-center justify-center w-10 h-10 rounded-full shadow-md border-2 border-white -top-3 absolute transition-transform active:scale-95 ${
                 isPurchase
                   ? 'bg-gradient-to-tr from-purple-800 to-purple-950 text-amber-300 ring-1 ring-amber-400/90'
-                  : 'bg-[#0055a5] text-white'
+                  : 'bg-gradient-to-tr from-[#0284c7] to-[#38bdf8] text-white shadow-sky-500/35'
               }`}>
                 <Plus size={20} className={isActive ? "rotate-90 transition-transform duration-200" : ""} />
               </div>
               <span className={`text-[10px] mt-6.5 font-medium ${
-                isActive ? (isPurchase ? 'text-purple-800 font-bold' : 'text-[#0055a5] font-bold') : 'text-slate-500'
+                isActive ? (isPurchase ? 'text-purple-800 font-bold' : 'text-[#0284c7] font-bold') : 'text-slate-500'
               }`}>
                 Input
               </span>
@@ -974,7 +974,7 @@ export default function Navigation() {
           to="/log"
           className={({ isActive }) =>
             `flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] font-medium transition-colors ${
-              isActive ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#0055a5] font-bold') : 'text-slate-500 hover:text-slate-900'
+              isActive ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#0284c7] font-bold') : 'text-slate-500 hover:text-slate-900'
             }`
           }
         >
@@ -986,7 +986,7 @@ export default function Navigation() {
           onClick={() => setShowMobileMore(!showMobileMore)}
           type="button"
           className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] font-medium transition-colors ${
-            showMobileMore ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#0055a5] font-bold') : 'text-slate-500 hover:text-slate-900'
+            showMobileMore ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#0284c7] font-bold') : 'text-slate-500 hover:text-slate-900'
           }`}
         >
           <Menu size={18} className="mb-0.5" />

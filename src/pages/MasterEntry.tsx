@@ -1170,7 +1170,7 @@ export default function MasterEntry() {
           <button
             type="submit"
             disabled={isSubmitting || (isSaleLedger && !invoiceNo.trim())}
-            className="w-full bg-gradient-to-r from-[#0056B3] to-[#004494] hover:from-[#004494] hover:to-[#003575] text-white rounded-lg py-2.5 px-4 text-xs sm:text-[13px] font-bold flex items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(0,86,179,0.25)] hover:shadow-[0_4px_12px_rgba(0,86,179,0.35)] active:translate-y-px transition cursor-pointer disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-[#0284c7] to-[#0ea5e9] hover:from-[#0369a1] hover:to-[#0284c7] text-white rounded-lg py-2.5 px-4 text-xs sm:text-[13px] font-bold flex items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(2,132,199,0.28)] hover:shadow-[0_4px_12px_rgba(2,132,199,0.38)] active:translate-y-px transition cursor-pointer disabled:opacity-50"
           >
             <span>Entry</span>
             <ArrowRight size={14} strokeWidth={2.5} />
@@ -1461,7 +1461,7 @@ export default function MasterEntry() {
                 }}
                 className="flex-1 py-2.5 px-3 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white rounded-xl text-xs font-bold flex items-center justify-center transition-all cursor-pointer truncate"
               >
-                <span className="truncate">Post Next (Enter)</span>
+                <span className="truncate">Post Next</span>
               </button>
             </div>
           </div>

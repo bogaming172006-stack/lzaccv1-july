@@ -263,9 +263,9 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* Total Outstanding Banner */}
-      <div className="bg-gradient-to-br from-[#0056B3] to-[#004494] text-white rounded-2xl p-4 sm:p-5 shadow-[0_4px_14px_rgba(0,86,179,0.28)] mb-4">
-        <div className="text-[11.5px] font-semibold tracking-wider uppercase opacity-90 mb-2">
+      {/* Total Outstanding Banner - Sky Blue Gradient */}
+      <div className="bg-gradient-to-br from-[#0284c7] via-[#0ea5e9] to-[#0369a1] text-white rounded-2xl p-4 sm:p-5 shadow-[0_4px_16px_rgba(2,132,199,0.32)] mb-4">
+        <div className="text-[11.5px] font-semibold tracking-wider uppercase opacity-95 mb-2">
           {isExpense ? 'Total Expenses (Payable)' : 'Total Outstanding'} • {totalDebtorsCount} {totalDebtorsCount === 1 ? 'party' : 'parties'} with balance
         </div>
         <div className="text-[23px] sm:text-[26px] font-bold tracking-tight mb-4 flex items-baseline select-all tabular-nums">
@@ -274,16 +274,16 @@ export default function Dashboard() {
           <span className="text-[13px] font-semibold ml-1.5 tracking-wider">DR</span>
         </div>
         <div className="flex justify-between items-center gap-2.5 flex-wrap">
-          <div className="bg-[rgba(0,42,94,0.65)] border border-white/15 px-3 py-1.5 rounded-full text-xs font-semibold text-[#34D399] flex items-center gap-1">
+          <div className="bg-[rgba(2,80,130,0.55)] border border-white/20 px-3 py-1.5 rounded-full text-xs font-semibold text-[#34D399] flex items-center gap-1">
             <span>Advance:</span>
             <span>₹{totalAdvancePayables.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr</span>
           </div>
           <button
             type="button"
             onClick={() => navigate('/parties')}
-            className="bg-white text-[#0056B3] hover:bg-blue-50 border-none rounded-full px-3.5 py-1.5 text-[12.5px] font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+            className="bg-white text-[#0284c7] hover:bg-sky-50 border-none rounded-full px-3.5 py-1.5 text-[12.5px] font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
           >
-            <Users size={14} className="text-[#0056B3]" />
+            <Users size={14} className="text-[#0284c7]" />
             <span>All Parties ({parties.length}) →</span>
           </button>
         </div>

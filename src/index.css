@@ -10,9 +10,44 @@
 :root {
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --color-primary-navy: #0f172a;
-  --color-primary-blue: #0055a5;
-  --color-accent-blue: #0055a5;
+  --color-primary-blue: #0284c7;
+  --color-accent-blue: #0ea5e9;
   --color-surface-bg: #f8fafc;
+}
+
+/* App Theme Sky Blue Buttons and Highlights */
+button.bg-blue-600,
+button.bg-\[\#0055a5\],
+button.bg-\[\#1A73E8\],
+button.bg-\[\#0056B3\],
+a.bg-\[\#0055a5\],
+.bg-\[\#0055a5\],
+.bg-\[\#1A73E8\] {
+  background-color: #0284c7 !important;
+  color: #ffffff !important;
+}
+
+button.bg-blue-600:hover,
+button.bg-\[\#0055a5\]:hover,
+button.bg-\[\#1A73E8\]:hover,
+button.bg-\[\#0056B3\]:hover,
+button.hover\:bg-blue-700:hover,
+.hover\:bg-\[\#0055a5\]:hover {
+  background-color: #0369a1 !important;
+}
+
+.text-\[\#0055a5\],
+.text-\[\#0056B3\],
+.text-\[\#1A73E8\],
+.text-blue-600 {
+  color: #0284c7 !important;
+}
+
+.border-\[\#0055a5\],
+.border-\[\#0056B3\],
+.border-\[\#1A73E8\],
+.border-blue-600 {
+  border-color: #0284c7 !important;
 }
 
 html, body {
@@ -158,8 +193,8 @@ html, body {
 /* Input focus styles */
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: #0e633d !important;
-  box-shadow: 0 0 0 2px rgba(14, 99, 61, 0.2) !important;
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.25) !important;
 }
 
 .theme-purchase input:focus, .theme-purchase select:focus, .theme-purchase textarea:focus {
