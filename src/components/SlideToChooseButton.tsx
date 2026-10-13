@@ -6,6 +6,7 @@ export interface SlideToChooseButtonProps {
   onSlideComplete?: (val: 'CREDIT' | 'DEBIT') => void;
   disabled?: boolean;
   disableCredit?: boolean;
+  disableDebit?: boolean;
   isSubmitting?: boolean;
   className?: string;
 }
@@ -16,11 +17,12 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
   onSlideComplete,
   disabled = false,
   disableCredit = false,
+  disableDebit = false,
   isSubmitting = false,
   className = ''
 }) => {
   const [internalState, setInternalState] = useState<'credit' | 'debit'>(
-    value === 'CREDIT' ? 'credit' : 'debit'
+    disableDebit ? 'credit' : (value === 'CREDIT' ? 'credit' : 'debit')
   );
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0); // Offset from center in px
@@ -35,8 +37,14 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
 
   // Sync external value
   useEffect(() => {
-    setInternalState(value === 'CREDIT' ? 'credit' : 'debit');
-  }, [value]);
+    if (disableDebit) {
+      setInternalState('credit');
+    } else if (disableCredit) {
+      setInternalState('debit');
+    } else {
+      setInternalState(value === 'CREDIT' ? 'credit' : 'debit');
+    }
+  }, [value, disableDebit, disableCredit]);
 
   // Web Audio API Synthesizer Click Sound
   const playAudioClick = useCallback((freq = 640) => {
@@ -69,6 +77,10 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
       playAudioClick(400);
       return;
     }
+    if (choice === 'debit' && disableDebit) {
+      playAudioClick(400);
+      return;
+    }
 
     setInternalState(choice);
     setDragOffset(0);
@@ -90,7 +102,7 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
     if (triggerSubmit) {
       onSlideComplete?.(upperChoice);
     }
-  }, [disableCredit, onChange, onSlideComplete, playAudioClick]);
+  }, [disableCredit, disableDebit, onChange, onSlideComplete, playAudioClick]);
 
   // Dimension helpers
   const getBounds = () => {
@@ -127,6 +139,10 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
     if (disableCredit && newOffset < 0) {
       newOffset = Math.max(-10, newOffset * 0.15);
     }
+    // Resistance if debit disabled
+    if (disableDebit && newOffset > 0) {
+      newOffset = Math.min(10, newOffset * 0.15);
+    }
 
     // Clamp
     newOffset = Math.max(-maxTravel, Math.min(maxTravel, newOffset));
@@ -139,7 +155,7 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
         try { navigator.vibrate?.(15); } catch (_) {}
         setReachedSide('credit');
       }
-    } else if (newOffset >= threshold) {
+    } else if (newOffset >= threshold && !disableDebit) {
       if (reachedSide !== 'debit') {
         playAudioClick(520);
         try { navigator.vibrate?.(15); } catch (_) {}
@@ -164,7 +180,7 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
     if (dragOffset <= -threshold && !disableCredit) {
       // Slid fully to Credit!
       triggerChoice('credit', true);
-    } else if (dragOffset >= threshold) {
+    } else if (dragOffset >= threshold && !disableDebit) {
       // Slid fully to Debit!
       triggerChoice('debit', true);
     } else {
@@ -189,17 +205,18 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
     if (disabled || isSubmitting) return;
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      triggerChoice('credit', true);
+      if (!disableCredit) triggerChoice('credit', true);
     } else if (e.key === 'ArrowRight') {
       e.preventDefault();
-      triggerChoice('debit', true);
+      if (!disableDebit) triggerChoice('debit', true);
     } else if (e.key === ' ' || e.key === 'Enter') {
       e.preventDefault();
-      triggerChoice(internalState === 'credit' ? 'debit' : 'credit', true);
+      const nextChoice = internalState === 'credit' ? 'debit' : 'credit';
+      if (nextChoice === 'debit' && disableDebit) return;
+      if (nextChoice === 'credit' && disableCredit) return;
+      triggerChoice(nextChoice, true);
     }
   };
-
-  const activeSide = reachedSide || internalState;
 
   return (
     <div className={`w-full flex flex-col items-center select-none ${className}`}>
@@ -209,7 +226,7 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
         data-state={internalState}
         tabIndex={0}
         onKeyDown={handleKeyDown}
-        className="relative w-full max-w-[340px] sm:max-w-[360px] h-[58px] rounded-full border-[1.5px] border-[#d4dce7] bg-[#fbfcfd] overflow-hidden cursor-pointer shadow-[0_12px_28px_-4px_rgba(185,198,218,0.5),0_3px_8px_rgba(0,0,0,0.03),inset_0_2px_2px_#ffffff,inset_0_-2.5px_3.5px_rgba(190,202,220,0.35)] touch-pan-y focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+        className="relative w-full max-w-[340px] sm:max-w-[380px] h-[58px] sm:h-[60px] rounded-full border-[1.5px] border-[#d4dce7] bg-[#fbfcfd] overflow-hidden cursor-pointer shadow-[0_12px_28px_-4px_rgba(185,198,218,0.5),0_3px_8px_rgba(0,0,0,0.03),inset_0_2px_2px_#ffffff,inset_0_-2.5px_3.5px_rgba(190,202,220,0.35)] touch-pan-y focus:outline-none focus:ring-2 focus:ring-blue-400/40 select-none"
       >
         {/* ACTIVE GLOSSY PILL INDICATOR */}
         <div
@@ -263,12 +280,13 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              triggerChoice('credit', true);
+              if (!disableCredit) triggerChoice('credit', true);
             }}
             disabled={disabled || isSubmitting || disableCredit}
-            className={`flex-1 h-full flex items-center justify-center gap-2 sm:gap-2.5 pl-3 pr-6 cursor-pointer border-none bg-transparent transition-all outline-none ${
-              disableCredit ? 'opacity-30 cursor-not-allowed' : ''
+            className={`flex-1 h-full flex items-center justify-center gap-2 sm:gap-2.5 pl-3 pr-6 border-none bg-transparent transition-all outline-none ${
+              disableCredit ? 'opacity-25 cursor-not-allowed pointer-events-none select-none' : 'cursor-pointer'
             }`}
+            title={disableCredit ? 'Credit is not workable (Must debit invoice first)' : 'Credit'}
           >
             {/* Coin stack icon from reference */}
             <svg
@@ -329,10 +347,13 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              triggerChoice('debit', true);
+              if (!disableDebit) triggerChoice('debit', true);
             }}
-            disabled={disabled || isSubmitting}
-            className="flex-1 h-full flex items-center justify-center gap-2 sm:gap-2.5 pl-6 pr-3 cursor-pointer border-none bg-transparent transition-all outline-none"
+            disabled={disabled || isSubmitting || disableDebit}
+            className={`flex-1 h-full flex items-center justify-center gap-2 sm:gap-2.5 pl-6 pr-3 border-none bg-transparent transition-all outline-none ${
+              disableDebit ? 'opacity-25 cursor-not-allowed pointer-events-none select-none' : 'cursor-pointer'
+            }`}
+            title={disableDebit ? 'Debit is not workable (Already debited on this invoice)' : 'Debit'}
           >
             {/* Wallet icon from reference */}
             <svg
@@ -421,7 +442,9 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
           {/* Left chevron (Green #038b55) */}
           <div
             className={`relative z-1 flex items-center transition-transform ${
-              reachedSide === 'credit'
+              disableCredit
+                ? 'opacity-20'
+                : reachedSide === 'credit'
                 ? 'scale-125 drop-shadow-[0_0_6px_rgba(3,139,85,0.8)]'
                 : dragOffset < -15
                 ? 'scale-110'
@@ -442,7 +465,9 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
           {/* Right chevron (Red #eb1937) */}
           <div
             className={`relative z-1 flex items-center transition-transform ${
-              reachedSide === 'debit'
+              disableDebit
+                ? 'opacity-20'
+                : reachedSide === 'debit'
                 ? 'scale-125 drop-shadow-[0_0_6px_rgba(235,25,56,0.8)]'
                 : dragOffset > 15
                 ? 'scale-110'
@@ -462,33 +487,6 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
         </div>
       </div>
 
-      {/* REAL-TIME SELECTION STATUS FEEDBACK */}
-      <div className="mt-2.5 flex items-center justify-center">
-        <div
-          className={`inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold border shadow-2xs transition-all ${
-            activeSide === 'credit'
-              ? 'text-[#038b55] bg-[#f0fdf6] border-[rgba(3,139,85,0.25)]'
-              : 'text-[#eb1937] bg-[#fdf2f4] border-[rgba(235,25,56,0.25)]'
-          }`}
-        >
-          <span
-            className={`w-2 h-2 rounded-full transition-all ${
-              activeSide === 'credit'
-                ? 'bg-[#038b55] shadow-[0_0_8px_rgba(3,139,85,0.5)]'
-                : 'bg-[#eb1937] shadow-[0_0_8px_rgba(235,25,56,0.5)]'
-            }`}
-          />
-          <span>
-            {reachedSide === 'credit'
-              ? 'Release to confirm Credit'
-              : reachedSide === 'debit'
-              ? 'Release to confirm Debit'
-              : internalState === 'credit'
-              ? 'Credit Selected'
-              : 'Debit Selected'}
-          </span>
-        </div>
-      </div>
     </div>
   );
 };
