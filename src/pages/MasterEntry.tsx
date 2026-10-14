@@ -26,7 +26,9 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
-  Home
+  Home,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
@@ -92,6 +94,7 @@ export default function MasterEntry() {
   // Pending bills popup modal states
   const [showPendingBillsModal, setShowPendingBillsModal] = useState<boolean>(false);
   const [pendingModalSearch, setPendingModalSearch] = useState<string>('');
+  const [pendingBillsViewMode, setPendingBillsViewMode] = useState<'row' | 'grid'>('row');
   const [desktopPendingSearch, setDesktopPendingSearch] = useState<string>('');
   const [expandedBillId, setExpandedBillId] = useState<string | null>(null);
   const [modalBillItems, setModalBillItems] = useState<{ [billKey: string]: BillingBillItem[] }>({});
@@ -1221,12 +1224,12 @@ export default function MasterEntry() {
               <button
                 type="button"
                 onClick={() => setShowPendingBillsModal(true)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-2xs cursor-pointer active:scale-95"
+                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-normal text-slate-700 hover:bg-slate-50 transition shadow-2xs cursor-pointer active:scale-95"
                 title={`${todayPendingBills.length} pending orders waiting to be debited`}
               >
-                <FileText size={16} className="text-blue-600" />
+                <FileText size={15} className="text-blue-600" />
                 <span>Unlisted Orders</span>
-                <span className="bg-[#e11d48] text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full min-w-4 text-center">
+                <span className="bg-amber-100 text-amber-700 text-[10px] font-medium px-1.5 py-0.5 rounded-full min-w-4 text-center">
                   {todayPendingBills.length}
                 </span>
               </button>
@@ -1306,25 +1309,19 @@ export default function MasterEntry() {
                     </button>
                   </div>
 
-                  {/* Warning banner when invoice is already debited */}
+                  {/* Warning message when invoice is already debited (no bg, no border) */}
                   {isInvoiceAlreadyDebited && (
-                    <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-2">
-                      <AlertTriangle size={15} className="text-amber-600 shrink-0" />
-                      <div className="min-w-0 flex-1 text-[11.5px]">
-                        <span className="font-bold">Invoice #{invoiceNo.toUpperCase()} has already been debited.</span>{' '}
-                        <span className="text-amber-700">Debit option is faded and not workable. Only Credit vouchers can be entered.</span>
-                      </div>
+                    <div className="mt-2 text-xs flex items-center gap-1.5 text-slate-600">
+                      <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+                      <span className="font-semibold text-slate-800">Invoice #{invoiceNo.toUpperCase()} is already debited.</span>
                     </div>
                   )}
 
-                  {/* Info banner when invoice must be debited first */}
+                  {/* Info message when invoice must be debited first (no bg, no border) */}
                   {isCreditDisabledByInvoice && (
-                    <div className="mt-3 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-900 flex items-center gap-2">
-                      <AlertTriangle size={15} className="text-sky-600 shrink-0" />
-                      <div className="min-w-0 flex-1 text-[11.5px]">
-                        <span className="font-bold">Invoice #{invoiceNo.toUpperCase()} must be debited first.</span>{' '}
-                        <span className="text-sky-700">Credit option is faded and not workable. First need to must debit the invoice.</span>
-                      </div>
+                    <div className="mt-2 text-xs flex items-center gap-1.5 text-slate-600">
+                      <AlertTriangle size={14} className="text-sky-600 shrink-0" />
+                      <span className="font-semibold text-slate-800">Invoice #{invoiceNo.toUpperCase()} must be debited first.</span>
                     </div>
                   )}
                 </div>
@@ -1340,7 +1337,7 @@ export default function MasterEntry() {
                         onChange={e => setSeparateCredit(e.target.checked)}
                         className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
                       />
-                      <span>Separate Cash & Bank Account Credit</span>
+                      <span>Separate Credit</span>
                     </label>
                     <span className="text-[10px] font-mono text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded">
                       F3 / Alt+S
@@ -1541,12 +1538,10 @@ export default function MasterEntry() {
                       />
                     </div>
                     {amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0 && (
-                      <div className="mt-2 px-3 py-1.5 bg-blue-50/70 border border-blue-100 rounded-xl text-xs text-blue-900 flex items-center gap-2">
-                        <FileText size={14} className="text-blue-600 shrink-0" />
-                        <div className="min-w-0 flex-1 truncate">
-                          <span className="text-[10px] uppercase font-bold text-blue-700 tracking-wider mr-2">In words:</span>
-                          <span className="italic font-medium text-blue-950">{formatAmountInWords(amount)}</span>
-                        </div>
+                      <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
+                        <FileText size={13} className="text-slate-400 shrink-0" />
+                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">In words:</span>
+                        <span className="italic font-medium text-slate-700">{formatAmountInWords(amount)}</span>
                       </div>
                     )}
                   </div>
@@ -1597,8 +1592,8 @@ export default function MasterEntry() {
         /* ============================================================ */
         /* NEW MOBILE INTERFACE (With tactile SlideToChooseButton)      */
         /* ============================================================ */
-        <div className="p-3 sm:p-6 max-w-[440px] mx-auto w-full pb-24 font-customer">
-          <div className="w-full bg-white border border-slate-200/80 rounded-3xl p-5 shadow-[0_4px_24px_rgba(0,0,0,0.05)] flex flex-col">
+        <div className="p-2.5 sm:p-6 max-w-[440px] mx-auto w-full pb-24 font-customer">
+          <div className="w-full bg-white border border-slate-200/80 rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-[0_4px_24px_rgba(0,0,0,0.05)] flex flex-col">
             {/* Header Title */}
             <div className="pb-3.5 mb-4 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -1739,8 +1734,8 @@ export default function MasterEntry() {
                     title={`${todayPendingBills.length} pending orders waiting to be debited`}
                   >
                     <FileText size={18} strokeWidth={2} />
-                    <span className="absolute -top-1.5 -right-1.5 bg-[#DC2626] text-white text-[9.5px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-xs">
-                      {todayPendingBills.length > 0 ? todayPendingBills.length : todayBills.length > 0 ? todayBills.length : 12}
+                    <span className="absolute -top-1.5 -right-1.5 bg-amber-100 text-amber-700 text-[9.5px] font-medium w-5 h-5 rounded-full flex items-center justify-center border border-amber-200 shadow-2xs">
+                      {todayPendingBills.length > 0 ? todayPendingBills.length : todayBills.length > 0 ? todayBills.length : 0}
                     </span>
                   </button>
                 </div>
@@ -1797,12 +1792,10 @@ export default function MasterEntry() {
                   />
                 </div>
                 {amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0 && (
-                  <div className="mt-1.5 px-3 py-1.5 bg-blue-50/70 border border-blue-100 rounded-lg text-[11px] text-blue-900 flex items-center gap-1.5 animate-in fade-in">
-                    <FileText size={12} className="text-blue-600 shrink-0" />
-                    <div className="min-w-0 flex-1 truncate">
-                      <span className="text-[9.5px] uppercase font-bold text-blue-700 tracking-wider mr-1.5">In words:</span>
-                      <span className="italic font-medium text-blue-950">{formatAmountInWords(amount)}</span>
-                    </div>
+                  <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 animate-in fade-in">
+                    <FileText size={12} className="text-slate-400 shrink-0" />
+                    <span className="text-[9.5px] uppercase font-bold text-slate-500 tracking-wider">In words:</span>
+                    <span className="italic font-medium text-slate-700 truncate">{formatAmountInWords(amount)}</span>
                   </div>
                 )}
               </div>
@@ -1827,21 +1820,15 @@ export default function MasterEntry() {
               {/* Row 4: Slide to Choose (Credit / Debit) */}
               <div className="flex flex-col items-center pt-5 pb-1">
                 {isInvoiceAlreadyDebited && (
-                  <div className="w-full max-w-[340px] sm:max-w-[380px] mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-2 animate-in fade-in">
-                    <AlertTriangle size={15} className="text-amber-600 shrink-0" />
-                    <div className="min-w-0 flex-1 text-[11px] leading-tight">
-                      <span className="font-bold">Invoice #{invoiceNo.toUpperCase()} is already debited.</span>{' '}
-                      <span className="text-amber-700"></span>
-                    </div>
+                  <div className="w-full max-w-[340px] sm:max-w-[380px] mb-2 text-xs flex items-center justify-center gap-1.5 text-slate-600 animate-in fade-in">
+                    <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+                    <span className="font-semibold text-slate-800">Invoice #{invoiceNo.toUpperCase()} is already debited.</span>
                   </div>
                 )}
                 {isCreditDisabledByInvoice && (
-                  <div className="w-full max-w-[340px] sm:max-w-[380px] mb-3 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-900 flex items-center gap-2 animate-in fade-in">
-                    <AlertTriangle size={15} className="text-sky-600 shrink-0" />
-                    <div className="min-w-0 flex-1 text-[11px] leading-tight">
-                      <span className="font-bold">Invoice #{invoiceNo.toUpperCase()} must be debited first.</span>{' '}
-                      <span className="text-sky-700"></span>
-                    </div>
+                  <div className="w-full max-w-[340px] sm:max-w-[380px] mb-2 text-xs flex items-center justify-center gap-1.5 text-slate-600 animate-in fade-in">
+                    <AlertTriangle size={14} className="text-sky-600 shrink-0" />
+                    <span className="font-semibold text-slate-800">Invoice #{invoiceNo.toUpperCase()} must be debited first.</span>
                   </div>
                 )}
                 <SlideToChooseButton
@@ -1863,22 +1850,24 @@ export default function MasterEntry() {
 
       {/* Pending Bills Popup Modal */}
       {showPendingBillsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl sm:rounded-[24px] shadow-2xl w-full max-w-[500px] border border-slate-200/90 overflow-hidden flex flex-col max-h-[88vh] sm:max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
             {/* Header */}
-            <div className="px-4 sm:px-5 py-3 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7.5 h-7.5 sm:w-8 sm:h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shadow-xs shrink-0">
-                  <FileText size={17} strokeWidth={2.3} />
+            <div className="p-3.5 sm:p-5 pb-2.5 sm:pb-3 bg-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-blue-50/90 flex items-center justify-center text-blue-600 shrink-0">
+                  <FileText className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={2} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
-                    Today's Unlisted Bills
-                    <span className="text-[11px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <h3 className="text-xs sm:text-sm font-medium text-slate-900 tracking-tight">
+                      Today's Unlisted Bills
+                    </h3>
+                    <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-amber-100 text-amber-700 text-[10px] sm:text-xs font-normal flex items-center justify-center shrink-0">
                       {todayPendingBills.length}
                     </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
+                  </div>
+                  <p className="text-[10px] sm:text-xs text-slate-400 font-normal mt-0.5">
                     Bills waiting to list into Debit Sheet
                   </p>
                 </div>
@@ -1886,39 +1875,67 @@ export default function MasterEntry() {
               <button
                 type="button"
                 onClick={() => setShowPendingBillsModal(false)}
-                className="w-8 h-8 rounded-lg hover:bg-slate-200/70 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer p-1 rounded-lg"
               >
-                <X size={18} />
+                <X className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={2} />
               </button>
             </div>
 
-            {/* Search filter if there are several bills */}
-            {todayPendingBills.length > 2 && (
-              <div className="px-4 py-2 bg-white border-b border-slate-100">
-                <div className="relative">
-                  <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
-                  <input
-                    type="text"
-                    value={pendingModalSearch}
-                    onChange={e => setPendingModalSearch(e.target.value)}
-                    placeholder="Search by Bill # or Customer Name..."
-                    className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-blue-500"
-                  />
-                  {pendingModalSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setPendingModalSearch('')}
-                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
+            {/* Search filter & View mode toggle */}
+            <div className="px-3.5 sm:px-5 pb-2.5 sm:pb-3 bg-white flex items-center gap-1.5 sm:gap-2">
+              <div className="relative flex-1">
+                <Search size={12} className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={pendingModalSearch}
+                  onChange={e => setPendingModalSearch(e.target.value)}
+                  placeholder="Search bill # or party..."
+                  className="w-full pl-7 sm:pl-8 pr-7 py-1.5 sm:py-2 bg-slate-50/70 border border-slate-200/90 rounded-lg sm:rounded-xl text-[11px] sm:text-xs text-slate-700 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 outline-none transition"
+                />
+                {pendingModalSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setPendingModalSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[10px] sm:text-xs font-normal"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
-            )}
+
+              {/* View Toggle (Row vs Grid) */}
+              <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 sm:p-1 rounded-lg sm:rounded-xl shrink-0 border border-slate-200/60">
+                <button
+                  type="button"
+                  onClick={() => setPendingBillsViewMode('row')}
+                  className={`px-1.5 sm:px-2 py-1 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-normal flex items-center gap-1 transition cursor-pointer ${
+                    pendingBillsViewMode === 'row'
+                      ? 'bg-white text-slate-800 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  title="Small box row view"
+                >
+                  <List size={11} strokeWidth={2} className="sm:w-3 sm:h-3" />
+                  <span className="text-[10px] sm:text-[11px] hidden xs:inline">Row</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingBillsViewMode('grid')}
+                  className={`px-1.5 sm:px-2 py-1 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-normal flex items-center gap-1 transition cursor-pointer ${
+                    pendingBillsViewMode === 'grid'
+                      ? 'bg-white text-slate-800 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  title="Small boxes grid view (2 in a row)"
+                >
+                  <LayoutGrid size={11} strokeWidth={2} className="sm:w-3 sm:h-3" />
+                  <span className="text-[10px] sm:text-[11px] hidden xs:inline">Grid</span>
+                </button>
+              </div>
+            </div>
 
             {/* Bills List */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5">
+            <div className="flex-1 overflow-y-auto px-3.5 sm:px-5 pb-3 sm:pb-4">
               {(() => {
                 const filtered = todayPendingBills.filter(b => {
                   if (!pendingModalSearch.trim()) return true;
@@ -1932,64 +1949,105 @@ export default function MasterEntry() {
 
                 if (filtered.length === 0) {
                   return (
-                    <div className="py-8 text-center text-slate-500 text-xs">
+                    <div className="py-6 text-center text-slate-400 text-[11px] sm:text-xs font-normal">
                       No matching bills found.
                     </div>
                   );
                 }
 
-                return filtered.map(bill => {
-                  const key = bill.id || bill.bill_no;
-
+                if (pendingBillsViewMode === 'row') {
                   return (
-                    <div key={key} className="p-3 sm:p-3.5 rounded-xl border border-slate-200/90 hover:border-blue-300 bg-white hover:bg-slate-50/40 transition-all shadow-2xs">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="space-y-1 min-w-0 flex-1">
-                          <span className="font-mono font-bold text-slate-900 text-sm sm:text-base block">
-                            #{bill.bill_no}
-                          </span>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      {filtered.map(bill => {
+                        const key = bill.id || bill.bill_no;
+                        return (
+                          <div 
+                            key={key} 
+                            className="p-1.5 px-2 sm:p-2.5 sm:px-3 rounded-lg sm:rounded-xl border border-slate-200/90 bg-white hover:border-slate-300 transition flex items-center justify-between gap-1.5 sm:gap-2.5 shadow-2xs"
+                          >
+                            {/* Left info: Bill #, Customer Name, and Qty */}
+                            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                              <span className="text-[11px] sm:text-xs font-medium text-slate-900 shrink-0">
+                                #{bill.bill_no}
+                              </span>
+                              <span className="text-slate-300 text-[9px] sm:text-xs shrink-0">•</span>
+                              <p className="text-[10.5px] sm:text-xs font-normal text-slate-700 uppercase truncate min-w-0">
+                                {bill.customer_name}
+                              </p>
+                              <span className="text-[9.5px] sm:text-[11px] text-slate-400 font-normal shrink-0">
+                                ({bill.total_qty ?? 0} pcs)
+                              </span>
+                            </div>
 
-                          <p className="font-semibold text-slate-900 text-xs sm:text-sm truncate">
-                            {bill.customer_name}
-                          </p>
-
-                          <div className="text-[11px] font-medium text-slate-500">
-                            Total Qty: <span className="font-bold text-slate-800">{bill.total_qty ?? 0} pcs</span>
+                            {/* Right side: Amount and Apply button */}
+                            <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+                              <span className="text-[11px] sm:text-xs font-medium text-slate-900">
+                                ₹{Number(bill.total_amount).toFixed(2)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleSelectBillFromModal(bill)}
+                                className="px-2 py-0.5 sm:px-3 sm:py-1 bg-[#1d68ed] hover:bg-[#1758ca] text-white rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-normal transition flex items-center gap-0.5 sm:gap-1 cursor-pointer shadow-xs active:scale-95"
+                              >
+                                <Check size={11} strokeWidth={2.4} />
+                                Apply
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        );
+                      })}
+                    </div>
+                  );
+                }
 
-                        <div className="text-right shrink-0">
-                          <div className="font-mono font-extrabold text-slate-900 text-sm sm:text-base">
-                            ₹{Number(bill.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {/* Grid Mode: 2 small boxes in a row */}
+                return (
+                  <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+                    {filtered.map(bill => {
+                      const key = bill.id || bill.bill_no;
+                      return (
+                        <div 
+                          key={key} 
+                          className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200/90 bg-white hover:border-slate-300 transition flex flex-col justify-between shadow-2xs"
+                        >
+                          <div>
+                            <div className="flex items-center justify-between text-[10.5px] sm:text-xs">
+                              <span className="font-medium text-slate-900">#{bill.bill_no}</span>
+                              <span className="font-medium text-slate-900">₹{Number(bill.total_amount).toFixed(2)}</span>
+                            </div>
+                            <p className="text-[10px] sm:text-[11px] font-normal text-slate-700 uppercase truncate mt-0.5 sm:mt-1">
+                              {bill.customer_name}
+                            </p>
                           </div>
 
-                          <div className="mt-2 flex justify-end">
+                          <div className="mt-1.5 pt-1.5 sm:mt-2.5 sm:pt-2 border-t border-slate-100 flex items-center justify-between">
+                            <span className="text-[9.5px] sm:text-[10.5px] text-slate-400 font-normal">{bill.total_qty ?? 0} pcs</span>
                             <button
                               type="button"
                               onClick={() => handleSelectBillFromModal(bill)}
-                              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                              className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-[#1d68ed] hover:bg-[#1758ca] text-white rounded-md sm:rounded-lg text-[10px] sm:text-xs font-normal transition flex items-center gap-0.5 sm:gap-1 cursor-pointer active:scale-95"
                             >
-                              <Check size={13} strokeWidth={2.5} />
+                              <Check size={10} strokeWidth={2.4} />
                               Apply
                             </button>
                           </div>
                         </div>
-                      </div>
-                    </div>
-                  );
-                });
+                      );
+                    })}
+                  </div>
+                );
               })()}
             </div>
 
             {/* Footer */}
-            <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
-              <span className="text-slate-500">
-                Total Pending: <strong className="text-slate-900 font-mono">₹{todayPendingBills.reduce((acc, b) => acc + (Number(b.total_amount) || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
-              </span>
+            <div className="px-3.5 sm:px-5 py-2.5 sm:py-3 bg-white border-t border-slate-100 flex items-center justify-between">
+              <div className="text-[11px] sm:text-xs text-slate-500 font-normal">
+                Total Pending: <span className="font-medium text-slate-900 ml-1">₹{todayPendingBills.reduce((acc, b) => acc + (Number(b.total_amount) || 0), 0).toFixed(2)}</span>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowPendingBillsModal(false)}
-                className="px-3 py-1 text-slate-600 hover:bg-slate-200/60 rounded-md font-semibold text-xs cursor-pointer"
+                className="text-[11px] sm:text-xs font-normal text-[#1d68ed] hover:text-[#1758ca] transition-colors cursor-pointer"
               >
                 Close
               </button>
