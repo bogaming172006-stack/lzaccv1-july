@@ -9,6 +9,7 @@ export interface SlideToChooseButtonProps {
   disableDebit?: boolean;
   isSubmitting?: boolean;
   className?: string;
+  size?: 'normal' | 'compact';
 }
 
 export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
@@ -19,7 +20,8 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
   disableCredit = false,
   disableDebit = false,
   isSubmitting = false,
-  className = ''
+  className = '',
+  size = 'compact'
 }) => {
   const [internalState, setInternalState] = useState<'credit' | 'debit'>(
     disableDebit ? 'credit' : (value === 'CREDIT' ? 'credit' : 'debit')
@@ -107,10 +109,10 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
   // Dimension helpers
   const getBounds = () => {
     const track = trackRef.current;
-    if (!track) return { trackWidth: 320, knobWidth: 52, maxTravel: 110, threshold: 55 };
-    const trackWidth = track.clientWidth || 320;
-    const knobWidth = 52;
-    const padding = 5;
+    const knob = knobRef.current;
+    const trackWidth = track?.clientWidth || (isCompact ? 280 : 320);
+    const knobWidth = knob?.clientWidth || (isCompact ? 38 : 52);
+    const padding = isCompact ? 3 : 5;
     const maxTravel = (trackWidth / 2) - (knobWidth / 2) - padding;
     const threshold = maxTravel * 0.58;
     return { trackWidth, knobWidth, maxTravel, threshold };
@@ -218,6 +220,8 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
     }
   };
 
+  const isCompact = size === 'compact';
+
   return (
     <div className={`w-full flex flex-col items-center select-none ${className}`}>
       {/* CAPSULE TRACK */}
@@ -226,14 +230,18 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
         data-state={internalState}
         tabIndex={0}
         onKeyDown={handleKeyDown}
-        className="relative w-full max-w-[340px] sm:max-w-[380px] h-[58px] sm:h-[60px] rounded-full border-[1.5px] border-[#d4dce7] bg-[#fbfcfd] overflow-hidden cursor-pointer shadow-[0_12px_28px_-4px_rgba(185,198,218,0.5),0_3px_8px_rgba(0,0,0,0.03),inset_0_2px_2px_#ffffff,inset_0_-2.5px_3.5px_rgba(190,202,220,0.35)] touch-pan-y focus:outline-none focus:ring-2 focus:ring-blue-400/40 select-none"
+        className={`relative w-full rounded-full border-[1.5px] border-[#d4dce7] bg-[#fbfcfd] overflow-hidden cursor-pointer touch-pan-y focus:outline-none focus:ring-2 focus:ring-blue-400/40 select-none ${
+          isCompact
+            ? 'max-w-[280px] h-[44px] shadow-[0_6px_16px_-2px_rgba(185,198,218,0.4),0_2px_4px_rgba(0,0,0,0.03),inset_0_1.5px_1.5px_#ffffff,inset_0_-2px_2.5px_rgba(190,202,220,0.3)]'
+            : 'max-w-[340px] sm:max-w-[380px] h-[58px] sm:h-[60px] shadow-[0_12px_28px_-4px_rgba(185,198,218,0.5),0_3px_8px_rgba(0,0,0,0.03),inset_0_2px_2px_#ffffff,inset_0_-2.5px_3.5px_rgba(190,202,220,0.35)]'
+        }`}
       >
         {/* ACTIVE GLOSSY PILL INDICATOR */}
         <div
           aria-hidden="true"
           style={{
-            left: internalState === 'credit' ? '5px' : 'calc(50% + 2px)',
-            width: 'calc(50% - 7px)',
+            left: internalState === 'credit' ? (isCompact ? '3.5px' : '5px') : 'calc(50% + 2px)',
+            width: isCompact ? 'calc(50% - 5.5px)' : 'calc(50% - 7px)',
             background:
               internalState === 'credit'
                 ? 'linear-gradient(180deg, #1cbd87 0%, #10ae76 10%, #0ba06c 22%, #068e5e 40%, #037e50 60%, #027c4f 75%, #028353 88%, #039d62 98%, #a0eed0 100%)'
@@ -246,7 +254,7 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
               ? 'none'
               : 'left 0.45s cubic-bezier(0.34, 1.35, 0.64, 1), background 0.4s ease, box-shadow 0.4s ease'
           }}
-          className="absolute top-[4px] bottom-[4px] rounded-full pointer-events-none z-1"
+          className={`absolute rounded-full pointer-events-none z-1 ${isCompact ? 'top-[3px] bottom-[3px]' : 'top-[4px] bottom-[4px]'}`}
         >
           {/* Top glossy highlight reflection */}
           <div
@@ -283,14 +291,18 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
               if (!disableCredit) triggerChoice('credit', true);
             }}
             disabled={disabled || isSubmitting || disableCredit}
-            className={`flex-1 h-full flex items-center justify-center gap-2 sm:gap-2.5 pl-3 pr-6 border-none bg-transparent transition-all outline-none ${
+            className={`flex-1 h-full flex items-center justify-center border-none bg-transparent transition-all outline-none ${
+              isCompact ? 'gap-1.5 pl-2.5 pr-4' : 'gap-2 sm:gap-2.5 pl-3 pr-6'
+            } ${
               disableCredit ? 'opacity-25 cursor-not-allowed pointer-events-none select-none' : 'cursor-pointer'
             }`}
             title={disableCredit ? 'Credit is not workable (Must debit invoice first)' : 'Credit'}
           >
             {/* Coin stack icon from reference */}
             <svg
-              className={`w-[18px] h-[22px] shrink-0 transition-colors ${
+              className={`shrink-0 transition-colors ${
+                isCompact ? 'w-[15px] h-[19px]' : 'w-[18px] h-[22px]'
+              } ${
                 internalState === 'credit' ? 'text-white' : 'text-[#038b55]'
               }`}
               viewBox="0 0 41 54"
@@ -334,7 +346,9 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
               />
             </svg>
             <span
-              className={`text-[15px] sm:text-[16px] font-bold tracking-tight transition-colors ${
+              className={`font-bold tracking-tight transition-colors ${
+                isCompact ? 'text-[13px]' : 'text-[15px] sm:text-[16px]'
+              } ${
                 internalState === 'credit' ? 'text-white' : 'text-[#038b55]'
               }`}
             >
@@ -350,14 +364,18 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
               if (!disableDebit) triggerChoice('debit', true);
             }}
             disabled={disabled || isSubmitting || disableDebit}
-            className={`flex-1 h-full flex items-center justify-center gap-2 sm:gap-2.5 pl-6 pr-3 border-none bg-transparent transition-all outline-none ${
+            className={`flex-1 h-full flex items-center justify-center border-none bg-transparent transition-all outline-none ${
+              isCompact ? 'gap-1.5 pl-4 pr-2.5' : 'gap-2 sm:gap-2.5 pl-6 pr-3'
+            } ${
               disableDebit ? 'opacity-25 cursor-not-allowed pointer-events-none select-none' : 'cursor-pointer'
             }`}
             title={disableDebit ? 'Debit is not workable (Already debited on this invoice)' : 'Debit'}
           >
             {/* Wallet icon from reference */}
             <svg
-              className={`w-[20px] h-[20px] shrink-0 transition-colors ${
+              className={`shrink-0 transition-colors ${
+                isCompact ? 'w-[16px] h-[16px]' : 'w-[20px] h-[20px]'
+              } ${
                 internalState === 'debit' ? 'text-white' : 'text-[#eb1937]'
               }`}
               viewBox="0 0 50 51"
@@ -401,7 +419,9 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
               <circle cx="39.5" cy="31.5" r="2" fill="currentColor" />
             </svg>
             <span
-              className={`text-[15px] sm:text-[16px] font-bold tracking-tight transition-colors ${
+              className={`font-bold tracking-tight transition-colors ${
+                isCompact ? 'text-[13px]' : 'text-[15px] sm:text-[16px]'
+              } ${
                 internalState === 'debit' ? 'text-white' : 'text-[#eb1937]'
               }`}
             >
@@ -424,7 +444,9 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
               : 'transform 0.45s cubic-bezier(0.34, 1.35, 0.64, 1), box-shadow 0.3s ease',
             touchAction: 'none'
           }}
-          className={`absolute left-1/2 top-1/2 w-[50px] h-[50px] rounded-full flex items-center justify-center gap-1.5 z-10 select-none cursor-grab active:cursor-grabbing ${
+          className={`absolute left-1/2 top-1/2 rounded-full flex items-center justify-center gap-1 z-10 select-none cursor-grab active:cursor-grabbing ${
+            isCompact ? 'w-[38px] h-[38px]' : 'w-[50px] h-[50px] gap-1.5'
+          } ${
             isDragging ? 'scale-105 shadow-[0_12px_28px_rgba(0,0,0,0.2),inset_0_3px_3px_#ffffff]' : ''
           }`}
         >
@@ -451,7 +473,7 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
                 : ''
             }`}
           >
-            <svg width="10" height="18" viewBox="0 0 19 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width={isCompact ? "7" : "10"} height={isCompact ? "13" : "18"} viewBox="0 0 19 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path
                 d="M15 4 L4 16 L15 28"
                 stroke="#038b55"
@@ -474,7 +496,7 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
                 : ''
             }`}
           >
-            <svg width="10" height="18" viewBox="0 0 19 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width={isCompact ? "7" : "10"} height={isCompact ? "13" : "18"} viewBox="0 0 19 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path
                 d="M4 4 L15 16 L4 28"
                 stroke="#eb1937"

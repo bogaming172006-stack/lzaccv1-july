@@ -1592,21 +1592,21 @@ export default function MasterEntry() {
         /* ============================================================ */
         /* NEW MOBILE INTERFACE (With tactile SlideToChooseButton)      */
         /* ============================================================ */
-        <div className="p-2.5 sm:p-6 max-w-[440px] mx-auto w-full pb-24 font-customer">
-          <div className="w-full bg-white border border-slate-200/80 rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-[0_4px_24px_rgba(0,0,0,0.05)] flex flex-col">
+        <div className="p-2 sm:p-4 max-w-[380px] mx-auto w-full pb-16 font-customer">
+          <div className="w-full bg-white border border-slate-200/90 rounded-xl p-3 sm:p-3.5 shadow-2xs flex flex-col">
             {/* Header Title */}
-            <div className="pb-3.5 mb-4 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold shadow-xs">
-                  <CreditCard size={17} />
+            <div className="pb-2 mb-2.5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center font-normal shadow-2xs shrink-0">
+                  <CreditCard size={13} />
                 </div>
                 <div>
-                  <h2 className="text-xl font-extrabold text-[#0B1528] tracking-tight leading-tight">Invoice Entry</h2>
-                  <p className="text-[10px] text-slate-400">Quick entry voucher for {activeLedger.name}</p>
+                  <h2 className="text-sm font-semibold text-[#0B1528] tracking-tight leading-tight">Invoice Entry</h2>
+                  <p className="text-[9px] text-slate-400">Quick entry voucher for {activeLedger.name}</p>
                 </div>
               </div>
               {isExpenseLedger && (
-                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200">
+                <span className="text-[9px] font-normal uppercase px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200">
                   Expense Book
                 </span>
               )}
@@ -1614,10 +1614,10 @@ export default function MasterEntry() {
 
             <form onSubmit={handlePreSubmit} className="flex flex-col">
               {/* Row 1: INVOICE NUMBER | ACCOUNT PARTY * | Invoices button */}
-              <div className="flex items-start gap-2">
+              <div className="flex items-start gap-1.5">
                 {/* INVOICE NUMBER */}
-                <div className="w-[34%] min-w-0">
-                  <label className="text-[10px] font-extrabold text-slate-700 tracking-wider uppercase mb-1.5 block truncate">
+                <div className="w-[33%] min-w-0">
+                  <label className="text-[9.5px] font-normal text-slate-500 uppercase tracking-wider mb-1 block truncate">
                     Invoice Number
                   </label>
                   <div className="relative">
@@ -1628,12 +1628,12 @@ export default function MasterEntry() {
                       onKeyDown={handleInvoiceKeyDown}
                       onBlur={handleInvoiceBlur}
                       onChange={e => { setInvoiceNo(e.target.value.toUpperCase()); setPartyLockedByInvoice(false); setLockedInvoiceDetails(null); }}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-2.5 h-[42px] text-xs font-mono text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#0284c7] focus:ring-2 focus:ring-[#0284c7]/10 transition uppercase"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2 h-[34px] text-[11px] font-mono text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#0284c7] focus:ring-1 focus:ring-[#0284c7]/20 transition uppercase"
                       placeholder="REF OR INV"
                     />
                     {isCheckingInvoice && (
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-3 w-3 border-2 border-[#0284c7] border-t-transparent"></div>
+                      <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-2.5 w-2.5 border-2 border-[#0284c7] border-t-transparent"></div>
                       </div>
                     )}
                   </div>
@@ -1641,20 +1641,20 @@ export default function MasterEntry() {
 
                 {/* ACCOUNT PARTY * */}
                 <div className="flex-1 min-w-0 relative">
-                  <label className="text-[10px] font-extrabold text-slate-700 tracking-wider uppercase mb-1.5 flex items-center truncate">
+                  <label className="text-[9.5px] font-normal text-slate-500 uppercase tracking-wider mb-1 flex items-center truncate">
                     <span>Account Party</span>
-                    <span className="text-[#DC2626] ml-0.5 font-bold">*</span>
+                    <span className="text-[#DC2626] ml-0.5 font-normal">*</span>
                   </label>
 
                   {partyLockedByInvoice && selectedParty ? (
-                    <div className="h-[42px] px-2.5 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-900 text-xs truncate max-w-[90px]">{selectedParty.name}</span>
-                      <span className="text-[8.5px] font-bold uppercase px-1 py-0.2 rounded bg-slate-200 text-slate-700 shrink-0 ml-1">Added</span>
+                    <div className="h-[34px] px-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center justify-between text-[11px]">
+                      <span className="font-medium text-slate-900 text-[11px] truncate max-w-[85px]">{selectedParty.name}</span>
+                      <span className="text-[8px] font-normal uppercase px-1 py-0.2 rounded bg-slate-200 text-slate-600 shrink-0 ml-1">Added</span>
                     </div>
                   ) : !selectedParty ? (
                     <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center">
-                        <Search size={14} strokeWidth={2.2} />
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center">
+                        <Search size={12} strokeWidth={2} />
                       </span>
                       <input
                         type="text"
@@ -1664,11 +1664,11 @@ export default function MasterEntry() {
                         onChange={e => setPartySearch(e.target.value)}
                         onKeyDown={handlePartySearchKeyDown}
                         disabled={isSaleLedger && !invoiceNo.trim()}
-                        className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-2 h-[42px] text-xs text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#0284c7] focus:ring-2 focus:ring-[#0284c7]/10 transition disabled:bg-slate-50 disabled:cursor-not-allowed"
+                        className="w-full bg-white border border-slate-200 rounded-lg pl-6 pr-1.5 h-[34px] text-[11px] text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#0284c7] focus:ring-1 focus:ring-[#0284c7]/20 transition disabled:bg-slate-50 disabled:cursor-not-allowed"
                       />
 
                       {partySearch && (
-                        <div className="absolute z-30 w-72 max-w-[85vw] mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-52 overflow-y-auto divide-y divide-slate-100 left-0">
+                        <div className="absolute z-30 w-72 max-w-[85vw] mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-52 overflow-y-auto divide-y divide-slate-100 left-0">
                           {filteredParties.length > 0 ? (
                             filteredParties.map((p, idx) => (
                               <button
@@ -1679,24 +1679,24 @@ export default function MasterEntry() {
                                   setPartySearch(''); 
                                   setTimeout(() => amountRef.current?.focus(), 10);
                                 }}
-                                className={`w-full text-left px-3 py-2 flex justify-between items-center transition-all ${
-                                  idx === searchSelectedIndex ? 'bg-sky-50 border-l-3 border-[#0284c7] pl-2' : 'hover:bg-slate-50'
+                                className={`w-full text-left px-2.5 py-1.5 flex justify-between items-center transition-all ${
+                                  idx === searchSelectedIndex ? 'bg-sky-50 border-l-2 border-[#0284c7] pl-2' : 'hover:bg-slate-50'
                                 }`}
                               >
                                 <div className="min-w-0 pr-1">
-                                  <span className="font-bold text-slate-900 text-xs truncate block">{p.name}</span>
-                                  {p.address && <span className="text-[10px] text-slate-400 truncate block">{p.address}</span>}
+                                  <span className="font-medium text-slate-900 text-xs truncate block">{p.name}</span>
+                                  {p.address && <span className="text-[9.5px] text-slate-400 truncate block">{p.address}</span>}
                                 </div>
                                 <div className="text-right shrink-0 ml-1">
-                                  <span className="text-slate-500 font-mono text-[10px] block">{p.phone}</span>
-                                  <span className="text-[9.5px] font-semibold text-slate-600 block">
+                                  <span className="text-slate-500 font-mono text-[9.5px] block">{p.phone}</span>
+                                  <span className="text-[9px] font-normal text-slate-600 block">
                                     ₹{Math.abs(p.currentDue).toLocaleString('en-IN')} {p.currentDue >= 0 ? 'DR' : 'CR'}
                                   </span>
                                 </div>
                               </button>
                             ))
                           ) : (
-                            <div className="px-3 py-2 text-slate-400 text-xs text-center">
+                            <div className="px-2.5 py-2 text-slate-400 text-xs text-center">
                               No matching account parties found.
                             </div>
                           )}
@@ -1704,17 +1704,17 @@ export default function MasterEntry() {
                       )}
                     </div>
                   ) : (
-                    <div className="h-[42px] px-2.5 border border-slate-200 rounded-xl bg-white flex items-center justify-between text-xs">
+                    <div className="h-[34px] px-2 border border-slate-200 rounded-lg bg-white flex items-center justify-between text-[11px]">
                       <div className="min-w-0 pr-1">
-                        <div className="font-bold text-[#0F172A] text-xs truncate">{selectedParty.name}</div>
-                        <div className="text-[9.5px] text-slate-500 -mt-0.5 truncate">
+                        <div className="font-medium text-[#0F172A] text-[11.5px] truncate">{selectedParty.name}</div>
+                        <div className="text-[9px] text-slate-500 -mt-0.5 truncate">
                           ₹{Math.abs(selectedParty.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {selectedParty.currentDue >= 0 ? 'DR' : 'CR'}
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => { setSelectedParty(null); setTimeout(() => partySearchRef.current?.focus(), 10); }}
-                        className="text-[10px] font-semibold text-[#0284c7] hover:underline cursor-pointer bg-slate-50 hover:bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 transition shrink-0"
+                        className="text-[9px] font-normal text-[#0284c7] hover:underline cursor-pointer bg-slate-50 hover:bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 transition shrink-0"
                       >
                         Change
                       </button>
@@ -1724,17 +1724,17 @@ export default function MasterEntry() {
 
                 {/* Invoices Button */}
                 <div className="shrink-0 flex flex-col items-center">
-                  <span className="text-[10px] font-normal text-slate-400 mb-1.5 block">
+                  <span className="text-[9.5px] font-normal text-slate-400 mb-1 block">
                     Invoices
                   </span>
                   <button
                     type="button"
                     onClick={() => setShowPendingBillsModal(true)}
-                    className="w-[42px] h-[42px] bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-xl flex items-center justify-center relative cursor-pointer text-slate-600 transition shadow-2xs active:scale-95"
+                    className="w-[34px] h-[34px] bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-lg flex items-center justify-center relative cursor-pointer text-slate-600 transition shadow-2xs active:scale-95"
                     title={`${todayPendingBills.length} pending orders waiting to be debited`}
                   >
-                    <FileText size={18} strokeWidth={2} />
-                    <span className="absolute -top-1.5 -right-1.5 bg-amber-100 text-amber-700 text-[9.5px] font-medium w-5 h-5 rounded-full flex items-center justify-center border border-amber-200 shadow-2xs">
+                    <FileText size={15} strokeWidth={1.8} />
+                    <span className="absolute -top-1 -right-1 bg-amber-100 text-amber-700 text-[8.5px] font-normal w-4 h-4 rounded-full flex items-center justify-center border border-amber-200 shadow-2xs">
                       {todayPendingBills.length > 0 ? todayPendingBills.length : todayBills.length > 0 ? todayBills.length : 0}
                     </span>
                   </button>
@@ -1745,23 +1745,23 @@ export default function MasterEntry() {
               {billingMatch && (
                 <div 
                   onClick={() => applyBillingMatch(billingMatch)}
-                  className="mt-2.5 p-2.5 bg-blue-50/90 hover:bg-blue-100/70 border border-blue-200 hover:border-blue-300 rounded-xl text-[11px] transition-colors cursor-pointer"
+                  className="mt-2 p-2 bg-blue-50/90 hover:bg-blue-100/70 border border-blue-200 hover:border-blue-300 rounded-lg text-[10.5px] transition-colors cursor-pointer"
                   title="Click to apply bill details"
                 >
                   <div className="space-y-0.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-bold text-blue-950 text-xs">#{billingMatch.bill_no}</span>
+                        <span className="font-mono font-medium text-blue-950 text-xs">#{billingMatch.bill_no}</span>
                         {billingMatch.bill_type && (
-                          <span className="text-[9.5px] text-slate-500">({billingMatch.bill_type.replace('_', ' ')})</span>
+                          <span className="text-[9px] text-slate-500">({billingMatch.bill_type.replace('_', ' ')})</span>
                         )}
                       </div>
-                      <span className="text-[10px] font-bold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-md">Click to Apply</span>
+                      <span className="text-[9px] font-normal text-blue-700 bg-blue-100/80 px-1.5 py-0.2 rounded">Click to Apply</span>
                     </div>
-                    <div className="text-slate-800 font-medium truncate">
-                      Party: <span className="font-bold text-slate-950">{billingMatch.customer_name}</span>
+                    <div className="text-slate-800 font-normal truncate">
+                      Party: <span className="font-medium text-slate-950">{billingMatch.customer_name}</span>
                     </div>
-                    <div className="text-blue-950 font-mono font-bold text-xs">
+                    <div className="text-blue-950 font-mono font-medium text-[11px]">
                       Bill Amount: ₹{Number(billingMatch.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </div>
                   </div>
@@ -1769,13 +1769,13 @@ export default function MasterEntry() {
               )}
 
               {/* Row 2: VOUCHER AMOUNT (₹) * */}
-              <div className="flex flex-col mt-4">
-                <label className="text-[10px] font-extrabold text-slate-700 tracking-wider uppercase mb-1.5 flex items-center">
+              <div className="flex flex-col mt-2.5">
+                <label className="text-[9.5px] font-normal text-slate-500 uppercase tracking-wider mb-1 flex items-center">
                   <span>Voucher Amount (₹)</span>
-                  <span className="text-[#DC2626] ml-0.5 font-bold">*</span>
+                  <span className="text-[#DC2626] ml-0.5 font-normal">*</span>
                 </label>
-                <div className="flex items-stretch rounded-xl border border-slate-200 bg-white overflow-hidden focus-within:border-[#0284c7] focus-within:ring-2 focus-within:ring-[#0284c7]/10 h-[44px] transition">
-                  <div className="w-10 bg-slate-50 border-r border-slate-200 flex items-center justify-center font-bold text-slate-600 text-sm select-none shrink-0">
+                <div className="flex items-stretch rounded-lg border border-slate-200 bg-white overflow-hidden focus-within:border-[#0284c7] focus-within:ring-1 focus-within:ring-[#0284c7]/20 h-[34px] transition">
+                  <div className="w-7 bg-slate-50 border-r border-slate-200 flex items-center justify-center font-normal text-slate-500 text-xs select-none shrink-0">
                     ₹
                   </div>
                   <input
@@ -1787,22 +1787,22 @@ export default function MasterEntry() {
                     value={amount}
                     onChange={e => setAmount(e.target.value)}
                     disabled={isSaleLedger && !invoiceNo.trim()}
-                    className="flex-1 px-3 text-sm font-semibold font-mono text-[#0F172A] outline-none placeholder:text-slate-400 placeholder:font-normal bg-transparent disabled:bg-slate-50"
+                    className="flex-1 px-2.5 text-xs font-normal font-mono text-[#0F172A] outline-none placeholder:text-slate-400 placeholder:font-normal bg-transparent disabled:bg-slate-50"
                     placeholder="0.00"
                   />
                 </div>
                 {amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0 && (
-                  <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 animate-in fade-in">
-                    <FileText size={12} className="text-slate-400 shrink-0" />
-                    <span className="text-[9.5px] uppercase font-bold text-slate-500 tracking-wider">In words:</span>
-                    <span className="italic font-medium text-slate-700 truncate">{formatAmountInWords(amount)}</span>
+                  <div className="mt-0.5 flex items-center gap-1 text-[9px] text-slate-500 animate-in fade-in">
+                    <FileText size={10} className="text-slate-400 shrink-0" />
+                    <span className="uppercase font-normal text-slate-500 tracking-wider">In words:</span>
+                    <span className="italic font-normal text-slate-700 truncate">{formatAmountInWords(amount)}</span>
                   </div>
                 )}
               </div>
 
               {/* Row 3: DESCRIPTION */}
-              <div className="flex flex-col mt-4">
-                <label className="text-[10px] font-extrabold text-slate-700 tracking-wider uppercase mb-1.5">
+              <div className="flex flex-col mt-2">
+                <label className="text-[9.5px] font-normal text-slate-500 uppercase tracking-wider mb-1">
                   Description
                 </label>
                 <textarea
@@ -1811,27 +1811,28 @@ export default function MasterEntry() {
                   value={notes}
                   onChange={e => handleTextChange(e, setNotes)}
                   disabled={isSaleLedger && !invoiceNo.trim()}
-                  className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-[#0F172A] outline-none placeholder:text-slate-400 min-h-[88px] focus:border-[#0284c7] focus:ring-2 focus:ring-[#0284c7]/10 transition resize-y disabled:bg-slate-50"
+                  className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs text-[#0F172A] outline-none placeholder:text-slate-400 placeholder:font-normal min-h-[44px] h-[44px] focus:min-h-[64px] focus:border-[#0284c7] focus:ring-1 focus:ring-[#0284c7]/20 transition resize-y disabled:bg-slate-50 leading-tight"
                   placeholder="Note"
-                  rows={3}
+                  rows={2}
                 />
               </div>
 
               {/* Row 4: Slide to Choose (Credit / Debit) */}
-              <div className="flex flex-col items-center pt-5 pb-1">
+              <div className="flex flex-col items-center pt-2.5 pb-0.5">
                 {isInvoiceAlreadyDebited && (
-                  <div className="w-full max-w-[340px] sm:max-w-[380px] mb-2 text-xs flex items-center justify-center gap-1.5 text-slate-600 animate-in fade-in">
-                    <AlertTriangle size={14} className="text-amber-600 shrink-0" />
-                    <span className="font-semibold text-slate-800">Invoice #{invoiceNo.toUpperCase()} is already debited.</span>
+                  <div className="w-full max-w-[280px] mb-1.5 text-[10px] flex items-center justify-center gap-1 text-slate-600 animate-in fade-in">
+                    <AlertTriangle size={12} className="text-amber-600 shrink-0" />
+                    <span className="font-normal text-slate-800">Invoice #{invoiceNo.toUpperCase()} is already debited.</span>
                   </div>
                 )}
                 {isCreditDisabledByInvoice && (
-                  <div className="w-full max-w-[340px] sm:max-w-[380px] mb-2 text-xs flex items-center justify-center gap-1.5 text-slate-600 animate-in fade-in">
-                    <AlertTriangle size={14} className="text-sky-600 shrink-0" />
-                    <span className="font-semibold text-slate-800">Invoice #{invoiceNo.toUpperCase()} must be debited first.</span>
+                  <div className="w-full max-w-[280px] mb-1.5 text-[10px] flex items-center justify-center gap-1 text-slate-600 animate-in fade-in">
+                    <AlertTriangle size={12} className="text-sky-600 shrink-0" />
+                    <span className="font-normal text-slate-800">Invoice #{invoiceNo.toUpperCase()} must be debited first.</span>
                   </div>
                 )}
                 <SlideToChooseButton
+                  size="compact"
                   value={type}
                   onChange={(newType) => setType(newType)}
                   onSlideComplete={(confirmedType) => {
