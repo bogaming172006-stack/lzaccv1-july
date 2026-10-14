@@ -57,6 +57,7 @@ export interface Party {
   lastTransaction: number;
   status: 'Active' | 'Inactive';
   email?: string;
+  group?: string;
 }
 
 export interface Product {

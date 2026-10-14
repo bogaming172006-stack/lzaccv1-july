@@ -18,8 +18,19 @@ import {
   Mail,
   SlidersHorizontal,
   Sparkles,
-  Plus
+  Plus,
+  FolderPlus,
+  Tag,
+  Trash2,
+  FileSpreadsheet
 } from 'lucide-react';
+import { 
+  fetchPartyGroups, 
+  addPartyGroup, 
+  deletePartyGroup, 
+  mergePartyGroups, 
+  getLocalPartyGroups 
+} from '../lib/partyGroupService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
@@ -30,6 +41,7 @@ import { getFilteredCacheItems, setCacheItem } from '../lib/idbCache';
 import { updateDashboardPartiesCount } from '../lib/transactionService';
 import { formatContactWith91 } from '../lib/phoneUtils';
 import BulkImportPartiesModal from '../components/BulkImportPartiesModal';
+import PartyStatementReportModal from '../components/PartyStatementReportModal';
 import { useLedgerTextCase } from '../lib/textCaseHelper';
 import { 
   getAvatarColor, 
@@ -40,6 +52,7 @@ import {
 export default function PartyList() {
   const { activeLedger } = useLedger();
   const { currentUser } = useAuth();
+  const isAdmin = currentUser?.isAdmin ?? false;
   const navigate = useNavigate();
 
   const [parties, setParties] = useState<Party[]>([]);
@@ -56,12 +69,21 @@ export default function PartyList() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
 
+  // Group State & Filter
+  const [savedGroups, setSavedGroups] = useState<string[]>([]);
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>('ALL');
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+
   // Add Party Form State
   const [showAddModal, setShowAddModal] = useState(false);
   const [addName, setAddName] = useState('');
   const [addPhone, setAddPhone] = useState('');
   const [addAddress, setAddAddress] = useState('');
   const [addEmail, setAddEmail] = useState('');
+  const [addGroup, setAddGroup] = useState('');
+  const [isCreatingInlineGroup, setIsCreatingInlineGroup] = useState(false);
+  const [inlineNewGroupName, setInlineNewGroupName] = useState('');
   const [addOpeningBalance, setAddOpeningBalance] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { isCaps, toggleManualCaps, handleTextChange } = useLedgerTextCase();
@@ -71,6 +93,10 @@ export default function PartyList() {
   const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [density, setDensity] = useState<'compact' | 'ultra'>(() => (localStorage.getItem('party_density') as any) || 'compact');
+
+  // Statement & Group Report Modal State
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportInitialGroup, setReportInitialGroup] = useState('ALL');
 
   const handleDensityChange = (d: 'compact' | 'ultra') => {
     setDensity(d);
@@ -114,7 +140,16 @@ export default function PartyList() {
 
   useEffect(() => {
     loadParties();
-    const handleSync = () => { loadParties(); };
+    if (activeLedger?.id) {
+      setSavedGroups(getLocalPartyGroups(activeLedger.id));
+      fetchPartyGroups(activeLedger.id).then(grps => setSavedGroups(grps));
+    }
+    const handleSync = () => { 
+      loadParties(); 
+      if (activeLedger?.id) {
+        fetchPartyGroups(activeLedger.id).then(grps => setSavedGroups(grps));
+      }
+    };
     window.addEventListener('database-synced', handleSync);
     return () => { window.removeEventListener('database-synced', handleSync); };
   }, [activeLedger?.id]);
@@ -189,6 +224,15 @@ export default function PartyList() {
     }
   };
 
+  // Merged unique groups list
+  const allGroups = useMemo(() => {
+    return mergePartyGroups(parties, savedGroups);
+  }, [parties, savedGroups]);
+
+  const unassignedCount = useMemo(() => {
+    return parties.filter(p => !p.group || p.group.trim() === '').length;
+  }, [parties]);
+
   // Add Party Form Submit
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,6 +242,7 @@ export default function PartyList() {
     setIsSubmitting(true);
     const id = uuidv4();
     const balance = parseFloat(addOpeningBalance) || 0;
+    const groupVal = (isCreatingInlineGroup ? inlineNewGroupName : addGroup).trim();
 
     const newParty: Party = {
       id,
@@ -206,6 +251,7 @@ export default function PartyList() {
       phone: addPhone.trim(),
       address: addAddress.trim(),
       email: addEmail.trim(),
+      group: groupVal || undefined,
       openingBalance: balance,
       currentDue: balance,
       lastTransaction: Date.now(),
@@ -220,7 +266,14 @@ export default function PartyList() {
       setAddPhone('');
       setAddAddress('');
       setAddEmail('');
+      setAddGroup('');
+      setIsCreatingInlineGroup(false);
+      setInlineNewGroupName('');
       setAddOpeningBalance('');
+
+      if (groupVal) {
+        addPartyGroup(activeLedger.id, groupVal).then(updated => setSavedGroups(updated));
+      }
 
       await setCacheItem<Party>('parties', newParty);
       await setDoc(doc(db, 'parties', id), newParty);
@@ -243,13 +296,21 @@ export default function PartyList() {
         return true;
       })
       .filter(p => {
+        if (!isAdmin || selectedGroupFilter === 'ALL') return true;
+        if (selectedGroupFilter === '__UNGROUPED__') {
+          return !p.group || p.group.trim() === '';
+        }
+        return (p.group || '').trim().toLowerCase() === selectedGroupFilter.toLowerCase();
+      })
+      .filter(p => {
         if (!search.trim()) return true;
         const q = search.toLowerCase().trim();
         return (
           p.name.toLowerCase().includes(q) ||
           (p.phone || '').toLowerCase().includes(q) ||
           (p.email || '').toLowerCase().includes(q) ||
-          (p.address || '').toLowerCase().includes(q)
+          (p.address || '').toLowerCase().includes(q) ||
+          (p.group || '').toLowerCase().includes(q)
         );
       })
       .sort((a, b) => {
@@ -258,7 +319,7 @@ export default function PartyList() {
         if (sortOrder === 'due_asc') return a.currentDue - b.currentDue;
         return (b.lastTransaction || 0) - (a.lastTransaction || 0);
       });
-  }, [parties, statusFilter, search, sortOrder]);
+  }, [parties, statusFilter, selectedGroupFilter, search, sortOrder]);
 
   const totalReceivable = useMemo(() => {
     return parties.filter(p => p.currentDue > 0).reduce((acc, p) => acc + p.currentDue, 0);
@@ -298,7 +359,23 @@ export default function PartyList() {
             </div>
           </div>
 
-          <div className="flex items-center">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {isAdmin && (
+              <button 
+                type="button"
+                onClick={() => {
+                  setReportInitialGroup(selectedGroupFilter !== 'ALL' ? selectedGroupFilter : 'ALL');
+                  setShowReportModal(true);
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100/90 text-blue-700 active:bg-blue-200 border border-blue-200/80 rounded-lg text-xs font-semibold cursor-pointer transition shadow-2xs active:scale-95"
+                title="Party & Group Statement Report"
+                aria-label="Party & Group Statement Report"
+              >
+                <FileSpreadsheet size={15} className="text-blue-600 shrink-0" strokeWidth={2.2} />
+                <span className="font-bold">Report</span>
+              </button>
+            )}
+
             <button 
               type="button"
               onClick={() => setShowAddModal(true)}
@@ -402,7 +479,7 @@ export default function PartyList() {
         </div>
 
         {/* Quick Status Filter Pills */}
-        <div className="px-3.5 pb-2 pt-0.5 flex items-center gap-2 overflow-x-auto no-scrollbar">
+        <div className="px-3.5 pb-1.5 pt-0.5 flex items-center gap-2 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setStatusFilter('ALL')}
             className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
@@ -435,6 +512,25 @@ export default function PartyList() {
           </button>
         </div>
 
+        {/* Active Group Filter Banner (Admin Only) */}
+        {isAdmin && selectedGroupFilter !== 'ALL' && (
+          <div className="mx-3.5 my-1 px-2.5 py-1 bg-blue-50/90 border border-blue-200/80 rounded-lg flex items-center justify-between text-[11px] animate-in fade-in">
+            <div className="flex items-center gap-1.5 text-blue-900 font-medium">
+              <Tag size={12} className="text-blue-600" />
+              <span>
+                Filtered by Group: <strong className="font-bold text-blue-700">{selectedGroupFilter === '__UNGROUPED__' ? 'No Group' : selectedGroupFilter}</strong> ({filteredParties.length} parties)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedGroupFilter('ALL')}
+              className="text-blue-600 hover:text-blue-800 text-[10.5px] font-bold underline cursor-pointer"
+            >
+              Show All
+            </button>
+          </div>
+        )}
+
         {/* ========================================================================= */}
         {/* COMPACT CUSTOMER LIST                                                     */}
         {/* ========================================================================= */}
@@ -466,8 +562,16 @@ export default function PartyList() {
 
                     {/* Customer Info */}
                     <div className="flex-1 min-w-0 pr-1.5">
-                      <div className="text-[12px] font-bold text-[#0F172A] leading-tight mb-0.5 truncate">
-                        {party.name}
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-[12px] font-bold text-[#0F172A] leading-tight truncate">
+                          {party.name}
+                        </span>
+                        {party.group && (
+                          <span className="inline-flex items-center gap-0.5 text-[9.5px] font-medium text-slate-500 shrink-0">
+                            <Tag size={8.5} className="text-slate-400" />
+                            {party.group}
+                          </span>
+                        )}
                       </div>
                       <div className="text-[10px] text-[#64748B] leading-tight truncate">
                         {party.email || (party.address ? party.address : 'No email added')}
@@ -581,12 +685,63 @@ export default function PartyList() {
                 </select>
               </div>
 
+              {/* Group Filter (Admin Only) */}
+              {isAdmin && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block">Customer Group</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowFilterDrawer(false);
+                        setShowCreateGroupModal(true);
+                      }}
+                      className="text-[10px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Plus size={10} />
+                      <span>Create Group</span>
+                    </button>
+                  </div>
+                  <select
+                    value={selectedGroupFilter}
+                    onChange={e => setSelectedGroupFilter(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-700 focus:outline-none focus:border-blue-600 cursor-pointer"
+                  >
+                    <option value="ALL">All Groups ({parties.length})</option>
+                    {allGroups.map(grp => {
+                      const count = parties.filter(p => (p.group || '').trim().toLowerCase() === grp.toLowerCase()).length;
+                      return (
+                        <option key={grp} value={grp}>{grp} ({count})</option>
+                      );
+                    })}
+                    {unassignedCount > 0 && (
+                      <option value="__UNGROUPED__">No Group / Ungrouped ({unassignedCount})</option>
+                    )}
+                  </select>
+                </div>
+              )}
+
               {/* Quick Actions */}
               <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => { 
+                      setShowFilterDrawer(false); 
+                      setReportInitialGroup(selectedGroupFilter !== 'ALL' ? selectedGroupFilter : 'ALL');
+                      setShowReportModal(true); 
+                    }}
+                    className="w-full py-1.5 px-2.5 bg-blue-50 hover:bg-blue-100 rounded-lg text-[11px] font-semibold text-blue-800 flex items-center justify-center gap-1.5 transition cursor-pointer border border-blue-200/60"
+                  >
+                    <FileSpreadsheet size={13} className="text-blue-600" />
+                    <span>Statement & Group Report</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => { setShowFilterDrawer(false); setShowImportModal(true); }}
-                  className="w-full py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 flex items-center justify-center gap-1.5 transition"
+                  className="w-full py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
                   <Upload size={13} />
                   <span>Import Excel / CSV</span>
@@ -674,6 +829,112 @@ export default function PartyList() {
                   />
                 </div>
 
+                {/* Customer Group Field */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700">Group / Category</label>
+                    {!isCreatingInlineGroup && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreatingInlineGroup(true);
+                          setInlineNewGroupName('');
+                        }}
+                        className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-0.5 cursor-pointer"
+                      >
+                        <Plus size={11} />
+                        <span>Create New Group</span>
+                      </button>
+                    )}
+                  </div>
+                  {isCreatingInlineGroup ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={inlineNewGroupName}
+                        onChange={e => handleTextChange(e, setInlineNewGroupName)}
+                        placeholder="Type group name (e.g. Wholesaler, VIP)..."
+                        className="flex-1 px-3.5 py-2.5 bg-blue-50/50 border border-blue-400 rounded-xl text-xs text-slate-900 focus:outline-none focus:bg-white transition"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (inlineNewGroupName.trim()) {
+                            setAddGroup(inlineNewGroupName.trim());
+                            setIsCreatingInlineGroup(false);
+                          }
+                        }}
+                        className="px-3.5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 transition cursor-pointer"
+                      >
+                        Set
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreatingInlineGroup(false);
+                          setInlineNewGroupName('');
+                        }}
+                        className="p-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={addGroup}
+                        onChange={e => {
+                          if (e.target.value === '__CREATE_NEW__') {
+                            setIsCreatingInlineGroup(true);
+                            setInlineNewGroupName('');
+                          } else {
+                            setAddGroup(e.target.value);
+                          }
+                        }}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition cursor-pointer"
+                      >
+                        <option value="">-- Select Group (Optional) --</option>
+                        {allGroups.map(grp => (
+                          <option key={grp} value={grp}>{grp}</option>
+                        ))}
+                        <option value="__CREATE_NEW__">+ Create New Group...</option>
+                      </select>
+                      {addGroup && (
+                        <button
+                          type="button"
+                          onClick={() => setAddGroup('')}
+                          className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                          title="Clear group selection"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Quick-pick Group Badges */}
+                  {!isCreatingInlineGroup && allGroups.length > 0 && (
+                    <div className="flex items-center flex-wrap gap-1.5 mt-2">
+                      <span className="text-[10px] text-slate-500 font-medium">Quick pick:</span>
+                      {allGroups.map(grp => (
+                        <button
+                          key={grp}
+                          type="button"
+                          onClick={() => setAddGroup(grp)}
+                          className={`px-2 py-0.5 rounded-full text-[10.5px] font-medium border transition cursor-pointer ${
+                            addGroup.toLowerCase() === grp.toLowerCase()
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          {grp}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1">
                     Opening Balance ({currency})
@@ -711,6 +972,137 @@ export default function PartyList() {
           </div>
         )}
 
+        {/* ========================================================================= */}
+        {/* CREATE GROUP MODAL (Admin Only)                                           */}
+        {/* ========================================================================= */}
+        {isAdmin && showCreateGroupModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-white rounded-2xl w-full max-w-sm border border-slate-200 overflow-hidden shadow-2xl">
+              <div className="px-4 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                    <FolderPlus size={15} />
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-sm">Create Customer Group</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateGroupModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Group Name</label>
+                  <input
+                    type="text"
+                    value={newGroupName}
+                    onChange={e => handleTextChange(e, setNewGroupName)}
+                    placeholder="e.g. Wholesalers, Retailers, VIP..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition"
+                    autoFocus
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter' && newGroupName.trim() && activeLedger?.id) {
+                        e.preventDefault();
+                        const trimmed = newGroupName.trim();
+                        const updated = await addPartyGroup(activeLedger.id, trimmed);
+                        setSavedGroups(updated);
+                        setSelectedGroupFilter(trimmed);
+                        setNewGroupName('');
+                        setShowCreateGroupModal(false);
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Suggested Quick Names */}
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-400 block mb-1.5 uppercase tracking-wider">Suggested Groups</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['Wholesalers', 'Retailers', 'Distributors', 'VIP', 'Suppliers', 'Corporate'].map(sugg => (
+                      <button
+                        key={sugg}
+                        type="button"
+                        onClick={() => setNewGroupName(sugg)}
+                        className="px-2 py-0.5 rounded-md text-[10.5px] bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-600 border border-slate-200/80 transition cursor-pointer"
+                      >
+                        + {sugg}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Existing Groups List */}
+                {allGroups.length > 0 && (
+                  <div className="pt-2 border-t border-slate-100">
+                    <label className="text-[10px] font-semibold text-slate-400 block mb-1.5 uppercase tracking-wider">
+                      Existing Groups ({allGroups.length})
+                    </label>
+                    <div className="max-h-32 overflow-y-auto space-y-1 pr-1">
+                      {allGroups.map(grp => {
+                        const count = parties.filter(p => (p.group || '').trim().toLowerCase() === grp.toLowerCase()).length;
+                        return (
+                          <div key={grp} className="flex items-center justify-between px-2.5 py-1.5 bg-slate-50 rounded-lg text-xs">
+                            <span className="font-medium text-slate-700">{grp}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-slate-400 font-semibold">{count} parties</span>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (confirm(`Delete group "${grp}"? (Existing parties will keep their other data)`)) {
+                                    if (activeLedger?.id) {
+                                      const updated = await deletePartyGroup(activeLedger.id, grp);
+                                      setSavedGroups(updated);
+                                      if (selectedGroupFilter === grp) setSelectedGroupFilter('ALL');
+                                    }
+                                  }
+                                }}
+                                className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
+                                title="Delete group"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateGroupModal(false)}
+                    className="flex-1 py-2 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const trimmed = newGroupName.trim();
+                      if (!trimmed || !activeLedger?.id) return;
+                      const updated = await addPartyGroup(activeLedger.id, trimmed);
+                      setSavedGroups(updated);
+                      setSelectedGroupFilter(trimmed);
+                      setNewGroupName('');
+                      setShowCreateGroupModal(false);
+                    }}
+                    disabled={!newGroupName.trim()}
+                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition shadow-xs cursor-pointer"
+                  >
+                    Create & Filter
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Bulk Import Modal */}
         {showImportModal && activeLedger && (
           <BulkImportPartiesModal
@@ -724,6 +1116,26 @@ export default function PartyList() {
               loadParties();
               setImportSuccessMsg(`Imported ${count} customers successfully!`);
               setTimeout(() => setImportSuccessMsg(null), 4000);
+            }}
+          />
+        )}
+
+        {/* Party Statement & Group Report Modal (Admin Only) */}
+        {isAdmin && showReportModal && (
+          <PartyStatementReportModal
+            isOpen={showReportModal}
+            onClose={() => setShowReportModal(false)}
+            parties={parties}
+            transactions={transactions}
+            allGroups={allGroups}
+            initialGroup={reportInitialGroup}
+            ledgerName={activeLedger?.name || 'Customer Accounts'}
+            userName={currentUser?.name || 'Operator'}
+            currency={currency}
+            isAdmin={isAdmin}
+            onSelectParty={partyId => {
+              setShowReportModal(false);
+              navigate(`/party/${partyId}`);
             }}
           />
         )}

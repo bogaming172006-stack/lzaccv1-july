@@ -38,8 +38,16 @@ import {
   Wrench, 
   Sparkles,
   BarChart2,
-  MoreVertical
+  MoreVertical,
+  Tag,
+  FolderPlus
 } from 'lucide-react';
+import { 
+  addPartyGroup, 
+  fetchPartyGroups, 
+  getLocalPartyGroups, 
+  mergePartyGroups 
+} from '../lib/partyGroupService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { v4 as uuidv4 } from 'uuid';
 import jsPDF from 'jspdf';
@@ -295,8 +303,24 @@ export default function PartyDetail() {
   const [editPartyPhone, setEditPartyPhone] = useState('');
   const [editPartyAddress, setEditPartyAddress] = useState('');
   const [editPartyEmail, setEditPartyEmail] = useState('');
+  const [editPartyGroup, setEditPartyGroup] = useState('');
+  const [isCreatingDetailGroup, setIsCreatingDetailGroup] = useState(false);
+  const [newDetailGroupName, setNewDetailGroupName] = useState('');
+  const [ledgerGroups, setLedgerGroups] = useState<string[]>([]);
   const [editPartyStatus, setEditPartyStatus] = useState<'Active' | 'Inactive'>('Active');
   const [editPartyError, setEditPartyError] = useState('');
+
+  useEffect(() => {
+    if (activeLedger?.id) {
+      setLedgerGroups(getLocalPartyGroups(activeLedger.id));
+      fetchPartyGroups(activeLedger.id).then(grps => setLedgerGroups(grps));
+    }
+  }, [activeLedger?.id]);
+
+  const availableDetailGroups = useMemo(() => {
+    const list = party?.group ? [party.group, ...ledgerGroups] : ledgerGroups;
+    return Array.from(new Set(list.map(g => (g || '').trim()).filter(Boolean))).sort();
+  }, [ledgerGroups, party?.group]);
 
   const handleOpenEditParty = () => {
     if (!party) return;
@@ -304,6 +328,9 @@ export default function PartyDetail() {
     setEditPartyPhone(party.phone || '');
     setEditPartyAddress(party.address || '');
     setEditPartyEmail(party.email || '');
+    setEditPartyGroup(party.group || '');
+    setIsCreatingDetailGroup(false);
+    setNewDetailGroupName('');
     setEditPartyStatus(party.status || 'Active');
     setEditPartyError('');
     setShowEditPartyModal(true);
@@ -319,17 +346,24 @@ export default function PartyDetail() {
     setIsSubmitting(true);
     setEditPartyError('');
 
+    const groupVal = (isCreatingDetailGroup ? newDetailGroupName : editPartyGroup).trim();
+
     const updatedParty: Party = {
       ...party,
       name: editPartyName.trim(),
       phone: formatContactWith91(editPartyPhone),
       address: editPartyAddress.trim(),
       email: editPartyEmail.trim(),
+      group: groupVal || undefined,
       status: editPartyStatus,
       lastTransaction: Date.now()
     };
 
     try {
+      if (groupVal && activeLedger?.id) {
+        addPartyGroup(activeLedger.id, groupVal).then(updated => setLedgerGroups(updated));
+      }
+
       await setCacheItem<Party>('parties', updatedParty);
       setParty(updatedParty);
 
@@ -338,6 +372,7 @@ export default function PartyDetail() {
         phone: updatedParty.phone,
         address: updatedParty.address,
         email: updatedParty.email,
+        group: updatedParty.group || null,
         status: updatedParty.status,
         lastTransaction: updatedParty.lastTransaction
       });
@@ -1232,9 +1267,17 @@ export default function PartyDetail() {
               {initial}
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-xs font-bold text-[#0F172A] leading-tight mb-0.5 truncate" id="detailCustomerName">
-                {party.name}
-              </h2>
+              <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                <h2 className="text-xs font-bold text-[#0F172A] leading-tight truncate" id="detailCustomerName">
+                  {party.name}
+                </h2>
+                {party.group && (
+                  <span className="inline-flex items-center gap-0.5 text-[9.5px] font-medium text-slate-500 shrink-0">
+                    <Tag size={8.5} className="text-slate-400" />
+                    {party.group}
+                  </span>
+                )}
+              </div>
               <p className="text-[10px] text-[#64748B] leading-tight truncate" id="detailCustomerMeta">
                 {[party.email || 'No email', party.phone || 'No phone'].join(' • ')}
               </p>
@@ -2072,6 +2115,92 @@ export default function PartyDetail() {
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Address</label>
                 <textarea value={editPartyAddress} onChange={e => handleTextChange(e, setEditPartyAddress)} rows={2} className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs focus:outline-none focus:border-blue-600" />
               </div>
+
+              {/* Group / Category */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600">Group / Category</label>
+                  {!isCreatingDetailGroup && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreatingDetailGroup(true);
+                        setNewDetailGroupName('');
+                      }}
+                      className="text-[10px] text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Plus size={10} />
+                      <span>New Group</span>
+                    </button>
+                  )}
+                </div>
+                {isCreatingDetailGroup ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={newDetailGroupName}
+                      onChange={e => handleTextChange(e, setNewDetailGroupName)}
+                      placeholder="Type group name..."
+                      className="flex-1 px-2.5 py-1.5 text-xs border border-blue-400 bg-blue-50/40 rounded-md focus:outline-none focus:bg-white"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newDetailGroupName.trim()) {
+                          setEditPartyGroup(newDetailGroupName.trim());
+                          setIsCreatingDetailGroup(false);
+                        }
+                      }}
+                      className="px-2.5 py-1.5 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 cursor-pointer"
+                    >
+                      Set
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreatingDetailGroup(false);
+                        setNewDetailGroupName('');
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={editPartyGroup}
+                      onChange={e => {
+                        if (e.target.value === '__NEW__') {
+                          setIsCreatingDetailGroup(true);
+                          setNewDetailGroupName('');
+                        } else {
+                          setEditPartyGroup(e.target.value);
+                        }
+                      }}
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs bg-white focus:outline-none focus:border-blue-600 cursor-pointer"
+                    >
+                      <option value="">-- No Group (Unassigned) --</option>
+                      {availableDetailGroups.map(grp => (
+                        <option key={grp} value={grp}>{grp}</option>
+                      ))}
+                      <option value="__NEW__">+ Create New Group...</option>
+                    </select>
+                    {editPartyGroup && (
+                      <button
+                        type="button"
+                        onClick={() => setEditPartyGroup('')}
+                        className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        title="Clear group"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Status</label>
                 <select value={editPartyStatus} onChange={e => setEditPartyStatus(e.target.value as any)} className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs bg-white focus:outline-none focus:border-blue-600">

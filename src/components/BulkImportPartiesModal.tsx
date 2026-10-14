@@ -21,6 +21,7 @@ import { Party } from '../types';
 import { setCacheItem } from '../lib/idbCache';
 import { updateDashboardPartiesCount } from '../lib/transactionService';
 import { formatContactWith91 } from '../lib/phoneUtils';
+import { addPartyGroup } from '../lib/partyGroupService';
 
 interface BulkImportPartiesModalProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ interface RawImportRow {
   phone: string;
   rawAmount: number;
   email: string;
+  group?: string;
   isValid: boolean;
   isDuplicate?: boolean;
 }
@@ -80,9 +82,9 @@ export default function BulkImportPartiesModal({
     }
 
     // Default column mapping according to user request:
-    // Col 0: Name, Col 1: Address, Col 2: Contact, Col 3: Due/Advance Amount, Col 4: Email
+    // Col 0: Name, Col 1: Address, Col 2: Contact, Col 3: Due/Advance Amount, Col 4: Email, Col 5: Group
     let startIndex = 0;
-    let colMap = {
+    let colMap: { name: number; address: number; phone: number; amount: number; email: number; group?: number } = {
       name: 0,
       address: 1,
       phone: 2,
@@ -96,7 +98,7 @@ export default function BulkImportPartiesModal({
       c.includes('address') || c.includes('city') || c.includes('location') ||
       c.includes('phone') || c.includes('contact') || c.includes('mobile') || 
       c.includes('due') || c.includes('advance') || c.includes('amount') || c.includes('balance') || 
-      c.includes('email') || c.includes('mail')
+      c.includes('email') || c.includes('mail') || c.includes('group') || c.includes('category')
     );
 
     if (hasHeader) {
@@ -106,6 +108,7 @@ export default function BulkImportPartiesModal({
       let phoneIdx = -1;
       let amountIdx = -1;
       let emailIdx = -1;
+      let groupIdx = -1;
 
       firstRowStr.forEach((header, idx) => {
         if (header.includes('name') || header.includes('party') || header.includes('vendor') || header.includes('account')) {
@@ -118,6 +121,8 @@ export default function BulkImportPartiesModal({
           amountIdx = idx;
         } else if (header.includes('email') || header.includes('mail')) {
           emailIdx = idx;
+        } else if (header.includes('group') || header.includes('category') || header.includes('grp')) {
+          groupIdx = idx;
         }
       });
 
@@ -126,6 +131,7 @@ export default function BulkImportPartiesModal({
       if (phoneIdx !== -1) colMap.phone = phoneIdx;
       if (amountIdx !== -1) colMap.amount = amountIdx;
       if (emailIdx !== -1) colMap.email = emailIdx;
+      if (groupIdx !== -1) colMap.group = groupIdx;
     } else {
       // If no explicit header row, check if column 1 looks like a phone number and column 2 looks like an address
       const sampleRow = rows[0];
@@ -172,6 +178,7 @@ export default function BulkImportPartiesModal({
       }
 
       const isDup = existingNamesSet.has(rawName.toLowerCase());
+      const rawGroup = colMap.group !== undefined && row[colMap.group] !== undefined ? String(row[colMap.group] || '').trim() : '';
 
       results.push({
         name: rawName,
@@ -179,6 +186,7 @@ export default function BulkImportPartiesModal({
         phone: formatContactWith91(rawPhone),
         rawAmount: numAmount,
         email: rawEmail,
+        group: rawGroup || undefined,
         isValid: rawName.length > 0,
         isDuplicate: isDup
       });
@@ -338,11 +346,16 @@ export default function BulkImportPartiesModal({
           address: row.address,
           phone: row.phone,
           email: row.email,
+          group: row.group || undefined,
           openingBalance: systemBalance,
           currentDue: systemBalance,
           lastTransaction: Date.now(),
           status: 'Active'
         };
+
+        if (row.group) {
+          await addPartyGroup(ledgerId, row.group);
+        }
 
         partiesToCreate.push(newParty);
         await setDoc(doc(db, 'parties', newId), newParty);
