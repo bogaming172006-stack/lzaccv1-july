@@ -29,23 +29,22 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
   const handleRef = useRef<HTMLDivElement>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  // value state: -1 (Credit), 0 (Not selected / Center), 1 (Debit)
+  // valState: -1 (Credit), 0 (Idle / Center), 1 (Debit)
   const [valState, setValState] = useState<number>(0);
   const [isDragging, setIsDragging] = useState<boolean>(false);
 
   const curRef = useRef<number>(0);
-  const targetRef = useRef<number>(0);
   const travelRef = useRef<number>(0);
-  const rafRef = useRef<number>(0);
-  const lastTimeRef = useRef<number>(0);
-  const dragRef = useRef<{ x: number; p: number; moved: boolean } | null>(null);
+  const dragRef = useRef<{ startX: number; startP: number; moved: boolean } | null>(null);
+  const returnTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isSubmittingRef = useRef<boolean>(isSubmitting);
 
   const isCompact = size === 'compact';
   const handleSize = isCompact ? 48 : 52;
   const trackHeight = isCompact ? 56 : 60;
   const PAD = 3;
 
-  // Audio click synthesizer
+  // Sound synthesizer click
   const playAudioClick = useCallback((freq = 640) => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -72,10 +71,19 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
   }, []);
 
   const clamp = (n: number) => Math.max(-1, Math.min(1, n));
-  const nearest = (p: number) => (p < -0.5 ? -1 : p > 0.5 ? 1 : 0);
 
+  const getTravel = useCallback(() => {
+    const trackWidth = trackRef.current?.clientWidth || 320;
+    const hWidth = handleRef.current?.offsetWidth || handleSize;
+    const travel = Math.max(0, (trackWidth - hWidth) / 2 - PAD);
+    travelRef.current = travel;
+    return travel;
+  }, [handleSize]);
+
+  // Paint immediate position (used during drag for 0ms lag 1:1 motion)
   const paint = useCallback((p: number) => {
     curRef.current = p;
+    const travel = getTravel();
     const c = Math.max(0, -p);
     const d = Math.max(0, p);
     if (containerRef.current) {
@@ -83,61 +91,54 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
       containerRef.current.style.setProperty('--d', d.toFixed(4));
     }
     if (handleRef.current) {
-      handleRef.current.style.transform = `translateX(${(p * travelRef.current).toFixed(2)}px)`;
+      handleRef.current.style.transform = `translateX(${(p * travel).toFixed(2)}px)`;
     }
-  }, []);
+  }, [getTravel]);
 
-  const step = useCallback((t: number) => {
-    const dt = Math.min(0.05, (t - lastTimeRef.current) / 1000);
-    lastTimeRef.current = t;
-    curRef.current += (targetRef.current - curRef.current) * (1 - Math.exp(-dt * 11));
-    if (Math.abs(targetRef.current - curRef.current) < 0.002) {
-      paint(targetRef.current);
-      rafRef.current = 0;
-      return;
+  // Snap to target with smooth easing
+  const snapTo = useCallback((targetVal: number) => {
+    curRef.current = targetVal;
+    const travel = getTravel();
+    if (containerRef.current) {
+      containerRef.current.style.setProperty('--c', targetVal === -1 ? '1' : '0');
+      containerRef.current.style.setProperty('--d', targetVal === 1 ? '1' : '0');
     }
-    paint(curRef.current);
-    rafRef.current = requestAnimationFrame(step);
-  }, [paint]);
-
-  const animateTo = useCallback((v: number) => {
-    targetRef.current = v;
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = 0;
+    if (handleRef.current) {
+      handleRef.current.style.transform = `translateX(${(targetVal * travel).toFixed(2)}px)`;
     }
-    lastTimeRef.current = performance.now();
-    rafRef.current = requestAnimationFrame(step);
-  }, [step]);
+  }, [getTravel]);
 
+  // Measure on layout changes
   const measure = useCallback(() => {
-    if (!trackRef.current || !handleRef.current) return;
-    const trackWidth = trackRef.current.clientWidth;
-    const hWidth = handleRef.current.offsetWidth || handleSize;
-    travelRef.current = Math.max(0, (trackWidth - hWidth) / 2 - PAD);
-    paint(curRef.current);
-  }, [handleSize, paint]);
+    getTravel();
+    snapTo(curRef.current);
+  }, [getTravel, snapTo]);
 
   // Set Value & Trigger Callbacks
   const applyValue = useCallback((v: number, triggerSubmit = true) => {
     if (disabled || isSubmitting) return;
 
+    if (returnTimerRef.current) {
+      clearTimeout(returnTimerRef.current);
+      returnTimerRef.current = null;
+    }
+
     // Check disabled constraints
     if (v === -1 && disableCredit) {
       playAudioClick(400);
-      animateTo(0);
       setValState(0);
+      snapTo(0);
       return;
     }
     if (v === 1 && disableDebit) {
       playAudioClick(400);
-      animateTo(0);
       setValState(0);
+      snapTo(0);
       return;
     }
 
     setValState(v);
-    animateTo(v);
+    snapTo(v);
 
     if (v === -1) {
       playAudioClick(740);
@@ -150,9 +151,20 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
       onChange?.('DEBIT');
       if (triggerSubmit) onSlideComplete?.('DEBIT');
     }
-  }, [disabled, isSubmitting, disableCredit, disableDebit, playAudioClick, animateTo, onChange, onSlideComplete]);
 
-  // Handle Drag Pointer Events
+    // Automatically return handle smoothly back to center so it never stays stuck
+    // (e.g. if required fields not entered, dialog cancelled, or finished)
+    if (v !== 0) {
+      returnTimerRef.current = setTimeout(() => {
+        if (!isSubmittingRef.current) {
+          setValState(0);
+          snapTo(0);
+        }
+      }, 650);
+    }
+  }, [disabled, isSubmitting, disableCredit, disableDebit, playAudioClick, snapTo, onChange, onSlideComplete]);
+
+  // Drag Pointer Events
   const handlePointerDown = (e: React.PointerEvent) => {
     if (disabled || isSubmitting) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -162,27 +174,31 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch (_) {}
 
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = 0;
-    }
-    dragRef.current = { x: e.clientX, p: curRef.current, moved: false };
+    dragRef.current = {
+      startX: e.clientX,
+      startP: curRef.current,
+      moved: false
+    };
     setIsDragging(true);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!dragRef.current) return;
-    const dx = e.clientX - dragRef.current.x;
-    if (Math.abs(dx) > 3) dragRef.current.moved = true;
-    if (!dragRef.current.moved || !travelRef.current) return;
+    const dx = e.clientX - dragRef.current.startX;
+    if (Math.abs(dx) > 3) {
+      dragRef.current.moved = true;
+    }
+    if (!dragRef.current.moved) return;
 
-    let p = clamp(dragRef.current.p + dx / travelRef.current);
+    const travel = getTravel();
+    if (!travel) return;
 
-    // Resistance if credit disabled
+    let p = clamp(dragRef.current.startP + dx / travel);
+
+    // Subtle elasticity resistance if credit/debit disabled
     if (disableCredit && p < 0) {
       p = Math.max(-0.15, p * 0.15);
     }
-    // Resistance if debit disabled
     if (disableDebit && p > 0) {
       p = Math.min(0.15, p * 0.15);
     }
@@ -201,22 +217,29 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
     } catch (_) {}
 
     if (cancelled) {
-      animateTo(valState);
+      snapTo(valState);
       return;
     }
 
     if (d.moved) {
-      const near = nearest(curRef.current);
-      applyValue(near, near !== 0);
+      const p = curRef.current;
+      // Snapping threshold
+      if (p < -0.32) {
+        applyValue(-1, true);
+      } else if (p > 0.32) {
+        applyValue(1, true);
+      } else {
+        applyValue(0, false);
+      }
     } else {
-      // Tap without moving toggles or resets
+      // Tap without drag
       if (valState !== 0) {
         applyValue(0, false);
       }
     }
   };
 
-  // Tap directly on track
+  // Direct track tap: left third -> Credit, right third -> Debit
   const handleTrackPointerDown = (e: React.PointerEvent) => {
     if (disabled || isSubmitting) return;
     if ((e.target as HTMLElement).closest('.handle-thumb')) return;
@@ -234,7 +257,7 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
     }
   };
 
-  // Keyboard accessibility
+  // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (disabled || isSubmitting) return;
     const k = e.key;
@@ -255,16 +278,26 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
     if (handled) e.preventDefault();
   };
 
-  // When submitting completes or resets
+  // Sync submission state & auto-reset handle when not submitting
   useEffect(() => {
+    isSubmittingRef.current = isSubmitting;
     if (!isSubmitting && valState !== 0) {
-      // Return to middle position after submitting finishes
       const timer = setTimeout(() => {
-        applyValue(0, false);
-      }, 350);
+        setValState(0);
+        snapTo(0);
+      }, 400);
       return () => clearTimeout(timer);
     }
-  }, [isSubmitting]);
+  }, [isSubmitting, valState, snapTo]);
+
+  // Cleanup return timer on unmount
+  useEffect(() => {
+    return () => {
+      if (returnTimerRef.current) {
+        clearTimeout(returnTimerRef.current);
+      }
+    };
+  }, []);
 
   // Setup ResizeObserver
   useEffect(() => {
@@ -312,9 +345,10 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
         style={{
           height: `${trackHeight}px`,
           backgroundColor:
-            'color-mix(in srgb, var(--credit) calc(var(--c) * 14%), color-mix(in srgb, var(--debit) calc(var(--d) * 14%), var(--track-idle)))'
+            'color-mix(in srgb, var(--credit) calc(var(--c) * 14%), color-mix(in srgb, var(--debit) calc(var(--d) * 14%), var(--track-idle)))',
+          transition: isDragging ? 'none' : 'background-color 0.28s cubic-bezier(0.22, 1, 0.36, 1)'
         }}
-        className={`relative w-full border border-[#e0e5eb] rounded-full touch-pan-y select-none transition-colors duration-150 ${
+        className={`relative w-full border border-[#e0e5eb] rounded-full touch-pan-y select-none ${
           disabled || isSubmitting ? 'opacity-65 cursor-not-allowed pointer-events-none' : 'cursor-pointer'
         } ${isDragging ? 'cursor-grabbing' : ''}`}
       >
@@ -345,9 +379,15 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
             boxShadow:
               '0 4px 12px color-mix(in srgb, var(--credit) calc(var(--c) * 38%), color-mix(in srgb, var(--debit) calc(var(--d) * 38%), rgba(20, 24, 28, 0.16))), 0 0 0 1px rgba(20, 24, 28, 0.06)',
             transform: 'translateX(0px)',
-            willChange: 'transform'
+            touchAction: 'none',
+            willChange: 'transform',
+            // CRITICAL: When dragging, transition MUST be 'none' so handle follows finger with 0 latency!
+            // When not dragging, apply buttery smooth GPU-accelerated cubic-bezier ease:
+            transition: isDragging
+              ? 'scale 0.15s ease'
+              : 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.28s ease, box-shadow 0.28s ease, color 0.28s ease, scale 0.18s ease'
           }}
-          className={`handle-thumb absolute rounded-full grid place-items-center touch-pan-y outline-none transition-transform duration-180 select-none ${
+          className={`handle-thumb absolute rounded-full grid place-items-center outline-none select-none ${
             isDragging ? 'scale-105 cursor-grabbing' : 'cursor-grab'
           } focus-visible:ring-2 focus-visible:ring-[#14181c] focus-visible:ring-offset-2`}
         >
@@ -357,8 +397,11 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
             <>
               {/* Idle double-arrow icon (visible in middle) */}
               <svg
-                style={{ opacity: 'calc(1 - var(--c) - var(--d))' }}
-                className="col-start-1 row-start-1 w-[22px] h-[22px] fill-none stroke-current stroke-[1.8] stroke-round"
+                style={{
+                  opacity: 'calc(1 - var(--c) - var(--d))',
+                  transition: isDragging ? 'none' : 'opacity 0.2s ease'
+                }}
+                className="col-start-1 row-start-1 w-[22px] h-[22px] fill-none stroke-current stroke-[1.8] stroke-round pointer-events-none"
                 viewBox="0 0 24 24"
                 aria-hidden="true"
               >
@@ -367,8 +410,11 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
 
               {/* Credit coins icon (fades in as handle slides left) */}
               <svg
-                style={{ opacity: 'var(--c)' }}
-                className="col-start-1 row-start-1 w-[22px] h-[22px] fill-none stroke-current stroke-[1.8] stroke-round"
+                style={{
+                  opacity: 'var(--c)',
+                  transition: isDragging ? 'none' : 'opacity 0.2s ease'
+                }}
+                className="col-start-1 row-start-1 w-[22px] h-[22px] fill-none stroke-current stroke-[1.8] stroke-round pointer-events-none"
                 viewBox="0 0 24 24"
                 aria-hidden="true"
               >
@@ -378,8 +424,11 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
 
               {/* Debit card icon (fades in as handle slides right) */}
               <svg
-                style={{ opacity: 'var(--d)' }}
-                className="col-start-1 row-start-1 w-[22px] h-[22px] fill-none stroke-current stroke-[1.8] stroke-round"
+                style={{
+                  opacity: 'var(--d)',
+                  transition: isDragging ? 'none' : 'opacity 0.2s ease'
+                }}
+                className="col-start-1 row-start-1 w-[22px] h-[22px] fill-none stroke-current stroke-[1.8] stroke-round pointer-events-none"
                 viewBox="0 0 24 24"
                 aria-hidden="true"
               >
@@ -400,9 +449,10 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
           disabled={disabled || isSubmitting || disableCredit}
           onClick={() => applyValue(-1, true)}
           style={{
-            color: 'color-mix(in srgb, var(--credit-ink) calc(var(--c) * 100%), var(--ink-soft))'
+            color: 'color-mix(in srgb, var(--credit-ink) calc(var(--c) * 100%), var(--ink-soft))',
+            transition: 'color 0.25s ease'
           }}
-          className={`appearance-none border-0 bg-transparent min-h-[44px] py-1.5 px-2 rounded-xl flex items-center gap-2 text-[15px] font-semibold outline-none transition-colors select-none ${
+          className={`appearance-none border-0 bg-transparent min-h-[44px] py-1.5 px-2 rounded-xl flex items-center gap-2 text-[15px] font-semibold outline-none select-none ${
             disableCredit ? 'opacity-35 cursor-not-allowed' : 'cursor-pointer hover:opacity-90'
           } focus-visible:ring-2 focus-visible:ring-[#14181c] focus-visible:ring-offset-1`}
         >
@@ -420,9 +470,10 @@ export const SlideToChooseButton: React.FC<SlideToChooseButtonProps> = ({
           disabled={disabled || isSubmitting || disableDebit}
           onClick={() => applyValue(1, true)}
           style={{
-            color: 'color-mix(in srgb, var(--debit-ink) calc(var(--d) * 100%), var(--ink-soft))'
+            color: 'color-mix(in srgb, var(--debit-ink) calc(var(--d) * 100%), var(--ink-soft))',
+            transition: 'color 0.25s ease'
           }}
-          className={`appearance-none border-0 bg-transparent min-h-[44px] py-1.5 px-2 rounded-xl flex items-center gap-2 text-[15px] font-semibold outline-none transition-colors select-none ${
+          className={`appearance-none border-0 bg-transparent min-h-[44px] py-1.5 px-2 rounded-xl flex items-center gap-2 text-[15px] font-semibold outline-none select-none ${
             disableDebit ? 'opacity-35 cursor-not-allowed' : 'cursor-pointer hover:opacity-90'
           } focus-visible:ring-2 focus-visible:ring-[#14181c] focus-visible:ring-offset-1`}
         >

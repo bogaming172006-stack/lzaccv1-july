@@ -928,8 +928,8 @@ export default function MasterEntry() {
          setPartyLockedByInvoice(false);
          setLockedInvoiceDetails(null);
          setAlertInfo({ 
-           title: "Invoice Fully Completed",
-           message: `This invoice ID is already in both sheets.\nBoth are listed. You cannot use this invoice number again.\n\n-- DEBIT ENTRY --\n${formatTxDetails(debitTx, debitTracked)}\n\n-- CREDIT ENTRY --\n${formatTxDetails(creditTx, creditTracked)}`, 
+           title: "Both Sheet Listed",
+           message: `This invoice is already Listed in both sheets.\nBoth are listed. You cannot use this invoice number yet.\n\n-- DEBIT ENTRY --\n${formatTxDetails(debitTx, debitTracked)}\n\n-- CREDIT ENTRY --\n${formatTxDetails(creditTx, creditTracked)}`, 
            isError: true 
          });
          return false;
