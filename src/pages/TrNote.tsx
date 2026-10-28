@@ -29,7 +29,7 @@ import { getFilteredCacheItems } from '../lib/idbCache';
 import { syncCollection } from '../lib/syncCache';
 import { logUserActivity } from '../lib/activityLogger';
 import { formatAmountInWords } from '../lib/numberToWords';
-import { useLedgerTextCase, CaseIndicator } from '../lib/textCaseHelper';
+import { useLedgerTextCase } from '../lib/textCaseHelper';
 import ThermalReceiptModal from '../components/ThermalReceiptModal';
 import PageHeader from '../components/ui/PageHeader';
 import { Card, CardHeader, CardBody } from '../components/ui/Card';
@@ -68,7 +68,7 @@ export default function TrNote() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const { isCaps, toggleManualCaps, handleTextChange, formatText } = useLedgerTextCase();
+  const { handleTextChange, formatText } = useLedgerTextCase();
 
   // Thermal Receipt Modal State
   const [receiptTx, setReceiptTx] = useState<Transaction | null>(null);
@@ -638,7 +638,6 @@ export default function TrNote() {
                   <span>Note (Adjustment Reason)</span>
                 </label>
                 <div className="flex items-center gap-2">
-                  <CaseIndicator isCaps={isCaps} onToggle={toggleManualCaps} />
                   <span className="text-[11px] text-slate-500 italic hidden sm:inline">Appears on receipt</span>
                 </div>
               </div>

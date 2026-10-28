@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { db, handleFirestoreError, OperationType, doc, getDoc, collection, query, where, updateDoc, getDocs } from '../firebase';
+import { db, handleFirestoreError, OperationType, doc, getDoc, collection, query, where, updateDoc, getDocs, getApiUrl } from '../firebase';
 import { Party, Transaction } from '../types';
 import { 
   ArrowLeft, 
@@ -134,6 +134,83 @@ export default function PartyDetail() {
   });
   const [density, setDensity] = useState<'compact' | 'ultra'>(() => (localStorage.getItem('party_density') as any) || 'compact');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+
+  // Temporary 30-Minute Share Ledger Link State
+  const [showShareLedgerModal, setShowShareLedgerModal] = useState(false);
+  const [isGeneratingShareLink, setIsGeneratingShareLink] = useState(false);
+  const [shareLinkData, setShareLinkData] = useState<{
+    token: string;
+    url: string;
+    expiresAt: number;
+  } | null>(null);
+  const [shareLinkCopied, setShareLinkCopied] = useState(false);
+  const [shareLinkError, setShareLinkError] = useState<string | null>(null);
+
+  const handleGenerateShareLedgerLink = async () => {
+    if (!id) return;
+    setIsGeneratingShareLink(true);
+    setShareLinkError(null);
+    try {
+      const res = await fetch(getApiUrl('/api/shared-ledger/create'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          partyId: id,
+          ledgerId: party?.ledgerId || activeLedger?.id
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to create share link');
+      }
+      const fullUrl = `${window.location.origin}/shared-ledger/${data.token}`;
+      setShareLinkData({
+        token: data.token,
+        url: fullUrl,
+        expiresAt: data.expiresAt
+      });
+    } catch (err: any) {
+      console.error('Error creating share link:', err);
+      setShareLinkError(err.message || 'Failed to generate link. Please try again.');
+    } finally {
+      setIsGeneratingShareLink(false);
+    }
+  };
+
+  const handleOpenShareLedgerModal = () => {
+    setShowShareLedgerModal(true);
+    if (!shareLinkData || shareLinkData.expiresAt <= Date.now()) {
+      handleGenerateShareLedgerLink();
+    }
+  };
+
+  const handleCopyShareLink = () => {
+    if (!shareLinkData?.url) return;
+    navigator.clipboard.writeText(shareLinkData.url);
+    setShareLinkCopied(true);
+    setTimeout(() => setShareLinkCopied(false), 2500);
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!shareLinkData?.url || !party) return;
+    const cleanPhone = party.phone ? formatContactWith91(party.phone) : '';
+    const expiryTime = format(new Date(shareLinkData.expiresAt), 'hh:mm a');
+    const balanceStr = `₹${Math.abs(party.currentDue || 0).toLocaleString('en-IN')} ${(party.currentDue || 0) >= 0 ? 'Dr (Payable)' : 'Cr (Advance)'}`;
+
+    const text = 
+      `*Account Statement for ${party.name}*\n` +
+      `Dear Customer, here is your account ledger statement from *${activeLedger?.name || 'our company'}*.\n\n` +
+      `🔗 *View Your Ledger Online:* (Valid for 30 minutes)\n${shareLinkData.url}\n\n` +
+      `📊 *Current Balance:* ${balanceStr}\n\n` +
+      `⏰ *Expires:* ${expiryTime} (Server time)\n\n` +
+      `_Note: For security, this read-only link automatically expires in 30 minutes._`;
+
+    const waUrl = cleanPhone 
+      ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    
+    window.open(waUrl, '_blank');
+  };
 
   const handleDensityChange = (d: 'compact' | 'ultra') => {
     setDensity(d);
@@ -1208,13 +1285,13 @@ export default function PartyDetail() {
   const initial = party.name.trim().charAt(0).toUpperCase() || 'C';
 
   return (
-    <div className={`w-full min-h-screen bg-white sm:bg-[#F8FAFC] pb-16 font-customer ${density === 'ultra' ? 'text-[11px]' : 'text-xs'}`}>
-      <div className="w-full min-h-screen bg-white flex flex-col relative sm:max-w-xl md:max-w-2xl sm:mx-auto sm:border-x sm:border-slate-100 sm:shadow-xs transition-all">
+    <div className={`w-full min-h-screen bg-white md:bg-[#F8FAFC] pb-16 font-customer ${density === 'ultra' ? 'text-[11px]' : 'text-xs'}`}>
+      <div className="w-full min-h-screen bg-white flex flex-col relative md:max-w-5xl lg:max-w-7xl md:mx-auto md:my-4 md:rounded-2xl md:border md:border-slate-200/80 md:shadow-xs md:min-h-[calc(100vh-2rem)] transition-all">
         
         {/* ========================================================================= */}
         {/* COMPACT SCREEN 2: TRANSACTION PAGE HEADER                                 */}
         {/* ========================================================================= */}
-        <header className="px-3 py-1.5 flex items-center justify-between bg-white sticky top-0 z-20 border-b border-[#F1F5F9]">
+        <header className="px-3 sm:px-6 py-2 sm:py-3.5 flex items-center justify-between bg-white sticky top-0 z-20 border-b border-[#F1F5F9] md:rounded-t-2xl">
           <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
             <button 
               id="backToListBtn" 
@@ -1227,58 +1304,67 @@ export default function PartyDetail() {
                 <polyline points="12 19 5 12 12 5"></polyline>
               </svg>
             </button>
-            <h1 className="text-sm font-bold text-[#0F172A] tracking-tight truncate flex-1 min-w-0" id="detailCustomerHeaderTitle">
+            <h1 className="text-sm sm:text-base font-bold text-[#0F172A] tracking-tight truncate flex-1 min-w-0" id="detailCustomerHeaderTitle">
               {party.name}
             </h1>
           </div>
 
-          <div className="flex items-center gap-0.5 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            <button 
+              type="button"
+              onClick={handleOpenShareLedgerModal} 
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+              title="Share temporary 30-minute customer ledger link"
+            >
+              <Share2 size={13} />
+              <span>Share Ledger</span>
+            </button>
             <button 
               onClick={() => setShowDownloadModal(true)} 
-              className="p-1 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 transition"
+              className="p-1.5 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 transition"
               title="Export PDF Statement"
             >
-              <Download size={13} />
+              <Download size={15} />
             </button>
             <button 
               onClick={() => setShowShareModal(true)} 
-              className="p-1 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 transition"
+              className="p-1.5 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 transition"
               title="Share Statement via WhatsApp / Link"
             >
-              <Share2 size={13} />
+              <Share2 size={15} />
             </button>
             <button 
               onClick={() => setShowMoreMenu(true)} 
-              className="p-1 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 transition"
+              className="p-1.5 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 transition"
               title="More Actions & Settings"
             >
-              <MoreVertical size={13} />
+              <MoreVertical size={15} />
             </button>
           </div>
         </header>
 
         {/* COMPACT CUSTOMER CARD SIMPLE */}
-        <div className="px-3 py-1.5 flex items-center">
+        <div className="px-3 sm:px-6 py-2 sm:py-3 flex items-center">
           <div className="flex items-center gap-2.5 flex-1 min-w-0">
             <div 
-              className={`w-7 h-7 rounded-full flex items-center justify-center text-[10.5px] font-bold shrink-0 shadow-2xs ${avatar.className}`}
+              className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-[10.5px] sm:text-xs font-bold shrink-0 shadow-2xs ${avatar.className}`}
               style={{ backgroundColor: avatar.bg, color: avatar.text }}
             >
               {initial}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                <h2 className="text-xs font-bold text-[#0F172A] leading-tight truncate" id="detailCustomerName">
+                <h2 className="text-xs sm:text-sm font-bold text-[#0F172A] leading-tight truncate" id="detailCustomerName">
                   {party.name}
                 </h2>
-                {party.group && (
-                  <span className="inline-flex items-center gap-0.5 text-[9.5px] font-medium text-slate-500 shrink-0">
+                {currentUser?.isAdmin && party.group && (
+                  <span className="inline-flex items-center gap-0.5 text-[9.5px] sm:text-[10px] font-medium text-slate-500 shrink-0">
                     <Tag size={8.5} className="text-slate-400" />
                     {party.group}
                   </span>
                 )}
               </div>
-              <p className="text-[10px] text-[#64748B] leading-tight truncate" id="detailCustomerMeta">
+              <p className="text-[10px] sm:text-xs text-[#64748B] leading-tight truncate" id="detailCustomerMeta">
                 {[party.email || 'No email', party.phone || 'No phone'].join(' • ')}
               </p>
             </div>
@@ -1286,37 +1372,37 @@ export default function PartyDetail() {
         </div>
 
         {/* COMPACT FINANCIAL BALANCE BANNER */}
-        <div className="mx-3 my-1 bg-[#F1F5F9] border-none rounded-xl p-2.5 shadow-2xs">
-          <div className="flex justify-between items-baseline pb-1.5 border-b border-slate-200/70">
-            <span className="text-[9px] font-bold text-[#64748B] uppercase tracking-[0.5px]">
+        <div className="mx-3 sm:mx-6 my-1.5 sm:my-3 bg-[#F1F5F9] border-none rounded-xl p-2.5 sm:p-4 shadow-2xs">
+          <div className="flex justify-between items-baseline pb-1.5 sm:pb-2.5 border-b border-slate-200/70">
+            <span className="text-[9px] sm:text-[10px] font-bold text-[#64748B] uppercase tracking-[0.5px]">
               CURRENT BALANCE
             </span>
-            <span className={`text-base font-bold ${party.currentDue > 0 ? 'text-[#DC2626]' : party.currentDue < 0 ? 'text-[#16A34A]' : 'text-[#0F172A]'}`} id="detailNetBalance">
+            <span className={`text-base sm:text-xl font-bold ${party.currentDue > 0 ? 'text-[#DC2626]' : party.currentDue < 0 ? 'text-[#16A34A]' : 'text-[#0F172A]'}`} id="detailNetBalance">
               {formatCustomerCurrency(party.currentDue, currency)} {party.currentDue > 0 ? 'DR' : party.currentDue < 0 ? 'CR' : ''}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-1.5">
+          <div className="grid grid-cols-2 gap-2 sm:gap-4 pt-1.5 sm:pt-2.5">
             <div className="flex flex-col gap-0.5">
-              <span className="text-[9.5px] text-[#64748B] font-medium flex items-center gap-1">
+              <span className="text-[9.5px] sm:text-xs text-[#64748B] font-medium flex items-center gap-1">
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline>
                 </svg>
                 Total Debit
               </span>
-              <span className="text-[11px] font-bold text-[#DC2626] tabular-nums" id="detailTotalDebit">
+              <span className="text-[11px] sm:text-sm font-bold text-[#DC2626] tabular-nums" id="detailTotalDebit">
                 {formatCustomerCurrency(totalDebitSum, currency)}
               </span>
             </div>
 
             <div className="flex flex-col gap-0.5">
-              <span className="text-[9.5px] text-[#64748B] font-medium flex items-center gap-1">
+              <span className="text-[9.5px] sm:text-xs text-[#64748B] font-medium flex items-center gap-1">
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="17" y1="7" x2="7" y2="17"></line><polyline points="17 17 7 17 7 7"></polyline>
                 </svg>
                 Total Credit
               </span>
-              <span className="text-[11px] font-bold text-[#16A34A] tabular-nums" id="detailTotalCredit">
+              <span className="text-[11px] sm:text-sm font-bold text-[#16A34A] tabular-nums" id="detailTotalCredit">
                 {formatCustomerCurrency(totalCreditSum, currency)}
               </span>
             </div>
@@ -1324,32 +1410,32 @@ export default function PartyDetail() {
         </div>
 
         {/* QUICK ACTION BUTTONS (+ DEBIT / + CREDIT) */}
-        <div className="px-3 py-1 flex items-center gap-1.5">
+        <div className="px-3 sm:px-6 py-1.5 sm:py-2.5 flex items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={() => { setTxAmount(''); setTxInvoiceNo(''); setTxNotes(''); setTxError(''); setShowTxModal('DEBIT'); }}
-            className="flex-1 py-1 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border-none rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+            className="flex-1 py-1.5 sm:py-2 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border-none rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
           >
-            <Minus size={11} className="text-rose-600" />
+            <Minus size={13} className="text-rose-600" />
             <span>+ Debit (Dr)</span>
           </button>
 
           <button
             type="button"
             onClick={() => { setTxAmount(''); setTxCashAmount(''); setTxAcAmount(''); setTxInvoiceNo(''); setTxNotes(''); setTxError(''); setShowTxModal('CREDIT'); }}
-            className="flex-1 py-1 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-none rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+            className="flex-1 py-1.5 sm:py-2 px-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-none rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
           >
-            <Plus size={11} className="text-emerald-600" />
+            <Plus size={13} className="text-emerald-600" />
             <span>+ Credit (Cr)</span>
           </button>
         </div>
 
         {/* COMPACT FILTER TABS & SEARCH */}
-        <div className="px-3 py-1 flex items-center justify-between gap-1">
-          <div className="flex gap-1">
+        <div className="px-3 sm:px-6 py-1.5 sm:py-2 flex items-center justify-between gap-2">
+          <div className="flex gap-1.5">
             <button 
               onClick={() => setActiveFilter('all')}
-              className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-full border-none transition-all cursor-pointer ${
+              className={`px-3 py-1 text-[10px] sm:text-xs font-semibold rounded-full border-none transition-all cursor-pointer ${
                 activeFilter === 'all' 
                   ? 'bg-[#0F172A] text-white' 
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
@@ -1359,7 +1445,7 @@ export default function PartyDetail() {
             </button>
             <button 
               onClick={() => setActiveFilter('debit')}
-              className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-full border-none transition-all cursor-pointer ${
+              className={`px-3 py-1 text-[10px] sm:text-xs font-semibold rounded-full border-none transition-all cursor-pointer ${
                 activeFilter === 'debit' 
                   ? 'bg-[#0F172A] text-white' 
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
@@ -1369,7 +1455,7 @@ export default function PartyDetail() {
             </button>
             <button 
               onClick={() => setActiveFilter('credit')}
-              className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-full border-none transition-all cursor-pointer ${
+              className={`px-3 py-1 text-[10px] sm:text-xs font-semibold rounded-full border-none transition-all cursor-pointer ${
                 activeFilter === 'credit' 
                   ? 'bg-[#0F172A] text-white' 
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
@@ -1379,20 +1465,20 @@ export default function PartyDetail() {
             </button>
           </div>
 
-          <div className="relative w-24">
-            <Search size={10} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <div className="relative w-32 sm:w-48">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search..."
-              className="w-full pl-5 pr-1.5 py-0.5 bg-slate-50 border-none rounded-full text-[10px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500/50"
+              placeholder="Search transactions..."
+              className="w-full pl-6 pr-2 py-1 bg-slate-50 border border-slate-200/60 rounded-full text-[10px] sm:text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500/50"
             />
           </div>
         </div>
 
         {/* COMPACT TRANSACTIONS LIST SECTION */}
-        <div className="px-3 pb-14 flex-1">
+        <div className="px-3 sm:px-6 pb-14 flex-1">
           <ul className="list-none m-0 p-0" id="transactionsList">
             {Object.entries(groupedTransactions).map(([dateStr, txs]) => (
               <React.Fragment key={dateStr}>
@@ -2116,90 +2202,92 @@ export default function PartyDetail() {
                 <textarea value={editPartyAddress} onChange={e => handleTextChange(e, setEditPartyAddress)} rows={2} className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs focus:outline-none focus:border-blue-600" />
               </div>
 
-              {/* Group / Category */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600">Group / Category</label>
-                  {!isCreatingDetailGroup && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCreatingDetailGroup(true);
-                        setNewDetailGroupName('');
-                      }}
-                      className="text-[10px] text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-0.5 cursor-pointer"
-                    >
-                      <Plus size={10} />
-                      <span>New Group</span>
-                    </button>
-                  )}
-                </div>
-                {isCreatingDetailGroup ? (
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      value={newDetailGroupName}
-                      onChange={e => handleTextChange(e, setNewDetailGroupName)}
-                      placeholder="Type group name..."
-                      className="flex-1 px-2.5 py-1.5 text-xs border border-blue-400 bg-blue-50/40 rounded-md focus:outline-none focus:bg-white"
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (newDetailGroupName.trim()) {
-                          setEditPartyGroup(newDetailGroupName.trim());
-                          setIsCreatingDetailGroup(false);
-                        }
-                      }}
-                      className="px-2.5 py-1.5 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 cursor-pointer"
-                    >
-                      Set
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCreatingDetailGroup(false);
-                        setNewDetailGroupName('');
-                      }}
-                      className="p-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5">
-                    <select
-                      value={editPartyGroup}
-                      onChange={e => {
-                        if (e.target.value === '__NEW__') {
-                          setIsCreatingDetailGroup(true);
-                          setNewDetailGroupName('');
-                        } else {
-                          setEditPartyGroup(e.target.value);
-                        }
-                      }}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs bg-white focus:outline-none focus:border-blue-600 cursor-pointer"
-                    >
-                      <option value="">-- No Group (Unassigned) --</option>
-                      {availableDetailGroups.map(grp => (
-                        <option key={grp} value={grp}>{grp}</option>
-                      ))}
-                      <option value="__NEW__">+ Create New Group...</option>
-                    </select>
-                    {editPartyGroup && (
+              {/* Group / Category (Admin only) */}
+              {currentUser?.isAdmin && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600">Group / Category</label>
+                    {!isCreatingDetailGroup && (
                       <button
                         type="button"
-                        onClick={() => setEditPartyGroup('')}
-                        className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
-                        title="Clear group"
+                        onClick={() => {
+                          setIsCreatingDetailGroup(true);
+                          setNewDetailGroupName('');
+                        }}
+                        className="text-[10px] text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-0.5 cursor-pointer"
                       >
-                        <X size={14} />
+                        <Plus size={10} />
+                        <span>New Group</span>
                       </button>
                     )}
                   </div>
-                )}
-              </div>
+                  {isCreatingDetailGroup ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={newDetailGroupName}
+                        onChange={e => handleTextChange(e, setNewDetailGroupName)}
+                        placeholder="Type group name..."
+                        className="flex-1 px-2.5 py-1.5 text-xs border border-blue-400 bg-blue-50/40 rounded-md focus:outline-none focus:bg-white"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newDetailGroupName.trim()) {
+                            setEditPartyGroup(newDetailGroupName.trim());
+                            setIsCreatingDetailGroup(false);
+                          }
+                        }}
+                        className="px-2.5 py-1.5 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 cursor-pointer"
+                      >
+                        Set
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreatingDetailGroup(false);
+                          setNewDetailGroupName('');
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={editPartyGroup}
+                        onChange={e => {
+                          if (e.target.value === '__NEW__') {
+                            setIsCreatingDetailGroup(true);
+                            setNewDetailGroupName('');
+                          } else {
+                            setEditPartyGroup(e.target.value);
+                          }
+                        }}
+                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs bg-white focus:outline-none focus:border-blue-600 cursor-pointer"
+                      >
+                        <option value="">-- No Group (Unassigned) --</option>
+                        {availableDetailGroups.map(grp => (
+                          <option key={grp} value={grp}>{grp}</option>
+                        ))}
+                        <option value="__NEW__">+ Create New Group...</option>
+                      </select>
+                      {editPartyGroup && (
+                        <button
+                          type="button"
+                          onClick={() => setEditPartyGroup('')}
+                          className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                          title="Clear group"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">Status</label>

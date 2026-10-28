@@ -3,6 +3,7 @@ import { User } from './types';
 import { db, handleFirestoreError, OperationType, collection, onSnapshot, setDoc, doc, updateDoc } from './firebase';
 import { v4 as uuidv4 } from 'uuid';
 import { logUserActivity } from './lib/activityLogger';
+import { normalizeUser } from './lib/userRoleHelper';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -33,7 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('ledger_current_user');
-      return saved ? JSON.parse(saved) : null;
+      return saved ? normalizeUser(JSON.parse(saved)) : null;
     } catch {
       return null;
     }
@@ -63,7 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       snapshot.forEach(doc => {
         const u = doc.data() as User;
         if (u && u.id) {
-          dbUsers.push(u);
+          dbUsers.push(normalizeUser(u));
         }
       });
       
@@ -81,7 +82,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (user.name !== currentUserRef.current.name || 
                 user.pin !== currentUserRef.current.pin || 
                 user.deviceId !== currentUserRef.current.deviceId ||
-                user.lastActivity !== currentUserRef.current.lastActivity) {
+                user.lastActivity !== currentUserRef.current.lastActivity ||
+                user.isAdmin !== currentUserRef.current.isAdmin ||
+                user.role !== currentUserRef.current.role) {
               setCurrentUser(user);
             }
           }

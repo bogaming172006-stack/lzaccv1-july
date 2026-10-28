@@ -333,13 +333,13 @@ export default function PartyList() {
   const creditorsCount = useMemo(() => parties.filter(p => p.currentDue < 0).length, [parties]);
 
   return (
-    <div className={`w-full min-h-screen bg-white sm:bg-[#F8FAFC] pb-16 font-customer ${density === 'ultra' ? 'text-[11px]' : 'text-xs'}`}>
-      <div className="w-full min-h-screen bg-white flex flex-col relative sm:max-w-xl md:max-w-2xl sm:mx-auto sm:border-x sm:border-slate-100 sm:shadow-xs transition-all">
+    <div className={`w-full min-h-screen bg-white md:bg-[#F8FAFC] pb-16 font-customer ${density === 'ultra' ? 'text-[11px]' : 'text-xs'}`}>
+      <div className="w-full min-h-screen bg-white flex flex-col relative md:max-w-5xl lg:max-w-7xl md:mx-auto md:my-4 md:rounded-2xl md:border md:border-slate-200/80 md:shadow-xs md:min-h-[calc(100vh-2rem)] transition-all">
         
         {/* ========================================================================= */}
         {/* HEADER BAR                                                                */}
         {/* ========================================================================= */}
-        <header className="px-3.5 py-2.5 flex items-center justify-between bg-white sticky top-0 z-20 border-b border-slate-100">
+        <header className="px-3.5 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between bg-white sticky top-0 z-20 border-b border-slate-100 md:rounded-t-2xl">
           <div className="flex items-center gap-2.5">
             <button 
               onClick={() => navigate('/')}
@@ -352,14 +352,14 @@ export default function PartyList() {
               </svg>
             </button>
             <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-bold text-[#0F172A] tracking-tight">Customers</h1>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#E2E8F0]/70 text-[#475569]">
+              <h1 className="text-base sm:text-lg md:text-xl font-bold text-[#0F172A] tracking-tight">Customers</h1>
+              <span className="text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-[#E2E8F0]/70 text-[#475569]">
                 {parties.length}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
             {isAdmin && (
               <button 
                 type="button"
@@ -367,7 +367,7 @@ export default function PartyList() {
                   setReportInitialGroup(selectedGroupFilter !== 'ALL' ? selectedGroupFilter : 'ALL');
                   setShowReportModal(true);
                 }}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100/90 text-blue-700 active:bg-blue-200 border border-blue-200/80 rounded-lg text-xs font-semibold cursor-pointer transition shadow-2xs active:scale-95"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-blue-600 hover:text-blue-700 hover:bg-slate-100 rounded-lg text-xs font-semibold cursor-pointer transition active:scale-95"
                 title="Party & Group Statement Report"
                 aria-label="Party & Group Statement Report"
               >
@@ -376,10 +376,21 @@ export default function PartyList() {
               </button>
             )}
 
+            {/* Desktop Add Customer Button */}
             <button 
               type="button"
               onClick={() => setShowAddModal(true)}
-              className="p-1.5 text-[#0F172A] hover:text-[#0284c7] hover:bg-slate-100 rounded-lg active:scale-95 transition cursor-pointer"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1A73E8] hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs active:scale-95 transition cursor-pointer"
+            >
+              <UserPlus size={15} strokeWidth={2.2} />
+              <span>Add Customer</span>
+            </button>
+
+            {/* Mobile Add Customer Icon */}
+            <button 
+              type="button"
+              onClick={() => setShowAddModal(true)}
+              className="sm:hidden p-1.5 text-[#0F172A] hover:text-[#0284c7] hover:bg-slate-100 rounded-lg active:scale-95 transition cursor-pointer"
               title="Add Customer"
               aria-label="Add Customer"
             >
@@ -389,35 +400,35 @@ export default function PartyList() {
         </header>
 
         {/* Summary Info Card in Header Section - Exactly 2 Options */}
-        <div className="px-3.5 pt-3 pb-2 bg-white">
-          <div className="bg-[#F0F7FF] border border-[#E0EDFB] rounded-2xl p-3 sm:p-3.5 shadow-2xs">
+        <div className="px-3.5 sm:px-6 pt-3 sm:pt-4 pb-2 bg-white">
+          <div className="bg-[#F0F7FF] border border-[#E0EDFB] rounded-2xl p-3 sm:p-4 shadow-2xs">
             <div className="grid grid-cols-2 divide-x divide-[#D0E2F6]">
               {/* Option 1: Total Outstanding */}
-              <div className="pr-3">
+              <div className="pr-3 sm:pr-6">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11.5px] font-semibold text-[#64748B] block">
+                  <span className="text-[11.5px] sm:text-xs font-semibold text-[#64748B] block">
                     Total OT
                   </span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-rose-50 text-[#DC2626]">
+                  <span className="text-[10px] sm:text-[11px] font-bold px-1.5 py-0.2 rounded-full bg-rose-50 text-[#DC2626]">
                     {debtorsCount} {debtorsCount === 1 ? 'party' : 'parties'}
                   </span>
                 </div>
-                <span className="text-[18px] sm:text-[20px] font-bold text-[#DC2626] block mt-1 tabular-nums">
+                <span className="text-[18px] sm:text-[22px] md:text-[24px] font-bold text-[#DC2626] block mt-1 tabular-nums">
                   ₹{totalReceivable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
 
               {/* Option 2: Total Creditors */}
-              <div className="pl-3">
+              <div className="pl-3 sm:pl-6">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11.5px] font-semibold text-[#64748B] block">
+                  <span className="text-[11.5px] sm:text-xs font-semibold text-[#64748B] block">
                     Total Creditors
                   </span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-50 text-[#059669]">
+                  <span className="text-[10px] sm:text-[11px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-50 text-[#059669]">
                     {creditorsCount} {creditorsCount === 1 ? 'party' : 'parties'}
                   </span>
                 </div>
-                <span className="text-[18px] sm:text-[20px] font-bold text-[#059669] block mt-1 tabular-nums">
+                <span className="text-[18px] sm:text-[22px] md:text-[24px] font-bold text-[#059669] block mt-1 tabular-nums">
                   ₹{totalPayable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
@@ -427,7 +438,7 @@ export default function PartyList() {
 
         {/* Import Banner Notification */}
         {importSuccessMsg && (
-          <div className="mx-3.5 my-1 p-2 bg-emerald-50 border border-emerald-200 rounded-md text-[10.5px] text-emerald-800 font-semibold flex items-center justify-between shadow-xs animate-in fade-in">
+          <div className="mx-3.5 sm:mx-6 my-1 p-2 bg-emerald-50 border border-emerald-200 rounded-md text-[10.5px] text-emerald-800 font-semibold flex items-center justify-between shadow-xs animate-in fade-in">
             <div className="flex items-center gap-1.5">
               <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
               <span>{importSuccessMsg}</span>
@@ -443,19 +454,90 @@ export default function PartyList() {
         )}
 
         {/* ========================================================================= */}
-        {/* SEARCH & SORT SECTION                                                     */}
+        {/* SEARCH & SORT SECTION (Responsive: Mobile Stacked, Desktop Unified)       */}
         {/* ========================================================================= */}
-        <div className="px-3.5 py-1.5 bg-white flex items-center gap-2">
-          <div className="flex-1 flex items-center bg-[#F1F5F9] rounded-xl px-3 py-2 gap-2">
+        {/* Mobile View: Search & Sort + Status Pills */}
+        <div className="md:hidden">
+          <div className="px-3.5 py-1.5 bg-white flex items-center gap-2">
+            <div className="flex-1 flex items-center bg-[#F1F5F9] rounded-xl px-3 py-2 gap-2">
+              <span className="text-[#64748B] flex items-center shrink-0">
+                <Search size={15} strokeWidth={2.2} />
+              </span>
+              <input 
+                type="text" 
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="border-none outline-none bg-transparent w-full text-xs text-[#1E293B] font-normal placeholder:text-[#94A3B8]" 
+                placeholder="Search customer..." 
+                autoComplete="off"
+              />
+              {search && (
+                <button 
+                  onClick={() => setSearch('')}
+                  className="text-[#94A3B8] hover:text-[#0F172A] p-0.5 cursor-pointer"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowFilterDrawer(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-[#F1F5F9] hover:bg-[#E2E8F0] active:scale-98 rounded-xl text-xs font-semibold text-[#334155] shrink-0 cursor-pointer transition"
+            >
+              <SlidersHorizontal size={14} className="text-[#64748B]" />
+              <span>Sort & options</span>
+            </button>
+          </div>
+
+          {/* Quick Status Filter Pills */}
+          <div className="px-3.5 pb-1.5 pt-0.5 flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <button
+              onClick={() => setStatusFilter('ALL')}
+              className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                statusFilter === 'ALL'
+                  ? 'bg-[#0F172A] text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              All ({parties.length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('DUE')}
+              className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                statusFilter === 'DUE'
+                  ? 'bg-[#FEE2E2] text-[#DC2626]'
+                  : 'bg-slate-50 text-slate-600 hover:bg-rose-50 hover:text-rose-600'
+              }`}
+            >
+              Debtors ({debtorsCount})
+            </button>
+            <button
+              onClick={() => setStatusFilter('ADVANCE')}
+              className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                statusFilter === 'ADVANCE'
+                  ? 'bg-[#DCFCE7] text-[#059669]'
+                  : 'bg-slate-50 text-slate-600 hover:bg-emerald-50 hover:text-emerald-600'
+              }`}
+            >
+              Creditors ({creditorsCount})
+            </button>
+          </div>
+        </div>
+
+        {/* Desktop View: Search Bar + Status Filter Pills + Options */}
+        <div className="hidden md:flex items-center justify-between px-6 py-2.5 bg-white border-b border-slate-100 gap-4">
+          <div className="flex-1 max-w-md flex items-center bg-[#F1F5F9] rounded-xl px-3.5 py-2 gap-2.5 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:bg-white transition-all">
             <span className="text-[#64748B] flex items-center shrink-0">
-              <Search size={15} strokeWidth={2.2} />
+              <Search size={16} strokeWidth={2.2} />
             </span>
             <input 
               type="text" 
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="border-none outline-none bg-transparent w-full text-xs text-[#1E293B] font-normal placeholder:text-[#94A3B8]" 
-              placeholder="Search customer..." 
+              placeholder="Search by customer name, phone, email, address..." 
               autoComplete="off"
             />
             {search && (
@@ -463,58 +545,57 @@ export default function PartyList() {
                 onClick={() => setSearch('')}
                 className="text-[#94A3B8] hover:text-[#0F172A] p-0.5 cursor-pointer"
               >
-                <X size={13} />
+                <X size={14} />
               </button>
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowFilterDrawer(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[#F1F5F9] hover:bg-[#E2E8F0] active:scale-98 rounded-xl text-xs font-semibold text-[#334155] shrink-0 cursor-pointer transition"
-          >
-            <SlidersHorizontal size={14} className="text-[#64748B]" />
-            <span>Sort & options</span>
-          </button>
-        </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setStatusFilter('ALL')}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                statusFilter === 'ALL'
+                  ? 'bg-[#0F172A] text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              All ({parties.length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('DUE')}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                statusFilter === 'DUE'
+                  ? 'bg-[#FEE2E2] text-[#DC2626] shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-rose-50 hover:text-rose-600'
+              }`}
+            >
+              Debtors ({debtorsCount})
+            </button>
+            <button
+              onClick={() => setStatusFilter('ADVANCE')}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                statusFilter === 'ADVANCE'
+                  ? 'bg-[#DCFCE7] text-[#059669] shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-emerald-600'
+              }`}
+            >
+              Creditors ({creditorsCount})
+            </button>
 
-        {/* Quick Status Filter Pills */}
-        <div className="px-3.5 pb-1.5 pt-0.5 flex items-center gap-2 overflow-x-auto no-scrollbar">
-          <button
-            onClick={() => setStatusFilter('ALL')}
-            className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-              statusFilter === 'ALL'
-                ? 'bg-[#0F172A] text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            All ({parties.length})
-          </button>
-          <button
-            onClick={() => setStatusFilter('DUE')}
-            className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-              statusFilter === 'DUE'
-                ? 'bg-[#FEE2E2] text-[#DC2626]'
-                : 'bg-slate-50 text-slate-600 hover:bg-rose-50 hover:text-rose-600'
-            }`}
-          >
-            Debtors ({debtorsCount})
-          </button>
-          <button
-            onClick={() => setStatusFilter('ADVANCE')}
-            className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-              statusFilter === 'ADVANCE'
-                ? 'bg-[#DCFCE7] text-[#059669]'
-                : 'bg-slate-50 text-slate-600 hover:bg-emerald-50 hover:text-emerald-600'
-            }`}
-          >
-            Creditors ({creditorsCount})
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowFilterDrawer(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#F1F5F9] hover:bg-[#E2E8F0] active:scale-98 rounded-xl text-xs font-semibold text-[#334155] shrink-0 cursor-pointer transition ml-1"
+            >
+              <SlidersHorizontal size={14} className="text-[#64748B]" />
+              <span>Sort & options</span>
+            </button>
+          </div>
         </div>
 
         {/* Active Group Filter Banner (Admin Only) */}
         {isAdmin && selectedGroupFilter !== 'ALL' && (
-          <div className="mx-3.5 my-1 px-2.5 py-1 bg-blue-50/90 border border-blue-200/80 rounded-lg flex items-center justify-between text-[11px] animate-in fade-in">
+          <div className="mx-3.5 sm:mx-6 my-1.5 px-3 py-1.5 bg-blue-50/90 border border-blue-200/80 rounded-lg flex items-center justify-between text-[11px] animate-in fade-in">
             <div className="flex items-center gap-1.5 text-blue-900 font-medium">
               <Tag size={12} className="text-blue-600" />
               <span>
@@ -532,7 +613,7 @@ export default function PartyList() {
         )}
 
         {/* ========================================================================= */}
-        {/* COMPACT CUSTOMER LIST                                                     */}
+        {/* CUSTOMER LIST (Mobile List + Desktop Structured Grid)                     */}
         {/* ========================================================================= */}
         <main className="flex-1 pb-16">
           {isLoading && parties.length === 0 ? (
@@ -541,68 +622,147 @@ export default function PartyList() {
               <p className="text-[11px] font-medium">Loading customers...</p>
             </div>
           ) : (
-            <ul className="list-none m-0 p-0">
-              {filteredParties.map((party) => {
-                const avatar = getAvatarColor(party.name);
-                const initial = party.name.trim().charAt(0).toUpperCase() || 'C';
+            <div>
+              {/* Desktop Table Column Header */}
+              <div className="hidden md:grid grid-cols-12 px-6 py-2.5 bg-slate-50 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500 select-none">
+                <div className="col-span-4">Customer Name</div>
+                <div className="col-span-3">Contact Details</div>
+                <div className="col-span-2">Address</div>
+                <div className="col-span-2 text-right">Balance</div>
+                <div className="col-span-1 text-center">Action</div>
+              </div>
 
-                return (
-                  <li 
-                    key={party.id}
-                    onClick={() => navigate(`/parties/${party.id}`)}
-                    className="flex items-center px-3 py-1.5 cursor-pointer border-b border-[#F1F5F9] hover:bg-[#F8FAFC] active:bg-[#F1F5F9] transition-colors select-none"
-                  >
-                    {/* Circle Avatar (26px) */}
-                    <div 
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-[10.5px] font-bold shrink-0 mr-2.5 shadow-2xs ${avatar.className}`}
-                      style={{ backgroundColor: avatar.bg, color: avatar.text }}
-                    >
-                      {initial}
-                    </div>
+              <ul className="list-none m-0 p-0">
+                {filteredParties.map((party) => {
+                  const avatar = getAvatarColor(party.name);
+                  const initial = party.name.trim().charAt(0).toUpperCase() || 'C';
 
-                    {/* Customer Info */}
-                    <div className="flex-1 min-w-0 pr-1.5">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-[12px] font-bold text-[#0F172A] leading-tight truncate">
-                          {party.name}
-                        </span>
-                        {party.group && (
-                          <span className="inline-flex items-center gap-0.5 text-[9.5px] font-medium text-slate-500 shrink-0">
-                            <Tag size={8.5} className="text-slate-400" />
-                            {party.group}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[10px] text-[#64748B] leading-tight truncate">
-                        {party.email || (party.address ? party.address : 'No email added')}
-                      </div>
-                      <div className="text-[10px] text-[#64748B] leading-tight truncate">
-                        {party.phone || 'No phone number'}
-                      </div>
-                    </div>
+                  return (
+                    <li key={party.id}>
+                      {/* Mobile Row (Unchanged) */}
+                      <div 
+                        onClick={() => navigate(`/parties/${party.id}`)}
+                        className="flex items-center px-3 py-1.5 cursor-pointer border-b border-[#F1F5F9] hover:bg-[#F8FAFC] active:bg-[#F1F5F9] transition-colors select-none md:hidden"
+                      >
+                        {/* Circle Avatar (26px) */}
+                        <div 
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-[10.5px] font-bold shrink-0 mr-2.5 shadow-2xs ${avatar.className}`}
+                          style={{ backgroundColor: avatar.bg, color: avatar.text }}
+                        >
+                          {initial}
+                        </div>
 
-                    {/* Balance Preview & Chevron */}
-                    <div className="flex items-center gap-1 shrink-0">
-                      {party.currentDue !== 0 && (
-                        <div className="text-right hidden min-[320px]:block">
-                          <div className={`text-[10.5px] font-bold ${party.currentDue > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                            {party.currentDue > 0 ? '-' : '+'}{formatCustomerCurrency(party.currentDue, currency)}
+                        {/* Customer Info */}
+                        <div className="flex-1 min-w-0 pr-1.5">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="text-[12px] font-bold text-[#0F172A] leading-tight truncate">
+                              {party.name}
+                            </span>
+                            {isAdmin && party.group && (
+                              <span className="inline-flex items-center gap-0.5 text-[9.5px] font-medium text-slate-500 shrink-0">
+                                <Tag size={8.5} className="text-slate-400" />
+                                {party.group}
+                              </span>
+                            )}
                           </div>
-                          <span className={`text-[8px] font-bold uppercase tracking-wider ${party.currentDue > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                            {party.currentDue > 0 ? 'DR' : 'CR'}
+                          <div className="text-[10px] text-[#64748B] leading-tight truncate">
+                            {party.email || (party.address ? party.address : 'No email added')}
+                          </div>
+                          <div className="text-[10px] text-[#64748B] leading-tight truncate">
+                            {party.phone || 'No phone number'}
+                          </div>
+                        </div>
+
+                        {/* Balance Preview & Chevron */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {party.currentDue !== 0 && (
+                            <div className="text-right hidden min-[320px]:block">
+                              <div className={`text-[10.5px] font-bold ${party.currentDue > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                {party.currentDue > 0 ? '-' : '+'}{formatCustomerCurrency(party.currentDue, currency)}
+                              </div>
+                              <span className={`text-[8px] font-bold uppercase tracking-wider ${party.currentDue > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                {party.currentDue > 0 ? 'DR' : 'CR'}
+                              </span>
+                            </div>
+                          )}
+                          <div className="text-[#94A3B8] flex items-center ml-0.5 shrink-0">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Desktop Row */}
+                      <div 
+                        onClick={() => navigate(`/parties/${party.id}`)}
+                        className="hidden md:grid grid-cols-12 items-center px-6 py-3 cursor-pointer border-b border-slate-100 hover:bg-slate-50/80 transition-colors select-none group"
+                      >
+                        {/* Col 1-4: Avatar + Name + Group */}
+                        <div className="col-span-4 flex items-center gap-3 min-w-0 pr-3">
+                          <div 
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs ${avatar.className}`}
+                            style={{ backgroundColor: avatar.bg, color: avatar.text }}
+                          >
+                            {initial}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate">
+                                {party.name}
+                              </span>
+                              {isAdmin && party.group && (
+                                <span className="inline-flex items-center gap-0.5 text-[9.5px] font-medium text-slate-500 shrink-0">
+                                  <Tag size={8.5} className="text-slate-400" />
+                                  {party.group}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-slate-400 truncate block">
+                              {party.email || 'No email registered'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Col 5-7: Contact Info */}
+                        <div className="col-span-3 min-w-0 pr-2">
+                          <div className="text-xs font-medium text-slate-700 flex items-center gap-1.5 truncate">
+                            <Phone size={12} className="text-slate-400 shrink-0" />
+                            <span>{party.phone || 'No phone'}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 flex items-center gap-1.5 truncate mt-0.5">
+                            <Mail size={12} className="text-slate-400 shrink-0" />
+                            <span>{party.email || '—'}</span>
+                          </div>
+                        </div>
+
+                        {/* Col 8-9: Address */}
+                        <div className="col-span-2 min-w-0 pr-2">
+                          <span className="text-xs text-slate-600 truncate block" title={party.address || 'No address'}>
+                            {party.address || <span className="text-slate-400 italic">No address</span>}
                           </span>
                         </div>
-                      )}
-                      <div className="text-[#94A3B8] flex items-center ml-0.5 shrink-0">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="9 18 15 12 9 6"></polyline>
-                        </svg>
+
+                        {/* Col 10-11: Balance */}
+                        <div className="col-span-2 text-right pr-2">
+                          <div className={`text-sm font-bold tabular-nums ${party.currentDue > 0 ? 'text-[#DC2626]' : party.currentDue < 0 ? 'text-[#059669]' : 'text-slate-700'}`}>
+                            {party.currentDue > 0 ? '-' : party.currentDue < 0 ? '+' : ''}{formatCustomerCurrency(party.currentDue, currency)}
+                          </div>
+                          <span className={`inline-block text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded ${party.currentDue > 0 ? 'bg-rose-50 text-[#DC2626]' : party.currentDue < 0 ? 'bg-emerald-50 text-[#059669]' : 'bg-slate-100 text-slate-500'}`}>
+                            {party.currentDue > 0 ? 'DR (DEBTOR)' : party.currentDue < 0 ? 'CR (CREDITOR)' : 'SETTLED'}
+                          </span>
+                        </div>
+
+                        {/* Col 12: Action Chevron */}
+                        <div className="col-span-1 flex items-center justify-center text-slate-300 group-hover:text-blue-600 transition-colors">
+                          <ChevronRight size={16} />
+                        </div>
                       </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
 
           {/* Empty Search State */}
@@ -640,11 +800,11 @@ export default function PartyList() {
         </main>
 
         {/* ========================================================================= */}
-        {/* COMPACT FLOATING ACTION BUTTON (FAB)                                      */}
+        {/* COMPACT FLOATING ACTION BUTTON (FAB) (Mobile Only)                         */}
         {/* ========================================================================= */}
         <button 
           onClick={() => setShowAddModal(true)}
-          className="fixed right-3 bottom-4 w-9 h-9 rounded-full bg-gradient-to-br from-[#1A73E8] to-[#0D62D9] text-white flex items-center justify-center shadow-md cursor-pointer z-20 hover:scale-105 active:scale-95 transition-transform" 
+          className="md:hidden fixed right-3 bottom-4 w-9 h-9 rounded-full bg-gradient-to-br from-[#1A73E8] to-[#0D62D9] text-white flex items-center justify-center shadow-md cursor-pointer z-20 hover:scale-105 active:scale-95 transition-transform" 
           aria-label="Add Customer"
           title="Add Customer"
         >
@@ -829,111 +989,113 @@ export default function PartyList() {
                   />
                 </div>
 
-                {/* Customer Group Field */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-bold text-slate-700">Group / Category</label>
-                    {!isCreatingInlineGroup && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsCreatingInlineGroup(true);
-                          setInlineNewGroupName('');
-                        }}
-                        className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-0.5 cursor-pointer"
-                      >
-                        <Plus size={11} />
-                        <span>Create New Group</span>
-                      </button>
-                    )}
-                  </div>
-                  {isCreatingInlineGroup ? (
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        value={inlineNewGroupName}
-                        onChange={e => handleTextChange(e, setInlineNewGroupName)}
-                        placeholder="Type group name (e.g. Wholesaler, VIP)..."
-                        className="flex-1 px-3.5 py-2.5 bg-blue-50/50 border border-blue-400 rounded-xl text-xs text-slate-900 focus:outline-none focus:bg-white transition"
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (inlineNewGroupName.trim()) {
-                            setAddGroup(inlineNewGroupName.trim());
-                            setIsCreatingInlineGroup(false);
-                          }
-                        }}
-                        className="px-3.5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 transition cursor-pointer"
-                      >
-                        Set
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsCreatingInlineGroup(false);
-                          setInlineNewGroupName('');
-                        }}
-                        className="p-2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                      >
-                        <X size={15} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={addGroup}
-                        onChange={e => {
-                          if (e.target.value === '__CREATE_NEW__') {
-                            setIsCreatingInlineGroup(true);
-                            setInlineNewGroupName('');
-                          } else {
-                            setAddGroup(e.target.value);
-                          }
-                        }}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition cursor-pointer"
-                      >
-                        <option value="">-- Select Group (Optional) --</option>
-                        {allGroups.map(grp => (
-                          <option key={grp} value={grp}>{grp}</option>
-                        ))}
-                        <option value="__CREATE_NEW__">+ Create New Group...</option>
-                      </select>
-                      {addGroup && (
+                {/* Customer Group Field (Admin only) */}
+                {isAdmin && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-bold text-slate-700">Group / Category</label>
+                      {!isCreatingInlineGroup && (
                         <button
                           type="button"
-                          onClick={() => setAddGroup('')}
-                          className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-                          title="Clear group selection"
+                          onClick={() => {
+                            setIsCreatingInlineGroup(true);
+                            setInlineNewGroupName('');
+                          }}
+                          className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-0.5 cursor-pointer"
                         >
-                          <X size={14} />
+                          <Plus size={11} />
+                          <span>Create New Group</span>
                         </button>
                       )}
                     </div>
-                  )}
-
-                  {/* Quick-pick Group Badges */}
-                  {!isCreatingInlineGroup && allGroups.length > 0 && (
-                    <div className="flex items-center flex-wrap gap-1.5 mt-2">
-                      <span className="text-[10px] text-slate-500 font-medium">Quick pick:</span>
-                      {allGroups.map(grp => (
+                    {isCreatingInlineGroup ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={inlineNewGroupName}
+                          onChange={e => handleTextChange(e, setInlineNewGroupName)}
+                          placeholder="Type group name (e.g. Wholesaler, VIP)..."
+                          className="flex-1 px-3.5 py-2.5 bg-blue-50/50 border border-blue-400 rounded-xl text-xs text-slate-900 focus:outline-none focus:bg-white transition"
+                          autoFocus
+                        />
                         <button
-                          key={grp}
                           type="button"
-                          onClick={() => setAddGroup(grp)}
-                          className={`px-2 py-0.5 rounded-full text-[10.5px] font-medium border transition cursor-pointer ${
-                            addGroup.toLowerCase() === grp.toLowerCase()
-                              ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-                          }`}
+                          onClick={() => {
+                            if (inlineNewGroupName.trim()) {
+                              setAddGroup(inlineNewGroupName.trim());
+                              setIsCreatingInlineGroup(false);
+                            }
+                          }}
+                          className="px-3.5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 transition cursor-pointer"
                         >
-                          {grp}
+                          Set
                         </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCreatingInlineGroup(false);
+                            setInlineNewGroupName('');
+                          }}
+                          className="p-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={addGroup}
+                          onChange={e => {
+                            if (e.target.value === '__CREATE_NEW__') {
+                              setIsCreatingInlineGroup(true);
+                              setInlineNewGroupName('');
+                            } else {
+                              setAddGroup(e.target.value);
+                            }
+                          }}
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition cursor-pointer"
+                        >
+                          <option value="">-- Select Group (Optional) --</option>
+                          {allGroups.map(grp => (
+                            <option key={grp} value={grp}>{grp}</option>
+                          ))}
+                          <option value="__CREATE_NEW__">+ Create New Group...</option>
+                        </select>
+                        {addGroup && (
+                          <button
+                            type="button"
+                            onClick={() => setAddGroup('')}
+                            className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                            title="Clear group selection"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Quick-pick Group Badges */}
+                    {!isCreatingInlineGroup && allGroups.length > 0 && (
+                      <div className="flex items-center flex-wrap gap-1.5 mt-2">
+                        <span className="text-[10px] text-slate-500 font-medium">Quick pick:</span>
+                        {allGroups.map(grp => (
+                          <button
+                            key={grp}
+                            type="button"
+                            onClick={() => setAddGroup(grp)}
+                            className={`px-2 py-0.5 rounded-full text-[10.5px] font-medium border transition cursor-pointer ${
+                              addGroup.toLowerCase() === grp.toLowerCase()
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            {grp}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1">

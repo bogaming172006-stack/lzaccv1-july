@@ -1,6 +1,14 @@
+// Ensure global __dirname injected by tsx does not break vite-plugin-pwa and node:module createRequire
+try {
+  if (typeof (globalThis as any).__dirname !== "undefined") {
+    delete (globalThis as any).__dirname;
+  }
+} catch (_) {}
+
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
+import crypto from "crypto";
 import { createClient } from "@libsql/client";
 import initSqlJs from "sql.js";
 
@@ -16,7 +24,8 @@ async function getSqlEngine() {
 dotenv.config({ override: true });
 
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+// Dev server in AI Studio must run on port 3000. In production (e.g. Render), use process.env.PORT
+const PORT = process.env.NODE_ENV === "production" && process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Rewrite Netlify Functions path prefix to standard API routes before any routing
 app.use((req, res, next) => {
@@ -53,7 +62,8 @@ const TABLES = [
   "daily_summaries", 
   "dashboard_summary", 
   "cache_versions",
-  "log"
+  "log",
+  "shared_ledger_links"
 ];
 
 // Turso client instance
@@ -430,6 +440,45 @@ app.get("/api/db/connection-status", async (req, res) => {
   }
 });
 
+function normalizeUserRecord(userData: any) {
+  if (!userData || typeof userData !== 'object') return userData;
+  let isAdmin = false;
+  const role = userData.role;
+  const rawAdmin = userData.isAdmin;
+
+  // 1. Evaluate role property
+  if (typeof role === 'string') {
+    const cleanRole = role.trim().toLowerCase();
+    if (cleanRole === 'admin' || cleanRole === 'administrator' || cleanRole === 'true' || cleanRole === '1') {
+      isAdmin = true;
+    } else if (cleanRole === 'user' || cleanRole === 'operator' || cleanRole === 'standard' || cleanRole === 'false' || cleanRole === '0') {
+      isAdmin = false;
+    }
+  } else if (typeof role === 'boolean') {
+    isAdmin = role;
+  } else if (typeof role === 'number') {
+    isAdmin = role === 1;
+  }
+
+  // 2. Evaluate isAdmin property if role was not explicitly decisive
+  if (role === undefined || role === null) {
+    if (typeof rawAdmin === 'boolean') {
+      isAdmin = rawAdmin;
+    } else if (typeof rawAdmin === 'string') {
+      const cleanAdmin = rawAdmin.trim().toLowerCase();
+      isAdmin = cleanAdmin === 'true' || cleanAdmin === '1' || cleanAdmin === 'admin';
+    } else if (typeof rawAdmin === 'number') {
+      isAdmin = rawAdmin === 1;
+    }
+  }
+
+  return {
+    ...userData,
+    isAdmin,
+    role: isAdmin ? 'admin' : 'user'
+  };
+}
+
 // Fetch single document
 app.get("/api/db/:collectionName/:id", async (req, res) => {
   const { collectionName, id } = req.params;
@@ -441,7 +490,8 @@ app.get("/api/db/:collectionName/:id", async (req, res) => {
     });
     if (result.rows.length > 0) {
       const rawData = result.rows[0].data as string;
-      res.json({ exists: true, data: JSON.parse(rawData) });
+      const parsed = JSON.parse(rawData);
+      res.json({ exists: true, data: collectionName === "users" ? normalizeUserRecord(parsed) : parsed });
     } else {
       res.json({ exists: false, data: null });
     }
@@ -458,7 +508,10 @@ app.post("/api/db/query", async (req, res) => {
     const client = safeClient;
     const { sql, args } = compileQueryToSql(colName, clauses);
     const result = await client.execute({ sql, args });
-    const docs = result.rows.map(row => JSON.parse(row.data as string));
+    const docs = result.rows.map(row => {
+      const parsed = JSON.parse(row.data as string);
+      return colName === "users" ? normalizeUserRecord(parsed) : parsed;
+    });
     res.json({ docs });
   } catch (error: any) {
     console.error(`Query failed on table "${colName}":`, error);
@@ -491,6 +544,9 @@ app.post("/api/db/batch", async (req, res) => {
               finalData = { ...parsed, ...data, id };
             }
           }
+          if (colName === "users") {
+            finalData = normalizeUserRecord(finalData);
+          }
           if (colName === "log") {
             const rowDate = finalData.date || (finalData.timestamp ? new Date(finalData.timestamp).toISOString().split('T')[0] : '');
             if (finalData.beforeAmount === undefined && finalData.afterAmount !== undefined && finalData.amount !== undefined) {
@@ -514,7 +570,10 @@ app.post("/api/db/batch", async (req, res) => {
           });
           if (current.rows.length > 0) {
             const parsed = JSON.parse(current.rows[0].data as string);
-            const finalData = { ...parsed, ...data, id };
+            let finalData = { ...parsed, ...data, id };
+            if (colName === "users") {
+              finalData = normalizeUserRecord(finalData);
+            }
             if (colName === "log") {
               const rowDate = finalData.date || (finalData.timestamp ? new Date(finalData.timestamp).toISOString().split('T')[0] : '');
               if (finalData.beforeAmount === undefined && finalData.afterAmount !== undefined && finalData.amount !== undefined) {
@@ -1478,6 +1537,140 @@ app.get("/api/billing/dates", async (req, res) => {
 });
 
 // ---------------------------------------------------------
+// TEMPORARY SHARE LEDGER LINK ENDPOINTS (30-MIN READ-ONLY)
+// ---------------------------------------------------------
+
+app.post("/api/shared-ledger/create", async (req, res) => {
+  try {
+    const { partyId, ledgerId } = req.body;
+    if (!partyId) {
+      return res.status(400).json({ error: "Missing customer (partyId) reference" });
+    }
+
+    const client = safeClient;
+
+    // Verify customer exists in database
+    const partyRes = await client.execute({
+      sql: "SELECT data FROM parties WHERE id = ?",
+      args: [partyId]
+    });
+
+    if (partyRes.rows.length === 0) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+
+    // Generate unique, secure, unguessable 48-char cryptographic token
+    const token = crypto.randomBytes(24).toString("hex");
+    const createdAt = Date.now();
+    const expiresAt = createdAt + 30 * 60 * 1000; // Exactly 30 minutes in milliseconds
+
+    const linkData = {
+      token,
+      partyId,
+      ledgerId: ledgerId || null,
+      createdAt,
+      expiresAt
+    };
+
+    // Store in backend database
+    await client.execute({
+      sql: "INSERT OR REPLACE INTO shared_ledger_links (id, data) VALUES (?, ?)",
+      args: [token, JSON.stringify(linkData)]
+    });
+
+    res.json({
+      success: true,
+      token,
+      expiresAt,
+      createdAt
+    });
+  } catch (err: any) {
+    console.error("[Shared Ledger] Error creating share link:", err);
+    res.status(500).json({ error: err.message || "Failed to generate share link" });
+  }
+});
+
+app.get("/api/shared-ledger/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token) {
+      return res.status(400).json({ error: "Token is required" });
+    }
+
+    const client = safeClient;
+    const tokenRow = await client.execute({
+      sql: "SELECT data FROM shared_ledger_links WHERE id = ?",
+      args: [token]
+    });
+
+    if (tokenRow.rows.length === 0) {
+      return res.status(404).json({ error: "This ledger link is invalid or does not exist." });
+    }
+
+    let linkData: any;
+    try {
+      linkData = JSON.parse(tokenRow.rows[0].data as string);
+    } catch (e) {
+      return res.status(500).json({ error: "Corrupted ledger link record" });
+    }
+
+    // Check expiry using server-side time, not the customer's device clock
+    const serverNow = Date.now();
+    if (serverNow > linkData.expiresAt) {
+      return res.status(410).json({
+        expired: true,
+        error: "This ledger link has expired. Please request a new link."
+      });
+    }
+
+    // Fetch the customer record
+    const partyRes = await client.execute({
+      sql: "SELECT data FROM parties WHERE id = ?",
+      args: [linkData.partyId]
+    });
+
+    if (partyRes.rows.length === 0) {
+      return res.status(404).json({ error: "Customer record not found." });
+    }
+
+    const party = JSON.parse(partyRes.rows[0].data as string);
+
+    // Fetch only this customer's existing ledger transactions
+    const txRes = await client.execute({
+      sql: "SELECT data FROM transactions WHERE json_extract(data, '$.partyId') = ?",
+      args: [linkData.partyId]
+    });
+
+    const transactions = txRes.rows.map(r => JSON.parse(r.data as string));
+
+    // Optional: Fetch ledger info for company name
+    let ledger = null;
+    const targetLedgerId = linkData.ledgerId || party.ledgerId;
+    if (targetLedgerId) {
+      const ledgerRes = await client.execute({
+        sql: "SELECT data FROM ledgers WHERE id = ?",
+        args: [targetLedgerId]
+      });
+      if (ledgerRes.rows.length > 0) {
+        ledger = JSON.parse(ledgerRes.rows[0].data as string);
+      }
+    }
+
+    res.json({
+      success: true,
+      party,
+      transactions,
+      ledger,
+      expiresAt: linkData.expiresAt,
+      serverTime: serverNow
+    });
+  } catch (err: any) {
+    console.error("[Shared Ledger] Error fetching shared ledger:", err);
+    res.status(500).json({ error: err.message || "Failed to retrieve ledger statement" });
+  }
+});
+
+// ---------------------------------------------------------
 // STARTUP AND VITE SERVING
 // ---------------------------------------------------------
 
@@ -1505,22 +1698,24 @@ async function startServer() {
     });
   }
 
-  // Pre-initialize database tables and indexes
-  try {
-    console.log("[Startup] Initializing Turso (LibSQL) database tables and indexes...");
-    const client = safeClient;
-    for (const col of TABLES) {
-      await client.execute(`CREATE TABLE IF NOT EXISTS ${col} (id TEXT PRIMARY KEY, data TEXT)`);
-    }
-    await ensureIndexesExist(client);
-    console.log("[Startup] Turso database and index initialization completed successfully.");
-  } catch (err: any) {
-    console.warn("[Startup] Failed to initialize Turso database tables/indexes:", err.message);
-  }
-
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+
+  // Pre-initialize database tables and indexes in background so server listens immediately
+  (async () => {
+    try {
+      console.log("[Startup] Initializing Turso (LibSQL) database tables and indexes...");
+      const client = safeClient;
+      for (const col of TABLES) {
+        await client.execute(`CREATE TABLE IF NOT EXISTS ${col} (id TEXT PRIMARY KEY, data TEXT)`);
+      }
+      await ensureIndexesExist(client);
+      console.log("[Startup] Turso database and index initialization completed successfully.");
+    } catch (err: any) {
+      console.warn("[Startup] Failed to initialize Turso database tables/indexes:", err.message);
+    }
+  })();
 }
 
 if (!process.env.NETLIFY) {

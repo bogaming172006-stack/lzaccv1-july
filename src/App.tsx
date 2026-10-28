@@ -21,6 +21,7 @@ import AccountsMail from './pages/AccountsMail';
 import Statement from './pages/Statement';
 import TrNote from './pages/TrNote';
 import BillingDeclaration from './pages/BillingDeclaration';
+import SharedLedgerView from './pages/SharedLedgerView';
 import SplashLoader from './components/SplashLoader';
 import OfflineIndicator from './components/OfflineIndicator';
 
@@ -552,6 +553,9 @@ const AppContent: React.FC = () => {
               </RequireAdmin>
             </RequireAuth>
           } />
+
+          {/* Public Temporary 30-Minute Shared Customer Ledger */}
+          <Route path="/shared-ledger/:token" element={<SharedLedgerView />} />
           
         </Routes>
       </BrowserRouter>

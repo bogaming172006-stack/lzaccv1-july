@@ -6,6 +6,7 @@ export interface User {
   deviceId: string;
   lastActivity: number;
   isAdmin: boolean;
+  role?: 'admin' | 'user' | string | boolean;
   lastAction?: string;
   lastActionDetails?: string;
   lastDevice?: string;

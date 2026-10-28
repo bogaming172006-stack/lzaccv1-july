@@ -86,8 +86,97 @@ html, body {
   color: #6b21a8 !important;
 }
 
-.theme-purchase .hover\:bg-\[\#0055a5\]:hover {
+.theme-purchase .hover\:bg-\[\#0055a5\]:hover,
+.theme-purchase .hover\:bg-blue-700:hover {
   background-color: #581c87 !important;
+}
+
+/* ========================================================================= */
+/* CASH & BANK LEDGER THEME: EMERALD GREEN                                   */
+/* ========================================================================= */
+.theme-cash-bank {
+  --color-primary-blue: #059669;
+  --color-accent-blue: #10b981;
+}
+
+.theme-cash-bank .bg-\[\#0055a5\] {
+  background-color: #059669 !important;
+  color: #ffffff !important;
+}
+
+.theme-cash-bank .text-\[\#0055a5\] {
+  color: #059669 !important;
+}
+
+.theme-cash-bank .border-\[\#0055a5\] {
+  border-color: #059669 !important;
+}
+
+.theme-cash-bank .hover\:bg-\[\#0055a5\]:hover,
+.theme-cash-bank .hover\:bg-blue-700:hover {
+  background-color: #047857 !important;
+}
+
+.theme-cash-bank .bg-blue-50 {
+  background-color: #ecfdf5 !important;
+}
+
+.theme-cash-bank .text-blue-600,
+.theme-cash-bank .text-blue-700 {
+  color: #059669 !important;
+}
+
+.theme-cash-bank .border-blue-200,
+.theme-cash-bank .border-blue-100 {
+  border-color: #a7f3d0 !important;
+}
+
+.theme-cash-bank .hover\:bg-blue-50:hover {
+  background-color: #d1fae5 !important;
+}
+
+/* ========================================================================= */
+/* EXPENSE LEDGER THEME: ROSE / CRIMSON                                      */
+/* ========================================================================= */
+.theme-expense {
+  --color-primary-blue: #e11d48;
+  --color-accent-blue: #f43f5e;
+}
+
+.theme-expense .bg-\[\#0055a5\] {
+  background-color: #e11d48 !important;
+  color: #ffffff !important;
+}
+
+.theme-expense .text-\[\#0055a5\] {
+  color: #e11d48 !important;
+}
+
+.theme-expense .border-\[\#0055a5\] {
+  border-color: #e11d48 !important;
+}
+
+.theme-expense .hover\:bg-\[\#0055a5\]:hover,
+.theme-expense .hover\:bg-blue-700:hover {
+  background-color: #be123c !important;
+}
+
+.theme-expense .bg-blue-50 {
+  background-color: #fff1f2 !important;
+}
+
+.theme-expense .text-blue-600,
+.theme-expense .text-blue-700 {
+  color: #e11d48 !important;
+}
+
+.theme-expense .border-blue-200,
+.theme-expense .border-blue-100 {
+  border-color: #fecdd3 !important;
+}
+
+.theme-expense .hover\:bg-blue-50:hover {
+  background-color: #ffe4e6 !important;
 }
 
 /* Navigation items in Purchase Ledger: Purple with Golden Yellow Accent */

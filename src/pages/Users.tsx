@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 import { User, UserActivity } from '../types';
-import { db, handleFirestoreError, OperationType, doc, setDoc, recreateDatabaseTables, getDatabaseTableStats } from '../firebase';
+import { db, handleFirestoreError, OperationType, doc, setDoc, updateDoc, recreateDatabaseTables, getDatabaseTableStats } from '../firebase';
 import { format } from 'date-fns';
 import { 
   Shield, 
@@ -116,6 +116,7 @@ function AddUserModal({ onClose }: AddUserModalProps) {
       username: cleanUsername.toLowerCase(),
       pin: cleanPassword,
       isAdmin,
+      role: isAdmin ? 'admin' : 'user',
       deviceId: '',
       lastActivity: Date.now(),
       lastAction: 'Account Created',
@@ -431,6 +432,34 @@ export default function Users() {
     }
   };
 
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+
+  const handleToggleUserRole = async (targetUser: User) => {
+    if (targetUser.id === currentUser?.id) {
+      return;
+    }
+    const nextIsAdmin = !targetUser.isAdmin;
+    const nextRoleName = nextIsAdmin ? 'Executive Admin' : 'Standard User';
+    const targetName = targetUser.name || targetUser.username || 'this user';
+    
+    setUpdatingUserId(targetUser.id);
+    try {
+      await updateDoc(doc(db, 'users', targetUser.id), {
+        isAdmin: nextIsAdmin,
+        role: nextIsAdmin ? 'admin' : 'user'
+      });
+      await logUserActivity(
+        'Updated User Role',
+        `Changed role for ${targetName} to ${nextRoleName}`,
+        currentUser
+      );
+    } catch (err: any) {
+      console.error('Failed to update role:', err);
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
   if (!currentUser?.isAdmin) {
     return <div className="p-8 text-center text-rose-600 font-semibold">Access Denied. Executive Admin role required.</div>;
   }
@@ -564,16 +593,31 @@ export default function Users() {
 
                     {/* Role */}
                     <td>
-                      {u.isAdmin ? (
-                        <Badge variant="credit" size="sm">
-                          <Shield size={12} className="mr-1 inline" />
-                          Executive Admin
-                        </Badge>
-                      ) : (
-                        <Badge variant="neutral" size="sm">
-                          Standard User
-                        </Badge>
-                      )}
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
+                        {u.isAdmin ? (
+                          <Badge variant="credit" size="sm">
+                            <Shield size={12} className="mr-1 inline" />
+                            Executive Admin
+                          </Badge>
+                        ) : (
+                          <Badge variant="neutral" size="sm">
+                            Standard User
+                          </Badge>
+                        )}
+                        {u.id !== currentUser.id ? (
+                          <button
+                            type="button"
+                            disabled={updatingUserId === u.id}
+                            onClick={() => handleToggleUserRole(u)}
+                            title={`Switch ${u.name || 'user'} to ${u.isAdmin ? 'Standard User' : 'Executive Admin'}`}
+                            className="inline-flex items-center text-[10.5px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-0.5 rounded transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            {updatingUserId === u.id ? 'Updating...' : u.isAdmin ? 'Make User' : 'Make Admin'}
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 italic">(You)</span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Live Presence */}

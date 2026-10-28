@@ -66,6 +66,7 @@ export default function Login() {
       username: createName.trim().toLowerCase(),
       pin: createPin.trim(),
       isAdmin: true,
+      role: 'admin',
       deviceId: '',
       lastActivity: Date.now()
     };

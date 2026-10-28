@@ -23,7 +23,8 @@ import {
   Layers,
   ArrowUpDown,
   Phone,
-  FileCheck
+  FileCheck,
+  Folder
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -33,6 +34,7 @@ import StatCard from '../components/ui/StatCard';
 import { Card } from '../components/ui/Card';
 import TransactionDetailModal from '../components/TransactionDetailModal';
 import { formatAmountInWords } from '../lib/numberToWords';
+import { fetchPartyGroups, mergePartyGroups } from '../lib/partyGroupService';
 
 type DatePreset = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'all_time' | 'custom';
 type StatementViewMode = 'party_wise' | 'flat';
@@ -86,16 +88,12 @@ export default function Statement() {
   const [endDate, setEndDate] = useState<string>(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
   
   const [selectedLedgerId, setSelectedLedgerId] = useState<string>('ACTIVE'); // 'ALL' | 'ACTIVE' | specific ledger id
+  const [selectedGroup, setSelectedGroup] = useState<string>('ALL'); // 'ALL' | '__UNGROUPED__' | group name
+  const [savedGroups, setSavedGroups] = useState<string[]>([]);
   const [selectedPartyId, setSelectedPartyId] = useState<string>('ALL'); // 'ALL' | specific party id
   const [partySearch, setPartySearch] = useState<string>('');
   const [showPartyDropdown, setShowPartyDropdown] = useState<boolean>(false);
-  
-  const [txTypeFilter, setTxTypeFilter] = useState<'ALL' | 'DEBIT' | 'CREDIT'>('ALL');
-  const [paymentModeFilter, setPaymentModeFilter] = useState<string>('ALL');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [minAmount, setMinAmount] = useState<string>('');
-  const [maxAmount, setMaxAmount] = useState<string>('');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc'); // chronological order within party / table
+  const [hasGenerated, setHasGenerated] = useState<boolean>(false);
   
   // UI View Mode
   const [viewMode, setViewMode] = useState<StatementViewMode>('party_wise');
@@ -219,18 +217,88 @@ export default function Statement() {
     }
   };
 
+  // Fetch party groups for current ledger
+  useEffect(() => {
+    if (activeLedger?.id) {
+      fetchPartyGroups(activeLedger.id).then(setSavedGroups).catch(() => {});
+    }
+  }, [activeLedger?.id]);
+
   // Determine current effective Ledger ID
   const effectiveLedgerId = selectedLedgerId === 'ACTIVE' 
     ? (activeLedger?.id || 'ALL') 
     : selectedLedgerId;
 
-  // List of parties filtered by ledger
-  const availableParties = useMemo(() => {
+  // Merged unique groups list
+  const allGroups = useMemo(() => {
+    const partyList = (Object.values(parties) as Party[]).filter(p => {
+      if (effectiveLedgerId !== 'ALL' && p.ledgerId !== effectiveLedgerId) return false;
+      return true;
+    });
+    return mergePartyGroups(partyList, savedGroups);
+  }, [parties, savedGroups, effectiveLedgerId]);
+
+  // Group party counts
+  const groupPartyCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const partyList = (Object.values(parties) as Party[]).filter(p => {
+      if (effectiveLedgerId !== 'ALL' && p.ledgerId !== effectiveLedgerId) return false;
+      return true;
+    });
+    partyList.forEach(p => {
+      const g = (p.group || '').trim();
+      if (g) counts[g] = (counts[g] || 0) + 1;
+    });
+    return counts;
+  }, [parties, effectiveLedgerId]);
+
+  const ungroupedCount = useMemo(() => {
+    return (Object.values(parties) as Party[]).filter(p => {
+      if (effectiveLedgerId !== 'ALL' && p.ledgerId !== effectiveLedgerId) return false;
+      return !p.group || p.group.trim() === '';
+    }).length;
+  }, [parties, effectiveLedgerId]);
+
+  const totalLedgerPartiesCount = useMemo(() => {
     return (Object.values(parties) as Party[]).filter(p => {
       if (effectiveLedgerId !== 'ALL' && p.ledgerId !== effectiveLedgerId) return false;
       return true;
-    }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }).length;
   }, [parties, effectiveLedgerId]);
+
+  // List of parties filtered by ledger and selected group
+  const availableParties = useMemo(() => {
+    return (Object.values(parties) as Party[]).filter(p => {
+      if (effectiveLedgerId !== 'ALL' && p.ledgerId !== effectiveLedgerId) return false;
+      if (selectedGroup !== 'ALL') {
+        if (selectedGroup === '__UNGROUPED__') {
+          if (p.group && p.group.trim() !== '') return false;
+        } else {
+          if ((p.group || '').trim().toLowerCase() !== selectedGroup.toLowerCase()) return false;
+        }
+      }
+      return true;
+    }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [parties, effectiveLedgerId, selectedGroup]);
+
+  // Handle group change: reset selected party if not in the new group
+  const handleGroupChange = (grp: string) => {
+    setSelectedGroup(grp);
+    if (selectedPartyId !== 'ALL') {
+      const partyObj = parties[selectedPartyId];
+      if (partyObj) {
+        if (grp === '__UNGROUPED__') {
+          if (partyObj.group && partyObj.group.trim() !== '') {
+            setSelectedPartyId('ALL');
+          }
+        } else if (grp !== 'ALL') {
+          if ((partyObj.group || '').trim().toLowerCase() !== grp.toLowerCase()) {
+            setSelectedPartyId('ALL');
+          }
+        }
+      }
+    }
+  };
 
   // Selected party object
   const selectedParty = selectedPartyId !== 'ALL' ? parties[selectedPartyId] || null : null;
@@ -273,6 +341,15 @@ export default function Statement() {
       // Find parties for this ledger
       let ledgerParties = (Object.values(parties) as Party[]).filter(p => p.ledgerId === ledger.id);
       
+      // If user selected a group, filter down
+      if (selectedGroup !== 'ALL') {
+        if (selectedGroup === '__UNGROUPED__') {
+          ledgerParties = ledgerParties.filter(p => !p.group || p.group.trim() === '');
+        } else {
+          ledgerParties = ledgerParties.filter(p => (p.group || '').trim().toLowerCase() === selectedGroup.toLowerCase());
+        }
+      }
+
       // If user selected a specific party, filter down
       if (selectedPartyId !== 'ALL') {
         ledgerParties = ledgerParties.filter(p => p.id === selectedPartyId);
@@ -313,26 +390,6 @@ export default function Statement() {
         // 2. Filter transactions in current period
         const periodTx = partyAllTx.filter(tx => {
           if (tx.timestamp < startTimestamp || tx.timestamp > endTimestamp) return false;
-          if (txTypeFilter !== 'ALL' && tx.type !== txTypeFilter) return false;
-
-          if (paymentModeFilter !== 'ALL') {
-            const mode = (tx.paymentMode || 'CASH').toUpperCase();
-            if (paymentModeFilter === 'CASH' && mode !== 'CASH') return false;
-            if (paymentModeFilter === 'BANK' && !['BANK', 'ONLINE', 'UPI', 'CHEQUE'].includes(mode)) return false;
-            if (paymentModeFilter === 'DISCOUNT' && !['DISCOUNT', 'ADJUSTMENT'].includes(mode)) return false;
-          }
-
-          if (minAmount && tx.amount < parseFloat(minAmount)) return false;
-          if (maxAmount && tx.amount > parseFloat(maxAmount)) return false;
-
-          if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase().trim();
-            const invoiceNo = (tx.invoiceNo || '').toLowerCase();
-            const notes = (tx.notes || '').toLowerCase();
-            const matches = invoiceNo.includes(q) || notes.includes(q);
-            if (!matches) return false;
-          }
-
           return true;
         });
 
@@ -373,7 +430,7 @@ export default function Statement() {
         });
 
         // Include party if has opening balance != 0 OR has transactions in period OR specific party selected
-        if (selectedPartyId !== 'ALL' || partyOpening !== 0 || txRows.length > 0 || !searchQuery) {
+        if (selectedPartyId !== 'ALL' || partyOpening !== 0 || txRows.length > 0) {
           groupTotalDebits += partyDebits;
           groupTotalCredits += partyCredits;
           groupClosingBalance += running;
@@ -382,7 +439,7 @@ export default function Statement() {
             party,
             ledger,
             openingBalance: partyOpening,
-            transactions: sortOrder === 'desc' ? [...txRows].reverse() : txRows,
+            transactions: txRows,
             totalDebits: partyDebits,
             totalCredits: partyCredits,
             netMovement: partyDebits - partyCredits,
@@ -416,14 +473,9 @@ export default function Statement() {
     ledgers,
     activeLedger,
     effectiveLedgerId,
+    selectedGroup,
     selectedPartyId,
-    partySearch,
-    txTypeFilter,
-    paymentModeFilter,
-    minAmount,
-    maxAmount,
-    searchQuery,
-    sortOrder
+    partySearch
   ]);
 
   // Overall Global Summary Stats
@@ -498,9 +550,9 @@ export default function Statement() {
     });
 
     // Sort strictly chronological
-    allRows.sort((a, b) => sortOrder === 'desc' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp);
+    allRows.sort((a, b) => a.timestamp - b.timestamp);
     return allRows;
-  }, [ledgerGroupsData, sortOrder]);
+  }, [ledgerGroupsData]);
 
   // Format currency
   const formatCurrency = (val: number) => {
@@ -1196,7 +1248,14 @@ export default function Statement() {
 
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => {
+                  if (!hasGenerated) {
+                    setHasGenerated(true);
+                    setTimeout(() => window.print(), 200);
+                  } else {
+                    window.print();
+                  }
+                }}
                 className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Printer size={14} />
@@ -1209,7 +1268,7 @@ export default function Statement() {
                   <button
                     type="button"
                     onClick={handleExportPartyWiseCsv}
-                    disabled={isExportingCsv || globalSummary.totalPartiesCount === 0}
+                    disabled={!hasGenerated || isExportingCsv || globalSummary.totalPartiesCount === 0}
                     className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-l-lg flex items-center gap-1.5 transition-colors cursor-pointer"
                     title="Download Party-Wise CSV (Sales parties first, then Purchases)"
                   >
@@ -1285,7 +1344,7 @@ export default function Statement() {
               <button
                 type="button"
                 onClick={handleExportExcel}
-                disabled={isExportingExcel || globalSummary.totalPartiesCount === 0}
+                disabled={!hasGenerated || isExportingExcel || globalSummary.totalPartiesCount === 0}
                 className="px-3 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <FileSpreadsheet size={14} />
@@ -1296,7 +1355,7 @@ export default function Statement() {
               <button
                 type="button"
                 onClick={handleExportPdf}
-                disabled={isExportingPdf || globalSummary.totalPartiesCount === 0}
+                disabled={!hasGenerated || isExportingPdf || globalSummary.totalPartiesCount === 0}
                 className="px-3.5 py-2 bg-[#0055a5] hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <FileText size={14} />
@@ -1311,13 +1370,10 @@ export default function Statement() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-3 sm:p-3.5 space-y-2.5 print:hidden">
         
         {/* Preset Date Range Buttons */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-              <Calendar size={13} className="text-[#0055a5]" />
-              Date Presets & Period
-            </span>
-            <span className="text-[10px] text-slate-400">Select standard duration or pick custom dates</span>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+            <Calendar size={13} className="text-[#0055a5]" />
+            <span>Select Details & Date</span>
           </div>
 
           <div className="flex items-center gap-1 overflow-x-auto pb-0.5 custom-scrollbar">
@@ -1335,9 +1391,9 @@ export default function Statement() {
                 key={p.key}
                 type="button"
                 onClick={() => handlePresetChange(p.key as DatePreset)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                className={`px-2 py-0.5 rounded text-[10.5px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   datePreset === p.key
-                    ? 'bg-[#0055a5] text-white shadow-xs'
+                    ? 'bg-[#0055a5] text-white shadow-2xs'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
                 }`}
               >
@@ -1347,66 +1403,39 @@ export default function Statement() {
           </div>
         </div>
 
-        {/* Date Inputs & Primary Selectors */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-2 border-t border-slate-100">
+        {/* Primary Controls Row: Party Group, Party / Account, Start Date, End Date, and Generate Statement Action */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 items-end pt-2 border-t border-slate-100">
           
-          {/* Start Date */}
+          {/* 1. Party Group Selector */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">
-              Start Date (From)
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => {
-                setStartDate(e.target.value);
-                setDatePreset('custom');
-              }}
-              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
-            />
-          </div>
-
-          {/* End Date */}
-          <div>
-            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">
-              End Date (To)
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => {
-                setEndDate(e.target.value);
-                setDatePreset('custom');
-              }}
-              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
-            />
-          </div>
-
-          {/* Ledger Book Selector */}
-          <div>
-            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">
-              Ledger Book Scope
+            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
+              <Folder size={12} className="text-[#0055a5]" />
+              <span>Party Group</span>
             </label>
             <select
-              value={selectedLedgerId}
-              onChange={(e) => {
-                setSelectedLedgerId(e.target.value);
-                setSelectedPartyId('ALL');
-              }}
-              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
+              value={selectedGroup}
+              onChange={(e) => handleGroupChange(e.target.value)}
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
             >
-              <option value="ACTIVE">Active Ledger: {activeLedger?.name || 'Active'}</option>
-              <option value="ALL">All Combined Ledgers (Consolidated)</option>
-              {ledgers.map(l => (
-                <option key={l.id} value={l.id}>{l.name} ({LEDGER_TYPE_LABELS[l.type] || l.type})</option>
+              <option value="ALL">All Groups ({totalLedgerPartiesCount} Parties)</option>
+              {allGroups.map(grp => (
+                <option key={grp} value={grp}>
+                  {grp} ({groupPartyCounts[grp] || 0} {groupPartyCounts[grp] === 1 ? 'party' : 'parties'})
+                </option>
               ))}
+              {ungroupedCount > 0 && (
+                <option value="__UNGROUPED__">No Group / Ungrouped ({ungroupedCount})</option>
+              )}
             </select>
           </div>
 
-          {/* Account / Party Autocomplete Selector */}
+          {/* 2. Account / Party Autocomplete Selector */}
           <div className="relative" ref={partyDropdownRef}>
-            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5 flex items-center justify-between">
-              <span>Party / Account</span>
+            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <Users size={12} className="text-[#0055a5]" />
+                <span>Party / Account</span>
+              </span>
               {selectedPartyId !== 'ALL' && (
                 <button
                   type="button"
@@ -1420,7 +1449,7 @@ export default function Statement() {
             
             <div 
               onClick={() => setShowPartyDropdown(true)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 flex items-center justify-between cursor-pointer hover:border-slate-400 transition-colors"
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 flex items-center justify-between cursor-pointer hover:border-slate-400 transition-colors"
             >
               <span className="truncate">
                 {selectedParty ? selectedParty.name : `All Parties (${availableParties.length})`}
@@ -1438,21 +1467,21 @@ export default function Statement() {
                     value={partySearch}
                     onChange={(e) => setPartySearch(e.target.value)}
                     placeholder="Search party name or phone..."
-                    className="w-full pl-7.5 pr-2.5 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
+                    className="w-full pl-7.5 pr-2.5 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#0055a5]"
                     autoFocus
                   />
                 </div>
 
-                <div className="max-h-48 overflow-y-auto space-y-0.5 custom-scrollbar">
+                <div className="max-h-52 overflow-y-auto space-y-0.5 custom-scrollbar">
                   <button
                     type="button"
                     onClick={() => { setSelectedPartyId('ALL'); setShowPartyDropdown(false); }}
-                    className={`w-full text-left px-2 py-1.2 text-[11px] rounded-md flex items-center justify-between ${
+                    className={`w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center justify-between ${
                       selectedPartyId === 'ALL' ? 'bg-[#0055a5] text-white font-bold' : 'hover:bg-slate-100 text-slate-700'
                     }`}
                   >
-                    <span>All Parties (Consolidated)</span>
-                    <span className="text-[9.5px] opacity-75">{availableParties.length} total</span>
+                    <span>All Parties {selectedGroup !== 'ALL' ? (selectedGroup === '__UNGROUPED__' ? '(Ungrouped)' : `in ${selectedGroup}`) : '(Consolidated)'}</span>
+                    <span className="text-[10px] opacity-75">{availableParties.length} total</span>
                   </button>
 
                   {availableParties
@@ -1462,12 +1491,19 @@ export default function Statement() {
                         key={p.id}
                         type="button"
                         onClick={() => { setSelectedPartyId(p.id); setShowPartyDropdown(false); }}
-                        className={`w-full text-left px-2 py-1.2 text-[11px] rounded-md flex items-center justify-between ${
+                        className={`w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center justify-between ${
                           selectedPartyId === p.id ? 'bg-[#0055a5] text-white font-bold' : 'hover:bg-slate-100 text-slate-700'
                         }`}
                       >
-                        <span className="truncate font-medium">{p.name}</span>
-                        <span className={`text-[9.5px] font-mono shrink-0 ml-2 ${selectedPartyId === p.id ? 'text-white' : (p.currentDue || 0) >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        <div className="truncate pr-2">
+                          <span className="font-medium">{p.name}</span>
+                          {p.group && (
+                            <span className="ml-1.5 text-[9.5px] opacity-75 font-normal">
+                              ({p.group})
+                            </span>
+                          )}
+                        </div>
+                        <span className={`text-[10px] font-mono shrink-0 ml-1 ${selectedPartyId === p.id ? 'text-white' : (p.currentDue || 0) >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                           ₹{Math.abs(p.currentDue || 0).toLocaleString()} {(p.currentDue || 0) >= 0 ? 'Dr' : 'Cr'}
                         </span>
                       </button>
@@ -1476,105 +1512,108 @@ export default function Statement() {
               </div>
             )}
           </div>
+
+          {/* 3. Start Date */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
+              <Calendar size={12} className="text-[#0055a5]" />
+              <span>Start Date (From)</span>
+            </label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setDatePreset('custom');
+              }}
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
+            />
+          </div>
+
+          {/* 4. End Date */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
+              <Calendar size={12} className="text-[#0055a5]" />
+              <span>End Date (To)</span>
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setDatePreset('custom');
+              }}
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
+            />
+          </div>
+
+          {/* 5. Generate Statement Button */}
+          <div>
+            <label className="hidden lg:block text-[10px] font-bold text-transparent uppercase tracking-wider mb-1 select-none">
+              Action
+            </label>
+            <button
+              type="button"
+              onClick={() => setHasGenerated(true)}
+              className="w-full h-[34px] px-3 bg-[#0055a5] hover:bg-blue-700 active:scale-98 text-white text-xs font-bold rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            >
+              <FileCheck size={14} />
+              <span>{hasGenerated ? 'Update Statement' : 'Generate Statement'}</span>
+            </button>
+          </div>
+
         </div>
 
-        {/* Secondary Detailed Filters Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-2 border-t border-slate-100">
-          
-          {/* Movement Type */}
-          <div>
-            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">
-              Transaction Type
-            </label>
-            <select
-              value={txTypeFilter}
-              onChange={(e) => setTxTypeFilter(e.target.value as any)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
-            >
-              <option value="ALL">All Entries (Debits & Credits)</option>
-              <option value="DEBIT">Debits Only (Sales / Charges / Outward)</option>
-              <option value="CREDIT">Credits Only (Receipts / Collections / Payments)</option>
-            </select>
-          </div>
+      </div>
 
-          {/* Payment Mode */}
-          <div>
-            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">
-              Payment Mode
-            </label>
-            <select
-              value={paymentModeFilter}
-              onChange={(e) => setPaymentModeFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
-            >
-              <option value="ALL">All Payment Modes</option>
-              <option value="CASH">Cash Only</option>
-              <option value="BANK">Bank / Online / UPI / Cheque</option>
-              <option value="DISCOUNT">Discount / Adjustments</option>
-            </select>
+      {!hasGenerated ? (
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-8 sm:p-12 text-center max-w-xl mx-auto my-8 print:hidden">
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-200/70 text-[#0055a5] flex items-center justify-center mx-auto mb-4 shadow-2xs">
+            <FileText size={32} />
           </div>
+          <h3 className="text-base font-bold text-slate-800 mb-1.5">
+            Ledger Account Statement
+          </h3>
+          <p className="text-xs text-slate-500 mb-5 max-w-md mx-auto leading-relaxed">
+            Choose your <span className="font-semibold text-slate-700">Party Group</span>, <span className="font-semibold text-slate-700">Party / Account</span>, and <span className="font-semibold text-slate-700">Date Range</span> above, then click <span className="font-bold text-[#0055a5]">Generate Statement</span> to calculate and display the statement.
+          </p>
+          <button
+            type="button"
+            onClick={() => setHasGenerated(true)}
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#0055a5] hover:bg-blue-700 active:scale-98 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+          >
+            <FileCheck size={16} />
+            <span>Generate Statement</span>
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Printable Formal Statement Header (Shown on print) */}
+          <div className="hidden print:block mb-6 text-slate-900 border-b-2 border-slate-800 pb-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h1 className="text-2xl font-black uppercase tracking-wider text-[#0055a5]">Greenzar Food & Beverage ERP</h1>
+                <p className="text-xs font-medium text-slate-600">Official Financial Ledger & Account Statement</p>
+              </div>
+              <div className="text-right text-xs">
+                <p className="font-bold">Period: {startDate} to {endDate}</p>
+                <p className="text-slate-500">Printed on: {format(new Date(), 'dd-MMM-yyyy hh:mm a')}</p>
+              </div>
+            </div>
 
-          {/* Search Query */}
-          <div>
-            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">
-              Search Invoice / Memo
-            </label>
-            <div className="relative">
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Invoice #, note, bill..."
-                className="w-full pl-7.5 pr-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
-              />
+            <div className="mt-3 pt-3 border-t border-slate-200 grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <p className="font-bold uppercase text-slate-500 text-[10px]">Statement For</p>
+                <p className="text-sm font-bold text-slate-900">{selectedParty ? selectedParty.name : selectedGroup !== 'ALL' ? (selectedGroup === '__UNGROUPED__' ? 'Ungrouped Accounts' : `Group: ${selectedGroup}`) : 'All Consolidated Accounts'}</p>
+                {selectedParty?.phone && <p className="text-slate-600">Phone: {selectedParty.phone}</p>}
+                {selectedGroup !== 'ALL' && selectedParty && <p className="text-slate-500 text-[10px]">Group: {selectedGroup}</p>}
+              </div>
+              <div className="text-right">
+                <p className="font-bold uppercase text-slate-500 text-[10px]">Ledger Scope</p>
+                <p className="font-semibold text-slate-800">{ledgers.find(l => l.id === effectiveLedgerId)?.name || 'Consolidated Ledgers'}</p>
+              </div>
             </div>
           </div>
-
-          {/* Sort Order */}
-          <div>
-            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">
-              Sort Order (Date-wise)
-            </label>
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as any)}
-              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-medium text-slate-800 focus:border-[#0055a5] focus:bg-white focus:outline-none transition-colors"
-            >
-              <option value="asc">Earliest to Latest (Opening ➔ Closing)</option>
-              <option value="desc">Latest to Earliest (Newest First)</option>
-            </select>
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* Printable Formal Statement Header (Shown on print) */}
-      <div className="hidden print:block mb-6 text-slate-900 border-b-2 border-slate-800 pb-4">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-black uppercase tracking-wider text-[#0055a5]">Greenzar Food & Beverage ERP</h1>
-            <p className="text-xs font-medium text-slate-600">Official Financial Ledger & Account Statement</p>
-          </div>
-          <div className="text-right text-xs">
-            <p className="font-bold">Period: {startDate} to {endDate}</p>
-            <p className="text-slate-500">Printed on: {format(new Date(), 'dd-MMM-yyyy hh:mm a')}</p>
-          </div>
-        </div>
-
-        <div className="mt-3 pt-3 border-t border-slate-200 grid grid-cols-2 gap-4 text-xs">
-          <div>
-            <p className="font-bold uppercase text-slate-500 text-[10px]">Statement For</p>
-            <p className="text-sm font-bold text-slate-900">{selectedParty ? selectedParty.name : 'All Consolidated Accounts'}</p>
-            {selectedParty?.phone && <p className="text-slate-600">Phone: {selectedParty.phone}</p>}
-          </div>
-          <div className="text-right">
-            <p className="font-bold uppercase text-slate-500 text-[10px]">Ledger Scope</p>
-            <p className="font-semibold text-slate-800">{ledgers.find(l => l.id === effectiveLedgerId)?.name || 'Consolidated Ledgers'}</p>
-          </div>
-        </div>
-      </div>
 
       {/* Executive Summary KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-2.5">
@@ -2006,6 +2045,8 @@ export default function Statement() {
             </table>
           </div>
         </Card>
+      )}
+        </>
       )}
 
     </div>

@@ -1199,394 +1199,497 @@ export default function MasterEntry() {
         /* ============================================================ */
         /* CLASSIC / OLD DESKTOP INTERFACE                             */
         /* ============================================================ */
-        <div className="p-6 md:p-8 max-w-4xl mx-auto w-full pb-16 font-sans">
-          {/* Header matching screenshot */}
-          <div className="mb-4">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium mb-1.5">
-              <Home size={14} className="text-blue-600 shrink-0" />
-              <button 
-                type="button" 
-                onClick={() => navigate('/')} 
-                className="hover:text-blue-600 transition-colors cursor-pointer"
-              >
-                Home
-              </button>
-              <ChevronRight size={12} className="text-slate-400 shrink-0" />
-              <span className="text-slate-600">Input</span>
-            </div>
-            
-            <div className="flex items-start sm:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0f172a] tracking-tight">Master Entry</h1>
-                <p className="text-xs text-slate-500 mt-0.5">Quick voucher posting for {activeLedger.name}</p>
+        <div className="w-full min-h-screen bg-white md:bg-[#F8FAFC] pb-16 font-sans">
+          <div className="w-full min-h-screen bg-white flex flex-col relative md:max-w-5xl lg:max-w-7xl md:mx-auto md:my-4 md:rounded-2xl md:border md:border-slate-200/80 md:shadow-xs p-4 sm:p-6 md:p-8 overflow-hidden">
+            {/* Header matching screenshot */}
+            <div className="mb-6 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium mb-1.5">
+                <Home size={14} className="text-blue-600 shrink-0" />
+                <button 
+                  type="button" 
+                  onClick={() => navigate('/')} 
+                  className="hover:text-blue-600 transition-colors cursor-pointer"
+                >
+                  Home
+                </button>
+                <ChevronRight size={12} className="text-slate-400 shrink-0" />
+                <span className="text-slate-600 font-semibold">Master Entry / Input</span>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setShowPendingBillsModal(true)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-normal text-slate-700 hover:bg-slate-50 transition shadow-2xs cursor-pointer active:scale-95"
-                title={`${todayPendingBills.length} pending orders waiting to be debited`}
-              >
-                <FileText size={15} className="text-blue-600" />
-                <span>Unlisted Orders</span>
-                <span className="bg-amber-100 text-amber-700 text-[10px] font-medium px-1.5 py-0.5 rounded-full min-w-4 text-center">
-                  {todayPendingBills.length}
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {/* Desktop Entry Card */}
-          <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white mt-4">
-            <CardHeader
-              title={
-                <h3 className="font-bold text-base text-slate-900">Record Transaction Voucher</h3>
-              }
-            />
-
-            <CardBody className="p-6 space-y-5">
-              <form onSubmit={handlePreSubmit} className="space-y-5">
-                {/* 1. Debit / Credit Selection Checkboxes */}
+              
+              <div className="flex items-start sm:items-center justify-between gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2.5">
-                    VOUCHER TYPE <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="flex items-center gap-7">
-                    {/* Debit Checkbox */}
-                    <button
-                      type="button"
-                      onClick={() => !isInvoiceAlreadyDebited && handleTypeChange('DEBIT')}
-                      disabled={isInvoiceAlreadyDebited}
-                      className={`flex items-center gap-2 select-none transition group cursor-pointer ${
-                        isInvoiceAlreadyDebited ? 'opacity-35 cursor-not-allowed pointer-events-none' : ''
-                      }`}
-                    >
-                      <div
-                        className={`w-5 h-5 rounded-md flex items-center justify-center transition border ${
-                          type === 'DEBIT'
-                            ? 'bg-[#e11d48] border-[#e11d48] text-white shadow-xs'
-                            : 'bg-white border-slate-300 group-hover:border-slate-400'
-                        }`}
-                      >
-                        {type === 'DEBIT' && <Check size={14} strokeWidth={3.2} />}
-                      </div>
-                      <span className="text-sm font-bold text-[#e11d48]">
-                        Debit (Dr)
-                      </span>
-                      {isInvoiceAlreadyDebited && (
-                        <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">
-                          Already Debited
-                        </span>
-                      )}
-                    </button>
-
-                    {/* Credit Checkbox */}
-                    <button
-                      type="button"
-                      onClick={() => !isCreditDisabledByInvoice && !isExpenseLedger && handleTypeChange('CREDIT')}
-                      disabled={isExpenseLedger || isCreditDisabledByInvoice}
-                      className={`flex items-center gap-2 select-none transition group cursor-pointer ${
-                        isExpenseLedger || isCreditDisabledByInvoice ? 'opacity-35 cursor-not-allowed pointer-events-none' : ''
-                      }`}
-                    >
-                      <div
-                        className={`w-5 h-5 rounded-md flex items-center justify-center transition border ${
-                          type === 'CREDIT'
-                            ? 'bg-[#059669] border-[#059669] text-white shadow-xs'
-                            : 'bg-white border-slate-300 group-hover:border-slate-400'
-                        }`}
-                      >
-                        {type === 'CREDIT' && <Check size={14} strokeWidth={3.2} />}
-                      </div>
-                      <span className="text-sm font-bold text-[#059669]">
-                        Credit (Cr)
-                      </span>
-                      {isCreditDisabledByInvoice && (
-                        <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">
-                          Must Debit First
-                        </span>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Warning message when invoice is already debited (no bg, no border) */}
-                  {isInvoiceAlreadyDebited && (
-                    <div className="mt-2 text-xs flex items-center gap-1.5 text-slate-600">
-                      <AlertTriangle size={14} className="text-amber-600 shrink-0" />
-                      <span className="font-semibold text-slate-800">Invoice #{invoiceNo.toUpperCase()} is already debited.</span>
-                    </div>
-                  )}
-
-                  {/* Info message when invoice must be debited first (no bg, no border) */}
-                  {isCreditDisabledByInvoice && (
-                    <div className="mt-2 text-xs flex items-center gap-1.5 text-slate-600">
-                      <AlertTriangle size={14} className="text-sky-600 shrink-0" />
-                      <span className="font-semibold text-slate-800">Invoice #{invoiceNo.toUpperCase()} must be debited first.</span>
-                    </div>
-                  )}
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0f172a] tracking-tight">Master Entry</h1>
+                  <p className="text-xs text-slate-500 mt-0.5">Quick voucher posting for {activeLedger.name}</p>
                 </div>
 
-                {/* Separate Cash & Bank Option (if Credit and not Expense) */}
-                {type === 'CREDIT' && !isExpenseLedger && (
-                  <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
-                    <label htmlFor="desktopSeparateCredit" className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-700 select-none">
-                      <input
-                        type="checkbox"
-                        id="desktopSeparateCredit"
-                        checked={separateCredit}
-                        onChange={e => setSeparateCredit(e.target.checked)}
-                        className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
-                      />
-                      <span>Separate Credit</span>
-                    </label>
-                    <span className="text-[10px] font-mono text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded">
-                      F3 / Alt+S
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPendingBillsModal(true)}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs cursor-pointer active:scale-95"
+                    title={`${todayPendingBills.length} pending orders waiting to be debited`}
+                  >
+                    <FileText size={15} className="text-[#0055a5]" />
+                    <span>Unlisted Orders</span>
+                    <span className="bg-blue-50 text-[#0055a5] border border-blue-200/60 text-[10px] font-bold px-2 py-0.5 rounded-full min-w-5 text-center">
+                      {todayPendingBills.length}
                     </span>
-                  </div>
-                )}
+                  </button>
 
-                {/* 2. Form Inputs Grid: Invoice No & Account Party */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Invoice Number */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
-                      INVOICE / REF NO. <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        ref={invoiceRef}
-                        type="text"
-                        value={invoiceNo}
-                        onKeyDown={handleInvoiceKeyDown}
-                        onBlur={handleInvoiceBlur}
-                        onChange={e => { setInvoiceNo(e.target.value.toUpperCase()); setPartyLockedByInvoice(false); setLockedInvoiceDetails(null); }}
-                        placeholder={isSaleLedger ? "REQUIRED FOR SALE" : "OPTIONAL (REF OR INV)"}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-mono uppercase text-slate-900 placeholder:text-slate-400 placeholder:font-sans placeholder:normal-case focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
-                      />
-                      {isCheckingInvoice && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-blue-600 border-t-transparent" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/log')}
+                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+                  >
+                    Day Log →
+                  </button>
+                </div>
+              </div>
+            </div>
 
-                  {/* Account Party */}
-                  <div className="relative">
-                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
-                      ACCOUNT PARTY <span className="text-rose-500">*</span>
-                    </label>
-                    {partyLockedByInvoice && selectedParty ? (
-                      <div className="h-[44px] px-3.5 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-900 truncate">{selectedParty.name}</span>
-                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-slate-200 text-slate-700">Locked</span>
+            {/* Desktop 2-Column Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              {/* Left Column: Voucher Form (col-span-7) */}
+              <div className="lg:col-span-7 space-y-4">
+                {/* Desktop Entry Card */}
+                <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white">
+                  <CardHeader
+                    title={
+                      <div className="flex items-center justify-between w-full">
+                        <h3 className="font-bold text-base text-slate-900">Record Transaction Voucher</h3>
+                        <span className="text-[11px] font-mono text-slate-400">Ledger: {activeLedger.name}</span>
                       </div>
-                    ) : !selectedParty ? (
-                      <div className="relative">
-                        <input
-                          ref={partySearchRef}
-                          type="text"
-                          value={partySearch}
-                          onChange={e => setPartySearch(e.target.value)}
-                          onKeyDown={handlePartySearchKeyDown}
-                          placeholder="Search party by name or phone..."
-                          disabled={isSaleLedger && !invoiceNo.trim()}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition disabled:bg-slate-50 disabled:cursor-not-allowed"
-                        />
-                        {partySearch && (
-                          <div className="absolute z-30 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100 left-0">
-                            {filteredParties.length > 0 ? (
-                              filteredParties.map((p, idx) => (
-                                <button
-                                  key={p.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedParty(p);
-                                    setPartySearch('');
-                                    setTimeout(() => {
-                                      if (type === 'CREDIT' && separateCredit) {
-                                        cashAmountRef.current?.focus();
-                                      } else {
-                                        amountRef.current?.focus();
-                                      }
-                                    }, 10);
-                                  }}
-                                  className={`w-full text-left px-3.5 py-2.5 flex justify-between items-center transition cursor-pointer ${
-                                    idx === searchSelectedIndex ? 'bg-sky-50 border-l-3 border-blue-600 pl-2.5' : 'hover:bg-slate-50'
-                                  }`}
-                                >
-                                  <div>
-                                    <span className="font-bold text-slate-900 text-xs block">{p.name}</span>
-                                    {p.address && <span className="text-[10.5px] text-slate-400 block">{p.address}</span>}
-                                  </div>
-                                  <div className="text-right">
-                                    <span className="text-slate-500 font-mono text-[11px] block">{p.phone}</span>
-                                    <span className="text-[10px] font-semibold text-slate-600 block">
-                                      ₹{Math.abs(p.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {p.currentDue >= 0 ? 'DR' : 'CR'}
-                                    </span>
-                                  </div>
-                                </button>
-                              ))
-                            ) : (
-                              <div className="px-3 py-2.5 text-slate-400 text-xs text-center">
-                                No matching parties found.
-                              </div>
+                    }
+                  />
+
+                  <CardBody className="p-6 space-y-5">
+                    <form onSubmit={handlePreSubmit} className="space-y-5">
+                      {/* 1. Debit / Credit Selection Checkboxes */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2.5">
+                          VOUCHER TYPE <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="flex items-center gap-7">
+                          {/* Debit Checkbox */}
+                          <button
+                            type="button"
+                            onClick={() => !isInvoiceAlreadyDebited && handleTypeChange('DEBIT')}
+                            disabled={isInvoiceAlreadyDebited}
+                            className={`flex items-center gap-2 select-none transition group cursor-pointer ${
+                              isInvoiceAlreadyDebited ? 'opacity-35 cursor-not-allowed pointer-events-none' : ''
+                            }`}
+                          >
+                            <div
+                              className={`w-5 h-5 rounded-md flex items-center justify-center transition border ${
+                                type === 'DEBIT'
+                                  ? 'bg-[#e11d48] border-[#e11d48] text-white shadow-xs'
+                                  : 'bg-white border-slate-300 group-hover:border-slate-400'
+                              }`}
+                            >
+                              {type === 'DEBIT' && <Check size={14} strokeWidth={3.2} />}
+                            </div>
+                            <span className="text-sm font-bold text-[#e11d48]">
+                              Debit (Dr)
+                            </span>
+                            {isInvoiceAlreadyDebited && (
+                              <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">
+                                Already Debited
+                              </span>
                             )}
+                          </button>
+
+                          {/* Credit Checkbox */}
+                          <button
+                            type="button"
+                            onClick={() => !isCreditDisabledByInvoice && !isExpenseLedger && handleTypeChange('CREDIT')}
+                            disabled={isExpenseLedger || isCreditDisabledByInvoice}
+                            className={`flex items-center gap-2 select-none transition group cursor-pointer ${
+                              isExpenseLedger || isCreditDisabledByInvoice ? 'opacity-35 cursor-not-allowed pointer-events-none' : ''
+                            }`}
+                          >
+                            <div
+                              className={`w-5 h-5 rounded-md flex items-center justify-center transition border ${
+                                type === 'CREDIT'
+                                  ? 'bg-[#059669] border-[#059669] text-white shadow-xs'
+                                  : 'bg-white border-slate-300 group-hover:border-slate-400'
+                              }`}
+                            >
+                              {type === 'CREDIT' && <Check size={14} strokeWidth={3.2} />}
+                            </div>
+                            <span className="text-sm font-bold text-[#059669]">
+                              Credit (Cr)
+                            </span>
+                            {isCreditDisabledByInvoice && (
+                              <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">
+                                Not Abl
+                              </span>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Warning message when invoice is already debited (no bg, no border) */}
+                        {isInvoiceAlreadyDebited && (
+                          <div className="mt-2 text-xs flex items-center gap-1.5 text-slate-600">
+                            <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+                            <span className="font-semibold text-slate-800">Invoice #{invoiceNo.toUpperCase()} is already debited.</span>
+                          </div>
+                        )}
+
+                        {/* Info message when invoice must be debited first (no bg, no border) */}
+                        {isCreditDisabledByInvoice && (
+                          <div className="mt-2 text-xs flex items-center gap-1.5 text-slate-600">
+                            <AlertTriangle size={14} className="text-sky-600 shrink-0" />
+                            <span className="font-semibold text-slate-800">Invoice #{invoiceNo.toUpperCase()} must be debited first.</span>
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <div className="h-[44px] px-3.5 border border-slate-200 rounded-xl bg-white flex items-center justify-between text-xs">
-                        <div className="min-w-0 pr-2">
-                          <div className="font-bold text-slate-900 truncate">{selectedParty.name}</div>
-                          <div className="text-[10.5px] text-slate-500 truncate">
-                            ₹{Math.abs(selectedParty.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {selectedParty.currentDue >= 0 ? 'DR' : 'CR'}
+
+                      {/* Separate Cash & Bank Option (if Credit and not Expense) */}
+                      {type === 'CREDIT' && !isExpenseLedger && (
+                        <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
+                          <label htmlFor="desktopSeparateCredit" className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-700 select-none">
+                            <input
+                              type="checkbox"
+                              id="desktopSeparateCredit"
+                              checked={separateCredit}
+                              onChange={e => setSeparateCredit(e.target.checked)}
+                              className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                            />
+                            <span>Separate Credit</span>
+                          </label>
+                          <span className="text-[10px] font-mono text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded">
+                            F3 / Alt+S
+                          </span>
+                        </div>
+                      )}
+
+                      {/* 2. Form Inputs Grid: Invoice No & Account Party */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Invoice Number */}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
+                            INVOICE / REF NO. <span className="text-rose-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              ref={invoiceRef}
+                              type="text"
+                              value={invoiceNo}
+                              onKeyDown={handleInvoiceKeyDown}
+                              onBlur={handleInvoiceBlur}
+                              onChange={e => { setInvoiceNo(e.target.value.toUpperCase()); setPartyLockedByInvoice(false); setLockedInvoiceDetails(null); }}
+                              placeholder={isSaleLedger ? "REQUIRED FOR SALE" : "OPTIONAL (REF OR INV)"}
+                              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-mono uppercase text-slate-900 placeholder:text-slate-400 placeholder:font-sans placeholder:normal-case focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+                            />
+                            {isCheckingInvoice && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-blue-600 border-t-transparent" />
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => { setSelectedParty(null); setTimeout(() => partySearchRef.current?.focus(), 10); }}
-                          className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer bg-slate-50 hover:bg-slate-100 px-2 py-1 rounded border border-slate-200 transition shrink-0"
+
+                        {/* Account Party */}
+                        <div className="relative">
+                          <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
+                            ACCOUNT PARTY <span className="text-rose-500">*</span>
+                          </label>
+                          {partyLockedByInvoice && selectedParty ? (
+                            <div className="h-[44px] px-3.5 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-between text-xs">
+                              <span className="font-bold text-slate-900 truncate">{selectedParty.name}</span>
+                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-slate-200 text-slate-700">Locked</span>
+                            </div>
+                          ) : !selectedParty ? (
+                            <div className="relative">
+                              <input
+                                ref={partySearchRef}
+                                type="text"
+                                value={partySearch}
+                                onChange={e => setPartySearch(e.target.value)}
+                                onKeyDown={handlePartySearchKeyDown}
+                                placeholder="Search party by name or phone..."
+                                disabled={isSaleLedger && !invoiceNo.trim()}
+                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition disabled:bg-slate-50 disabled:cursor-not-allowed"
+                              />
+                              {partySearch && (
+                                <div className="absolute z-30 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100 left-0">
+                                  {filteredParties.length > 0 ? (
+                                    filteredParties.map((p, idx) => (
+                                      <button
+                                        key={p.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedParty(p);
+                                          setPartySearch('');
+                                          setTimeout(() => {
+                                            if (type === 'CREDIT' && separateCredit) {
+                                              cashAmountRef.current?.focus();
+                                            } else {
+                                              amountRef.current?.focus();
+                                            }
+                                          }, 10);
+                                        }}
+                                        className={`w-full text-left px-3.5 py-2.5 flex justify-between items-center transition cursor-pointer ${
+                                          idx === searchSelectedIndex ? 'bg-sky-50 border-l-3 border-blue-600 pl-2.5' : 'hover:bg-slate-50'
+                                        }`}
+                                      >
+                                        <div>
+                                          <span className="font-bold text-slate-900 text-xs block">{p.name}</span>
+                                          {p.address && <span className="text-[10.5px] text-slate-400 block">{p.address}</span>}
+                                        </div>
+                                        <div className="text-right">
+                                          <span className="text-slate-500 font-mono text-[11px] block">{p.phone}</span>
+                                          <span className="text-[10px] font-semibold text-slate-600 block">
+                                            ₹{Math.abs(p.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {p.currentDue >= 0 ? 'DR' : 'CR'}
+                                          </span>
+                                        </div>
+                                      </button>
+                                    ))
+                                  ) : (
+                                    <div className="px-3 py-2.5 text-slate-400 text-xs text-center">
+                                      No matching parties found.
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="h-[44px] px-3.5 border border-slate-200 rounded-xl bg-white flex items-center justify-between text-xs">
+                              <div className="min-w-0 pr-2">
+                                <div className="font-bold text-slate-900 truncate">{selectedParty.name}</div>
+                                <div className="text-[10.5px] text-slate-500 truncate">
+                                  ₹{Math.abs(selectedParty.currentDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {selectedParty.currentDue >= 0 ? 'DR' : 'CR'}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => { setSelectedParty(null); setTimeout(() => partySearchRef.current?.focus(), 10); }}
+                                className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer bg-slate-50 hover:bg-slate-100 px-2 py-1 rounded border border-slate-200 transition shrink-0"
+                              >
+                                Change
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Live Billing Database Match Card */}
+                      {billingMatch && (
+                        <div 
+                          onClick={() => applyBillingMatch(billingMatch)}
+                          className="p-3 bg-blue-50/90 hover:bg-blue-100/70 border border-blue-200 rounded-xl transition cursor-pointer flex items-center justify-between"
                         >
-                          Change
+                          <div className="flex items-center gap-2.5">
+                            <FileText size={17} className="text-[#0055a5] shrink-0" />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-slate-900 text-xs">Bill #{billingMatch.bill_no}</span>
+                                <span className="text-slate-600 text-xs">({billingMatch.customer_name})</span>
+                              </div>
+                              <div className="text-[11px] text-slate-500 mt-0.5">
+                                Total Amount: <span className="font-bold text-[#0055a5] font-mono">₹{Number(billingMatch.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-xs font-semibold text-white bg-[#0055a5] hover:bg-blue-700 px-3 py-1.5 rounded-lg shadow-2xs transition">
+                            Apply Bill
+                          </span>
+                        </div>
+                      )}
+
+                      {/* 3. Amount Section */}
+                      {type === 'CREDIT' && separateCredit ? (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1.5">
+                              Cash Credit (₹) <span className="text-rose-500">*</span>
+                            </label>
+                            <input
+                              ref={cashAmountRef}
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={cashAmount}
+                              onChange={e => setCashAmount(e.target.value)}
+                              onKeyDown={handleCashAmountKeyDown}
+                              placeholder="0.00"
+                              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono font-semibold text-slate-900 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-blue-700 uppercase tracking-wider mb-1.5">
+                              Bank A/C Credit (₹) <span className="text-rose-500">*</span>
+                            </label>
+                            <input
+                              ref={acAmountRef}
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={acAmount}
+                              onChange={e => setAcAmount(e.target.value)}
+                              onKeyDown={handleAcAmountKeyDown}
+                              placeholder="0.00"
+                              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono font-semibold text-slate-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 outline-none"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
+                            VOUCHER AMOUNT (₹) <span className="text-rose-500">*</span>
+                          </label>
+                          <div className="flex items-stretch rounded-xl border border-slate-200 bg-white overflow-hidden focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 h-[46px] transition">
+                            <div className="w-12 bg-slate-50 border-r border-slate-200 flex items-center justify-center font-semibold text-slate-700 text-base select-none shrink-0">
+                              ₹
+                            </div>
+                            <input
+                              ref={amountRef}
+                              onKeyDown={handleAmountKeyDown}
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              value={amount}
+                              onChange={e => setAmount(e.target.value)}
+                              disabled={isSaleLedger && !invoiceNo.trim()}
+                              className="flex-1 px-4 text-sm font-semibold font-mono text-slate-900 outline-none placeholder:text-slate-400 bg-transparent disabled:bg-slate-50"
+                              placeholder="0.00"
+                            />
+                          </div>
+                          {amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0 && (
+                            <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
+                              <FileText size={13} className="text-slate-400 shrink-0" />
+                              <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">In words:</span>
+                              <span className="italic font-medium text-slate-700">{formatAmountInWords(amount)}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 4. Description Notes */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
+                          DESCRIPTION NOTES <span className="text-rose-500">*</span>
+                        </label>
+                        <textarea
+                          ref={notesRef}
+                          onKeyDown={handleNotesKeyDown}
+                          value={notes}
+                          onChange={e => handleTextChange(e, setNotes)}
+                          disabled={isSaleLedger && !invoiceNo.trim()}
+                          placeholder="Particulars / voucher remarks..."
+                          rows={3}
+                          className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition resize-y disabled:bg-slate-50 min-h-[90px]"
+                        />
+                      </div>
+
+                      {/* 5. Submit Button */}
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          disabled={isSubmitting || !invoiceNo.trim() || !selectedParty || (type === 'DEBIT' && isInvoiceAlreadyDebited) || (type === 'CREDIT' && isCreditDisabledByInvoice)}
+                          className={`w-full py-3.5 px-6 rounded-xl font-bold text-sm text-white shadow-xs flex items-center justify-center transition cursor-pointer active:scale-99 disabled:opacity-50 disabled:cursor-not-allowed ${
+                            (type === 'DEBIT' && isInvoiceAlreadyDebited) || (type === 'CREDIT' && isCreditDisabledByInvoice)
+                              ? 'bg-slate-400 cursor-not-allowed shadow-none'
+                              : type === 'DEBIT'
+                                ? 'bg-[#e11d48] hover:bg-[#cf153d]'
+                                : 'bg-[#059669] hover:bg-[#047857]'
+                          }`}
+                        >
+                          {isSubmitting ? (
+                            <span>Posting Voucher...</span>
+                          ) : (
+                            <span>Post {type === 'DEBIT' ? 'Debit' : 'Credit'} Voucher ({type === 'DEBIT' ? 'Dr' : 'Cr'})</span>
+                          )}
                         </button>
                       </div>
-                    )}
-                  </div>
-                </div>
+                    </form>
+                  </CardBody>
+                </Card>
+              </div>
 
-                {/* Live Billing Database Match Card */}
-                {billingMatch && (
-                  <div 
-                    onClick={() => applyBillingMatch(billingMatch)}
-                    className="p-3 bg-blue-50/90 hover:bg-blue-100/70 border border-blue-200 rounded-xl transition cursor-pointer flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <FileText size={17} className="text-blue-600 shrink-0" />
+              {/* Right Column: Side Productivity Panel (lg:col-span-5) */}
+              <div className="lg:col-span-5 space-y-5">
+                {/* 1. Unlisted Orders (Pending Bills) Card */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#0055a5] flex items-center justify-center font-bold text-xs">
+                        <FileText size={15} />
+                      </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-blue-950 text-xs">Bill #{billingMatch.bill_no}</span>
-                          <span className="text-slate-600 text-xs">({billingMatch.customer_name})</span>
-                        </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
-                          Total Amount: <span className="font-bold text-blue-950 font-mono">₹{Number(billingMatch.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                        </div>
+                        <h3 className="font-bold text-sm text-slate-900">Unlisted Orders</h3>
+                        <p className="text-[11px] text-slate-400">Orders ready to debit</p>
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-blue-700 bg-blue-200/60 px-2.5 py-1 rounded-lg">
-                      Apply Bill
+                    <span className="bg-blue-50 text-[#0055a5] border border-blue-200/60 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                      {todayPendingBills.length} pending
                     </span>
                   </div>
-                )}
 
-                {/* 3. Amount Section */}
-                {type === 'CREDIT' && separateCredit ? (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1.5">
-                        Cash Credit (₹) <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        ref={cashAmountRef}
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={cashAmount}
-                        onChange={e => setCashAmount(e.target.value)}
-                        onKeyDown={handleCashAmountKeyDown}
-                        placeholder="0.00"
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono font-semibold text-slate-900 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-blue-700 uppercase tracking-wider mb-1.5">
-                        Bank A/C Credit (₹) <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        ref={acAmountRef}
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={acAmount}
-                        onChange={e => setAcAmount(e.target.value)}
-                        onKeyDown={handleAcAmountKeyDown}
-                        placeholder="0.00"
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono font-semibold text-slate-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 outline-none"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
-                      VOUCHER AMOUNT (₹) <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="flex items-stretch rounded-xl border border-slate-200 bg-white overflow-hidden focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 h-[46px] transition">
-                      <div className="w-12 bg-slate-50 border-r border-slate-200 flex items-center justify-center font-semibold text-slate-700 text-base select-none shrink-0">
-                        ₹
+                  {todayPendingBills.length > 0 ? (
+                    <>
+                      {/* Search in pending bills */}
+                      <div className="relative mb-3">
+                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        <input
+                          type="text"
+                          placeholder="Filter pending orders..."
+                          value={desktopPendingSearch}
+                          onChange={e => setDesktopPendingSearch(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+                        />
                       </div>
-                      <input
-                        ref={amountRef}
-                        onKeyDown={handleAmountKeyDown}
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        value={amount}
-                        onChange={e => setAmount(e.target.value)}
-                        disabled={isSaleLedger && !invoiceNo.trim()}
-                        className="flex-1 px-4 text-sm font-semibold font-mono text-slate-900 outline-none placeholder:text-slate-400 bg-transparent disabled:bg-slate-50"
-                        placeholder="0.00"
-                      />
-                    </div>
-                    {amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0 && (
-                      <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
-                        <FileText size={13} className="text-slate-400 shrink-0" />
-                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">In words:</span>
-                        <span className="italic font-medium text-slate-700">{formatAmountInWords(amount)}</span>
+
+                      <div className="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar pr-1">
+                        {todayPendingBills
+                          .filter(b => {
+                            if (!desktopPendingSearch.trim()) return true;
+                            const q = desktopPendingSearch.toLowerCase();
+                            return (
+                              (b.bill_no && b.bill_no.toLowerCase().includes(q)) ||
+                              (b.customer_name && b.customer_name.toLowerCase().includes(q)) ||
+                              (b.phone && b.phone.includes(q))
+                            );
+                          })
+                          .slice(0, 15)
+                          .map(bill => (
+                            <div
+                              key={bill.id || bill.bill_no}
+                              className="p-3 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/20 transition-all flex items-center justify-between gap-3 group"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono font-bold text-xs text-slate-900 group-hover:text-[#0055a5]">
+                                    #{bill.bill_no}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 truncate">({bill.customer_name})</span>
+                                </div>
+                                <div className="text-[11px] font-bold text-slate-700 font-mono mt-0.5">
+                                  ₹{Number(bill.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => applyBillingMatch(bill)}
+                                className="px-3 py-1.5 bg-[#0055a5] hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-all cursor-pointer shrink-0 active:scale-95"
+                              >
+                                Apply
+                              </button>
+                            </div>
+                          ))}
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 4. Description Notes */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
-                    DESCRIPTION NOTES <span className="text-rose-500">*</span>
-                  </label>
-                  <textarea
-                    ref={notesRef}
-                    onKeyDown={handleNotesKeyDown}
-                    value={notes}
-                    onChange={e => handleTextChange(e, setNotes)}
-                    disabled={isSaleLedger && !invoiceNo.trim()}
-                    placeholder="Particulars / voucher remarks..."
-                    rows={3}
-                    className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition resize-y disabled:bg-slate-50 min-h-[90px]"
-                  />
+                    </>
+                  ) : (
+                    <div className="py-6 text-center text-slate-400 text-xs">
+                      <Check size={20} className="mx-auto mb-1 text-emerald-500" />
+                      <p className="font-semibold text-slate-700">All orders up to date</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">No unlisted orders waiting to be debited.</p>
+                    </div>
+                  )}
                 </div>
-
-                {/* 5. Submit Button matching screenshot */}
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !invoiceNo.trim() || !selectedParty || (type === 'DEBIT' && isInvoiceAlreadyDebited) || (type === 'CREDIT' && isCreditDisabledByInvoice)}
-                    className={`w-full py-3.5 px-6 rounded-xl font-bold text-sm text-white shadow-xs flex items-center justify-center transition cursor-pointer active:scale-99 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      (type === 'DEBIT' && isInvoiceAlreadyDebited) || (type === 'CREDIT' && isCreditDisabledByInvoice)
-                        ? 'bg-slate-400 cursor-not-allowed shadow-none'
-                        : type === 'DEBIT'
-                          ? 'bg-[#e11d48] hover:bg-[#cf153d]'
-                          : 'bg-[#059669] hover:bg-[#047857]'
-                    }`}
-                  >
-                    {isSubmitting ? (
-                      <span>Posting Voucher...</span>
-                    ) : (
-                      <span>Post {type === 'DEBIT' ? 'Debit' : 'Credit'} Voucher ({type === 'DEBIT' ? 'Dr' : 'Cr'})</span>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </CardBody>
-          </Card>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
         /* ============================================================ */
@@ -1756,7 +1859,7 @@ export default function MasterEntry() {
                           <span className="text-[9px] text-slate-500">({billingMatch.bill_type.replace('_', ' ')})</span>
                         )}
                       </div>
-                      <span className="text-[9px] font-normal text-blue-700 bg-blue-100/80 px-1.5 py-0.2 rounded">Click to Apply</span>
+                      <span className="text-[9.5px] font-medium text-white bg-[#0055a5] hover:bg-blue-700 px-2 py-0.5 rounded shadow-2xs">Click to Apply</span>
                     </div>
                     <div className="text-slate-800 font-normal truncate">
                       Party: <span className="font-medium text-slate-950">{billingMatch.customer_name}</span>
@@ -1988,7 +2091,7 @@ export default function MasterEntry() {
                               <button
                                 type="button"
                                 onClick={() => handleSelectBillFromModal(bill)}
-                                className="px-2 py-0.5 sm:px-3 sm:py-1 bg-[#1d68ed] hover:bg-[#1758ca] text-white rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-normal transition flex items-center gap-0.5 sm:gap-1 cursor-pointer shadow-xs active:scale-95"
+                                className="px-2.5 py-1 sm:px-3 sm:py-1 bg-[#0055a5] hover:bg-blue-700 text-white rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-medium transition flex items-center gap-0.5 sm:gap-1 cursor-pointer shadow-xs active:scale-95"
                               >
                                 <Check size={11} strokeWidth={2.4} />
                                 Apply
@@ -2026,7 +2129,7 @@ export default function MasterEntry() {
                             <button
                               type="button"
                               onClick={() => handleSelectBillFromModal(bill)}
-                              className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-[#1d68ed] hover:bg-[#1758ca] text-white rounded-md sm:rounded-lg text-[10px] sm:text-xs font-normal transition flex items-center gap-0.5 sm:gap-1 cursor-pointer active:scale-95"
+                              className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-[#0055a5] hover:bg-blue-700 text-white rounded-md sm:rounded-lg text-[10px] sm:text-xs font-medium transition flex items-center gap-0.5 sm:gap-1 cursor-pointer active:scale-95"
                             >
                               <Check size={10} strokeWidth={2.4} />
                               Apply
