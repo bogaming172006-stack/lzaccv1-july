@@ -1923,13 +1923,13 @@ export default function MasterEntry() {
               {/* Row 4: Slide to Choose (Credit / Debit) */}
               <div className="flex flex-col items-center pt-2.5 pb-0.5">
                 {isInvoiceAlreadyDebited && (
-                  <div className="w-full max-w-[280px] mb-1.5 text-[10px] flex items-center justify-center gap-1 text-slate-600 animate-in fade-in">
+                  <div className="w-full max-w-[380px] mb-1.5 text-[10px] flex items-center justify-center gap-1 text-slate-600 animate-in fade-in">
                     <AlertTriangle size={12} className="text-amber-600 shrink-0" />
                     <span className="font-normal text-slate-800">Invoice #{invoiceNo.toUpperCase()} is already debited.</span>
                   </div>
                 )}
                 {isCreditDisabledByInvoice && (
-                  <div className="w-full max-w-[280px] mb-1.5 text-[10px] flex items-center justify-center gap-1 text-slate-600 animate-in fade-in">
+                  <div className="w-full max-w-[380px] mb-1.5 text-[10px] flex items-center justify-center gap-1 text-slate-600 animate-in fade-in">
                     <AlertTriangle size={12} className="text-sky-600 shrink-0" />
                     <span className="font-normal text-slate-800">Invoice #{invoiceNo.toUpperCase()} must be debited first.</span>
                   </div>
@@ -1972,7 +1972,7 @@ export default function MasterEntry() {
                     </span>
                   </div>
                   <p className="text-[10px] sm:text-xs text-slate-400 font-normal mt-0.5">
-                    Bills waiting to list into Debit Sheet
+                  Bills
                   </p>
                 </div>
               </div>

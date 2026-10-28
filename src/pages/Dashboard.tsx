@@ -235,7 +235,7 @@ export default function Dashboard() {
         <div className="p-4 sm:p-5 md:px-8 md:py-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-[#0F172A] tracking-tight">
-              Financial Overview
+              Overview
             </h1>
             <p className="text-xs md:text-[13px] text-[#64748B] mt-0.5">
               {activeLedger.name} • {LEDGER_TYPE_LABELS[activeLedger.type] || activeLedger.type}

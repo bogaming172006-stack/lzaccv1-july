@@ -367,7 +367,7 @@ export default function PartyList() {
                   setReportInitialGroup(selectedGroupFilter !== 'ALL' ? selectedGroupFilter : 'ALL');
                   setShowReportModal(true);
                 }}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-blue-600 hover:text-blue-700 hover:bg-slate-100 rounded-lg text-xs font-semibold cursor-pointer transition active:scale-95"
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 text-blue-600 hover:text-blue-700 hover:bg-slate-100 rounded-lg text-xs font-semibold cursor-pointer transition active:scale-95"
                 title="Party & Group Statement Report"
                 aria-label="Party & Group Statement Report"
               >
@@ -891,7 +891,7 @@ export default function PartyList() {
                       setReportInitialGroup(selectedGroupFilter !== 'ALL' ? selectedGroupFilter : 'ALL');
                       setShowReportModal(true); 
                     }}
-                    className="w-full py-1.5 px-2.5 bg-blue-50 hover:bg-blue-100 rounded-lg text-[11px] font-semibold text-blue-800 flex items-center justify-center gap-1.5 transition cursor-pointer border border-blue-200/60"
+                    className="hidden md:flex w-full py-1.5 px-2.5 bg-blue-50 hover:bg-blue-100 rounded-lg text-[11px] font-semibold text-blue-800 items-center justify-center gap-1.5 transition cursor-pointer border border-blue-200/60"
                   >
                     <FileSpreadsheet size={13} className="text-blue-600" />
                     <span>Statement & Group Report</span>

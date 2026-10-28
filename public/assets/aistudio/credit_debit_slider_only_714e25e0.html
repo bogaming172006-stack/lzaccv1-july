@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Credit / Debit Slider</title>
+<style>
+  :root {
+    --credit: #12865b;
+    --debit: #e51f3d;
+    --track: #eef2f6;
+    --ink: #fff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: #f7f9fc;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  }
+  .transaction-slider {
+    width: min(100%, 380px);
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    padding: 5px;
+    border-radius: 999px;
+    background: var(--track);
+    border: 1px solid #dce4ed;
+    box-shadow: 0 5px 14px rgba(30, 50, 75, .08);
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .option {
+    position: relative;
+    z-index: 1;
+    height: 54px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: #6b778a;
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 9px;
+    cursor: pointer;
+    transition: color .2s ease;
+  }
+  .option svg { width: 22px; height: 22px; }
+  .thumb {
+    position: absolute;
+    z-index: 0;
+    left: 5px;
+    top: 5px;
+    bottom: 5px;
+    width: calc(50% - 5px);
+    border-radius: 999px;
+    background: var(--credit);
+    box-shadow: 0 3px 9px rgba(18, 134, 91, .22);
+    transition: transform .24s cubic-bezier(.2,.8,.2,1), background .2s, box-shadow .2s;
+  }
+  .transaction-slider[data-value="credit"] .credit { color: white; }
+  .transaction-slider[data-value="debit"] .debit { color: white; }
+  .transaction-slider[data-value="debit"] .thumb {
+    transform: translateX(100%);
+    background: var(--debit);
+    box-shadow: 0 3px 9px rgba(229, 31, 61, .22);
+  }
+  button:focus-visible { outline: 3px solid #7dc9ef; outline-offset: 3px; }
+</style>
+</head>
+<body>
+  <div class="transaction-slider" id="transactionSlider" data-value="credit" role="group" aria-label="Transaction type">
+    <span class="thumb" aria-hidden="true"></span>
+    <button class="option credit" type="button" data-type="credit" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+        <ellipse cx="12" cy="5" rx="7.5" ry="3"/>
+        <path d="M4.5 5v5c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V5M4.5 10v5c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-5M4.5 15v4c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-4"/>
+      </svg>
+      Credit
+    </button>
+    <button class="option debit" type="button" data-type="debit" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+        <rect x="3" y="5" width="18" height="15" rx="2"/>
+        <path d="M3 9h18M16 15h2"/>
+      </svg>
+      Debit
+    </button>
+    <input type="hidden" id="transactionType" value="credit">
+  </div>
+<script>
+  const slider = document.getElementById('transactionSlider');
+  const hidden = document.getElementById('transactionType');
+  const buttons = [...slider.querySelectorAll('[data-type]')];
+
+  function selectType(type) {
+    slider.dataset.value = type;
+    hidden.value = type;
+    buttons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.type === type)));
+  }
+  buttons.forEach(button => button.addEventListener('click', () => selectType(button.dataset.type)));
+
+  let startX = null;
+  slider.addEventListener('pointerdown', event => { startX = event.clientX; });
+  slider.addEventListener('pointerup', event => {
+    if (startX === null) return;
+    const delta = event.clientX - startX;
+    if (Math.abs(delta) > 10) selectType(delta < 0 ? 'credit' : 'debit');
+    startX = null;
+  });
+  slider.addEventListener('pointercancel', () => { startX = null; });
+</script>
+</body>
+</html>
