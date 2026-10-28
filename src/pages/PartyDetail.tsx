@@ -1311,15 +1311,6 @@ export default function PartyDetail() {
 
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <button 
-              type="button"
-              onClick={handleOpenShareLedgerModal} 
-              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
-              title="Share temporary 30-minute customer ledger link"
-            >
-              <Share2 size={13} />
-              <span>Share Ledger</span>
-            </button>
-            <button 
               onClick={() => setShowDownloadModal(true)} 
               className="p-1.5 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 transition"
               title="Export PDF Statement"
