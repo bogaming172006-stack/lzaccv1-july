@@ -299,12 +299,12 @@ export default function Log() {
                         </span>
                       )}
                       {tab === 'DEBIT' && (
-                        <span className="text-[10px] sm:text-[11px] font-mono font-bold text-rose-600">
+                        <span className="hidden md:inline text-[10px] sm:text-[11px] font-mono font-bold text-rose-600">
                           ₹{totalDebit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       )}
                       {tab === 'CREDIT' && (
-                        <span className="text-[10px] sm:text-[11px] font-mono font-bold text-emerald-600">
+                        <span className="hidden md:inline text-[10px] sm:text-[11px] font-mono font-bold text-emerald-600">
                           ₹{totalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       )}

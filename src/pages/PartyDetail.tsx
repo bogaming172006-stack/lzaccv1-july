@@ -1522,9 +1522,16 @@ export default function PartyDetail() {
                         <div className={`text-[11px] font-bold mb-0.5 tabular-nums ${isDebit ? 'text-[#DC2626]' : 'text-[#16A34A]'}`}>
                           {isDebit ? '-' : '+'}{formatCustomerCurrency(tx.amount, currency)}
                         </div>
-                        <span className={`text-[8px] font-bold uppercase tracking-[0.3px] ${isDebit ? 'text-[#DC2626]' : 'text-[#16A34A]'}`}>
-                          {tx.type}
-                        </span>
+                        <div className="flex items-center justify-end gap-1 text-[8px] tracking-[0.2px]">
+                          <span className={`font-bold uppercase ${isDebit ? 'text-[#DC2626]' : 'text-[#16A34A]'}`}>
+                            {tx.type}
+                          </span>
+                          {tx.runningBalance !== undefined && (
+                            <span className="text-slate-500 font-semibold tabular-nums">
+                              • After: ₹{Math.abs(tx.runningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {tx.runningBalance > 0 ? 'Dr' : tx.runningBalance < 0 ? 'Cr' : ''}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </li>
                   );
@@ -1747,15 +1754,46 @@ export default function PartyDetail() {
                 </div>
               )}
 
-              {txAmount && !isNaN(parseFloat(txAmount)) && parseFloat(txAmount) > 0 && (
-                <div className="px-2.5 py-1.5 bg-blue-50/80 border border-blue-100 rounded-md text-[11px] text-blue-900 flex items-start gap-1.5">
-                  <FileText size={12} className="text-blue-600 mt-0.5 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <span className="font-semibold block text-[9.5px] uppercase tracking-wider text-blue-700">Amount in words:</span>
-                    <span className="italic font-medium text-blue-950 leading-tight block">{formatAmountInWords(txAmount)}</span>
+              {txAmount && !isNaN(parseFloat(txAmount)) && parseFloat(txAmount) > 0 && (() => {
+                const num = parseFloat(txAmount) || 0;
+                const before = party.currentDue;
+                const isDebit = showTxModal === 'DEBIT';
+                const after = before + (isDebit ? num : -num);
+                return (
+                  <div className="space-y-1.5">
+                    {/* Amount in words */}
+                    <div className="px-2.5 py-1.5 bg-blue-50/80 border border-blue-100 rounded-md text-[11px] text-blue-900 flex items-start gap-1.5">
+                      <FileText size={12} className="text-blue-600 mt-0.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <span className="font-semibold block text-[9.5px] uppercase tracking-wider text-blue-700">Amount in words:</span>
+                        <span className="italic font-medium text-blue-950 leading-tight block">{formatAmountInWords(txAmount)}</span>
+                      </div>
+                    </div>
+
+                    {/* Calculated After Amount Row */}
+                    <div className="p-2.5 bg-slate-50 border border-slate-200/90 rounded-md space-y-1 text-[11px]">
+                      <div className="flex justify-between items-center text-slate-500">
+                        <span>Before Amount:</span>
+                        <span className="font-mono font-medium text-slate-700">
+                          ₹{Math.abs(before).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {before > 0 ? 'Dr' : before < 0 ? 'Cr' : ''}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-500">
+                        <span>Voucher ({isDebit ? 'Debit +' : 'Credit -'}):</span>
+                        <span className={`font-mono font-bold ${isDebit ? 'text-[#DC2626]' : 'text-[#16A34A]'}`}>
+                          {isDebit ? '+' : '-'}₹{num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div className="border-t border-slate-200 pt-1 flex justify-between items-center font-bold text-slate-900">
+                        <span className="text-[11px] text-slate-800">After Amount (New Balance):</span>
+                        <span className={`font-mono text-xs ${after > 0 ? 'text-[#DC2626]' : after < 0 ? 'text-[#16A34A]' : 'text-slate-900'}`}>
+                          ₹{Math.abs(after).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {after > 0 ? 'Dr' : after < 0 ? 'Cr' : 'Settled'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
@@ -1849,13 +1887,15 @@ export default function PartyDetail() {
             
             <div className="bg-slate-50 p-3 rounded-md space-y-2 mb-4 border border-slate-200 text-[11.5px]">
               <div className="flex justify-between text-slate-600">
-                <span>Current Balance:</span>
-                <span className="font-bold text-slate-900">{party.currentDue.toFixed(2)}</span>
+                <span>Before Amount:</span>
+                <span className="font-bold text-slate-900 font-mono">
+                  ₹{Math.abs(party.currentDue).toFixed(2)} {party.currentDue > 0 ? 'Dr' : party.currentDue < 0 ? 'Cr' : ''}
+                </span>
               </div>
               <div className="flex justify-between text-slate-600 border-b border-slate-200 pb-1.5">
-                <span>Voucher {showTxModal}:</span>
-                <span className={`font-bold ${showTxModal === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
-                  {showTxModal === 'DEBIT' ? '-' : '+'}₹{parseFloat(txAmount).toFixed(2)}
+                <span>Voucher ({showTxModal === 'DEBIT' ? 'Debit +' : 'Credit -'}):</span>
+                <span className={`font-bold font-mono ${showTxModal === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {showTxModal === 'DEBIT' ? '+' : '-'}₹{parseFloat(txAmount).toFixed(2)}
                 </span>
               </div>
               {formatAmountInWords(txAmount) && (
@@ -1865,9 +1905,13 @@ export default function PartyDetail() {
                 </div>
               )}
               <div className="flex justify-between font-bold text-slate-900 pt-0.5">
-                <span>Expected Balance:</span>
-                <span>
-                  {(party.currentDue + (showTxModal === 'DEBIT' ? parseFloat(txAmount) : -parseFloat(txAmount))).toFixed(2)}
+                <span>After Amount:</span>
+                <span className="font-mono text-xs text-blue-700">
+                  {(() => {
+                    const num = parseFloat(txAmount) || 0;
+                    const after = party.currentDue + (showTxModal === 'DEBIT' ? num : -num);
+                    return `₹${Math.abs(after).toFixed(2)} ${after > 0 ? 'Dr' : after < 0 ? 'Cr' : 'Settled'}`;
+                  })()}
                 </span>
               </div>
             </div>

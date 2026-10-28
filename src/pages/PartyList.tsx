@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db, handleFirestoreError, OperationType, doc, setDoc } from '../firebase';
-import { Party, Transaction } from '../types';
+import { db, handleFirestoreError, OperationType, doc, setDoc, updateDoc, getDocs, collection, query, where } from '../firebase';
+import { Party, Transaction, StatementDispatch } from '../types';
 import { 
   UserPlus, 
   Search, 
@@ -22,7 +22,12 @@ import {
   FolderPlus,
   Tag,
   Trash2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Send,
+  Clock,
+  MoreVertical,
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react';
 import { 
   fetchPartyGroups, 
@@ -106,6 +111,198 @@ export default function PartyList() {
   const handleCurrencyChange = (curr: string) => {
     setCurrency(curr);
     localStorage.setItem('party_currency', curr);
+  };
+
+  // ── Statement Dispatch Logistics State ──
+  const [lastDispatches, setLastDispatches] = useState<Record<string, number>>({});
+  const [contextMenu, setContextMenu] = useState<{
+    party: Party;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [contactModalParty, setContactModalParty] = useState<Party | null>(null);
+  const [contactInput, setContactInput] = useState('');
+  const [isSendingStatement, setIsSendingStatement] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [, setTimerTick] = useState(0);
+
+  // Load statement dispatch history for 10-minute cooldown
+  const loadStatementDispatches = async () => {
+    if (!activeLedger?.id) return;
+    try {
+      const q = query(
+        collection(db, 'statement_dispatches'),
+        where('ledgerId', '==', activeLedger.id)
+      );
+      const snap = await getDocs(q);
+      const dict: Record<string, number> = {};
+      snap.forEach(d => {
+        const item = d.data();
+        if (item.partyId && item.timestamp) {
+          const ts = Number(item.timestamp);
+          if (!dict[item.partyId] || ts > dict[item.partyId]) {
+            dict[item.partyId] = ts;
+          }
+        }
+      });
+      setLastDispatches(dict);
+    } catch (err) {
+      console.warn('Failed to load statement dispatches:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadStatementDispatches();
+  }, [activeLedger?.id]);
+
+  // Tick every 10 seconds while a context menu is open to update the countdown
+  useEffect(() => {
+    if (!contextMenu) return;
+    const interval = setInterval(() => {
+      setTimerTick(t => t + 1);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [contextMenu]);
+
+  // Toast auto-hide
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = setTimeout(() => setToastMessage(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toastMessage]);
+
+  // Close context menu on outside click or escape
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      if (contextMenu && !(e.target as HTMLElement).closest('#party-context-menu')) {
+        setContextMenu(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+    window.addEventListener('click', handleGlobalClick);
+    window.addEventListener('contextmenu', handleGlobalClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleGlobalClick);
+      window.removeEventListener('contextmenu', handleGlobalClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [contextMenu]);
+
+  // Helper: 10-minute cooldown calculation
+  const getPartyCooldownInfo = (partyId: string) => {
+    const lastTime = lastDispatches[partyId] || 0;
+    const now = Date.now();
+    const elapsed = now - lastTime;
+    const COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes = 600,000 ms
+    const isCooldown = elapsed < COOLDOWN_MS;
+    const remainingMs = Math.max(0, COOLDOWN_MS - elapsed);
+    const remainingMinutes = Math.ceil(remainingMs / 60000);
+    return { isCooldown, remainingMinutes, lastTime };
+  };
+
+  // Open context menu for party
+  const handlePartyContextMenu = (e: React.MouseEvent, party: Party) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Clamp to window boundaries
+    const menuWidth = 240;
+    const menuHeight = 160;
+    const x = Math.min(e.clientX, Math.max(10, window.innerWidth - menuWidth - 16));
+    const y = Math.min(e.clientY, Math.max(10, window.innerHeight - menuHeight - 16));
+    setContextMenu({ party, x, y });
+  };
+
+  // Execute Send Statement
+  const handleSendStatement = async (party: Party) => {
+    const { isCooldown, remainingMinutes } = getPartyCooldownInfo(party.id);
+    if (isCooldown) {
+      setToastMessage(`Rate limit active: Please wait ${remainingMinutes}m before sending another statement.`);
+      return;
+    }
+
+    const existingContact = party.phone?.trim();
+    if (!existingContact) {
+      // Prompt for contact details first
+      setContextMenu(null);
+      setContactModalParty(party);
+      setContactInput('');
+      return;
+    }
+
+    setIsSendingStatement(true);
+    try {
+      const now = Date.now();
+      const dispatchId = uuidv4();
+      const formattedDateTime = format(new Date(now), 'yyyy-MM-dd HH:mm:ss');
+      const dispatchRecord: StatementDispatch = {
+        id: dispatchId,
+        partyId: party.id,
+        partyName: party.name,
+        ledgerId: activeLedger?.id || '',
+        statementSent: true,
+        timestamp: now,
+        dateTime: formattedDateTime,
+        contact: existingContact,
+        userId: currentUser?.username || currentUser?.name || currentUser?.id || 'operator'
+      };
+
+      await setDoc(doc(db, 'statement_dispatches', dispatchId), dispatchRecord);
+      setLastDispatches(prev => ({ ...prev, [party.id]: now }));
+      setContextMenu(null);
+      setToastMessage(`Statement dispatch logged for ${party.name} (${existingContact})!`);
+    } catch (err) {
+      console.error('Failed to log statement dispatch:', err);
+      setToastMessage('Error dispatching statement. Please try again.');
+    } finally {
+      setIsSendingStatement(false);
+    }
+  };
+
+  // Save new contact & immediately send statement
+  const handleSaveContactAndSendStatement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contactModalParty || !contactInput.trim() || isSendingStatement) return;
+
+    setIsSendingStatement(true);
+    try {
+      const cleanContact = contactInput.trim();
+      const partyId = contactModalParty.id;
+
+      // Update party in DB & local state
+      await updateDoc(doc(db, 'parties', partyId), { phone: cleanContact });
+      const updatedParty = { ...contactModalParty, phone: cleanContact };
+      await setCacheItem('parties', updatedParty);
+      setParties(prev => prev.map(p => p.id === partyId ? updatedParty : p));
+
+      // Record statement dispatch
+      const now = Date.now();
+      const dispatchId = uuidv4();
+      const formattedDateTime = format(new Date(now), 'yyyy-MM-dd HH:mm:ss');
+      const dispatchRecord: StatementDispatch = {
+        id: dispatchId,
+        partyId: partyId,
+        partyName: contactModalParty.name,
+        ledgerId: activeLedger?.id || '',
+        statementSent: true,
+        timestamp: now,
+        dateTime: formattedDateTime,
+        contact: cleanContact,
+        userId: currentUser?.username || currentUser?.name || currentUser?.id || 'operator'
+      };
+
+      await setDoc(doc(db, 'statement_dispatches', dispatchId), dispatchRecord);
+      setLastDispatches(prev => ({ ...prev, [partyId]: now }));
+      setContactModalParty(null);
+      setToastMessage(`Contact saved & statement dispatched for ${contactModalParty.name}!`);
+    } catch (err) {
+      console.error('Failed to save contact & dispatch statement:', err);
+      setToastMessage('Error saving contact details. Please try again.');
+    } finally {
+      setIsSendingStatement(false);
+    }
   };
 
   // Initial Load & Background Sync
@@ -639,9 +836,10 @@ export default function PartyList() {
 
                   return (
                     <li key={party.id}>
-                      {/* Mobile Row (Unchanged) */}
+                      {/* Mobile Row (Supports tap & right-click / options) */}
                       <div 
                         onClick={() => navigate(`/parties/${party.id}`)}
+                        onContextMenu={(e) => handlePartyContextMenu(e, party)}
                         className="flex items-center px-3 py-1.5 cursor-pointer border-b border-[#F1F5F9] hover:bg-[#F8FAFC] active:bg-[#F1F5F9] transition-colors select-none md:hidden"
                       >
                         {/* Circle Avatar (26px) */}
@@ -673,7 +871,7 @@ export default function PartyList() {
                           </div>
                         </div>
 
-                        {/* Balance Preview & Chevron */}
+                        {/* Balance Preview, 3-dots trigger & Chevron */}
                         <div className="flex items-center gap-1 shrink-0">
                           {party.currentDue !== 0 && (
                             <div className="text-right hidden min-[320px]:block">
@@ -685,7 +883,18 @@ export default function PartyList() {
                               </span>
                             </div>
                           )}
-                          <div className="text-[#94A3B8] flex items-center ml-0.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePartyContextMenu(e, party);
+                            }}
+                            className="p-1 text-slate-400 hover:text-slate-700 active:scale-95 transition cursor-pointer"
+                            title="More options (Send Statement)"
+                          >
+                            <MoreVertical size={13} />
+                          </button>
+                          <div className="text-[#94A3B8] flex items-center shrink-0">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="9 18 15 12 9 6"></polyline>
                             </svg>
@@ -696,6 +905,7 @@ export default function PartyList() {
                       {/* Desktop Row */}
                       <div 
                         onClick={() => navigate(`/parties/${party.id}`)}
+                        onContextMenu={(e) => handlePartyContextMenu(e, party)}
                         className="hidden md:grid grid-cols-12 items-center px-6 py-3 cursor-pointer border-b border-slate-100 hover:bg-slate-50/80 transition-colors select-none group"
                       >
                         {/* Col 1-4: Avatar + Name + Group */}
@@ -753,8 +963,19 @@ export default function PartyList() {
                           </span>
                         </div>
 
-                        {/* Col 12: Action Chevron */}
-                        <div className="col-span-1 flex items-center justify-center text-slate-300 group-hover:text-blue-600 transition-colors">
+                        {/* Col 12: Action Options & Chevron */}
+                        <div className="col-span-1 flex items-center justify-end gap-1.5 text-slate-400 group-hover:text-blue-600 transition-colors">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePartyContextMenu(e, party);
+                            }}
+                            className="p-1 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
+                            title="Right click or click for Send Statement"
+                          >
+                            <MoreVertical size={15} />
+                          </button>
                           <ChevronRight size={16} />
                         </div>
                       </div>
@@ -1300,6 +1521,164 @@ export default function PartyList() {
               navigate(`/party/${partyId}`);
             }}
           />
+        )}
+
+        {/* ========================================================================= */}
+        {/* RIGHT-CLICK / LONG-PRESS PARTY CONTEXT MENU                               */}
+        {/* ========================================================================= */}
+        {contextMenu && (
+          <div 
+            id="party-context-menu"
+            className="fixed z-50 bg-white rounded-xl shadow-2xl border border-slate-200/90 py-1.5 w-60 animate-in fade-in zoom-in-95 duration-100"
+            style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-3 py-2 border-b border-slate-100">
+              <div className="text-[11.5px] font-bold text-slate-900 truncate">
+                {contextMenu.party.name}
+              </div>
+              <div className="text-[10px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                <Phone size={10} className="text-slate-400 shrink-0" />
+                <span>{contextMenu.party.phone || 'No contact added'}</span>
+              </div>
+            </div>
+
+            <div className="p-1 space-y-0.5">
+              {(() => {
+                const { isCooldown, remainingMinutes } = getPartyCooldownInfo(contextMenu.party.id);
+                return (
+                  <button
+                    type="button"
+                    onClick={() => handleSendStatement(contextMenu.party)}
+                    disabled={isCooldown || isSendingStatement}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-semibold rounded-lg text-left transition-colors ${
+                      isCooldown
+                        ? 'bg-slate-50 text-slate-400 cursor-not-allowed opacity-60'
+                        : 'text-blue-600 hover:bg-blue-50 active:bg-blue-100 cursor-pointer'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {isCooldown ? (
+                        <Clock size={14} className="text-amber-500 shrink-0" />
+                      ) : (
+                        <Send size={14} className="text-blue-600 shrink-0" />
+                      )}
+                      <span>Send Statement</span>
+                    </div>
+                    {isCooldown && (
+                      <span className="text-[10px] font-normal text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60 shrink-0">
+                        Wait {remainingMinutes}m
+                      </span>
+                    )}
+                  </button>
+                );
+              })()}
+
+              <button
+                type="button"
+                onClick={() => {
+                  navigate(`/parties/${contextMenu.party.id}`);
+                  setContextMenu(null);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg text-left transition-colors cursor-pointer"
+              >
+                <ExternalLink size={14} className="text-slate-400 shrink-0" />
+                <span>Open Party Ledger</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* ADD CONTACT DETAILS MODAL (IF PARTY HAS NO CONTACT)                       */}
+        {/* ========================================================================= */}
+        {contactModalParty && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-white rounded-2xl w-full max-w-sm border border-slate-200 overflow-hidden shadow-2xl p-5 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Phone size={16} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-sm">Add Contact Details</h3>
+                    <p className="text-[11px] text-slate-500 truncate max-w-[200px]">{contactModalParty.name}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setContactModalParty(null)}
+                  className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                This party does not have contact details yet. Add their contact / phone number to dispatch the statement.
+              </p>
+
+              <form onSubmit={handleSaveContactAndSendStatement} className="space-y-4">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Phone / Contact Number *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    autoFocus
+                    value={contactInput}
+                    onChange={(e) => setContactInput(e.target.value)}
+                    placeholder="+91 98765 43210"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setContactModalParty(null)}
+                    className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!contactInput.trim() || isSendingStatement}
+                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {isSendingStatement ? (
+                      <>
+                        <Loader2 size={13} className="animate-spin" />
+                        <span>Sending...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send size={13} />
+                        <span>Save & Send</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TOAST NOTIFICATION                                                        */}
+        {/* ========================================================================= */}
+        {toastMessage && (
+          <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2.5 animate-in slide-in-from-bottom-2 fade-in">
+            <span>{toastMessage}</span>
+            <button 
+              type="button" 
+              onClick={() => setToastMessage(null)} 
+              className="text-slate-400 hover:text-white cursor-pointer"
+            >
+              <X size={13} />
+            </button>
+          </div>
         )}
 
       </div>

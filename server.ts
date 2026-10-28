@@ -63,7 +63,8 @@ const TABLES = [
   "dashboard_summary", 
   "cache_versions",
   "log",
-  "shared_ledger_links"
+  "shared_ledger_links",
+  "statement_dispatches"
 ];
 
 // Turso client instance
@@ -386,7 +387,9 @@ async function ensureIndexesExist(client: any) {
     "CREATE INDEX IF NOT EXISTS idx_log_ledgerId ON log(json_extract(data, '$.ledgerId'))",
     "CREATE INDEX IF NOT EXISTS idx_log_partyId ON log(json_extract(data, '$.partyId'))",
     "CREATE INDEX IF NOT EXISTS idx_log_date ON log(json_extract(data, '$.date'))",
-    "CREATE INDEX IF NOT EXISTS idx_log_date_col ON log(date)"
+    "CREATE INDEX IF NOT EXISTS idx_log_date_col ON log(date)",
+    "CREATE INDEX IF NOT EXISTS idx_statement_dispatches_partyId ON statement_dispatches(json_extract(data, '$.partyId'))",
+    "CREATE INDEX IF NOT EXISTS idx_statement_dispatches_timestamp ON statement_dispatches(json_extract(data, '$.timestamp'))"
   ];
   for (const stmt of indexStatements) {
     try {

@@ -171,3 +171,16 @@ export interface CacheVersions {
   tracked_invoices?: number;
   transactions?: number;
 }
+
+export interface StatementDispatch {
+  id: string;
+  partyId: string;
+  partyName: string;
+  ledgerId: string;
+  statementSent: boolean;
+  timestamp: number;
+  dateTime: string;
+  contact: string;
+  userId: string;
+}
+

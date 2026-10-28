@@ -1536,7 +1536,7 @@ export default function MasterEntry() {
                       ) : (
                         <div>
                           <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
-                            VOUCHER AMOUNT (₹) <span className="text-rose-500">*</span>
+                            Amount (₹) <span className="text-rose-500">*</span>
                           </label>
                           <div className="flex items-stretch rounded-xl border border-slate-200 bg-white overflow-hidden focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 h-[46px] transition">
                             <div className="w-12 bg-slate-50 border-r border-slate-200 flex items-center justify-center font-semibold text-slate-700 text-base select-none shrink-0">
@@ -1848,7 +1848,7 @@ export default function MasterEntry() {
               {billingMatch && (
                 <div 
                   onClick={() => applyBillingMatch(billingMatch)}
-                  className="mt-2 p-2 bg-blue-50/90 hover:bg-blue-100/70 border border-blue-200 hover:border-blue-300 rounded-lg text-[10.5px] transition-colors cursor-pointer"
+                  className="mt-2 p-2 bg-blue-50/90 hover:bg-blue-100/70 rounded-lg text-[10.5px] transition-colors cursor-pointer"
                   title="Click to apply bill details"
                 >
                   <div className="space-y-0.5">
@@ -1874,7 +1874,7 @@ export default function MasterEntry() {
               {/* Row 2: VOUCHER AMOUNT (₹) * */}
               <div className="flex flex-col mt-2.5">
                 <label className="text-[9.5px] font-normal text-slate-500 uppercase tracking-wider mb-1 flex items-center">
-                  <span>Voucher Amount (₹)</span>
+                  <span>Amount (₹)</span>
                   <span className="text-[#DC2626] ml-0.5 font-normal">*</span>
                 </label>
                 <div className="flex items-stretch rounded-lg border border-slate-200 bg-white overflow-hidden focus-within:border-[#0284c7] focus-within:ring-1 focus-within:ring-[#0284c7]/20 h-[34px] transition">
@@ -2242,7 +2242,7 @@ export default function MasterEntry() {
                 }}
                 className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-bold shadow-xs"
               >
-                Acknowledge
+                Got it
               </button>
             </div>
           </div>

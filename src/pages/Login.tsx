@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
-import { LogIn, UserPlus, Database, Lock, User as UserIcon, ShieldCheck } from 'lucide-react';
+import { LogIn, UserPlus, Database, Lock, User as UserIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CompanyLogo from '../components/CompanyLogo';
 import { db, doc, setDoc, handleFirestoreError, OperationType } from '../firebase';
@@ -115,9 +115,8 @@ export default function Login() {
           <h1 className="text-base sm:text-lg font-medium text-slate-900 tracking-tight">
             Greenzar Food & Beverage
           </h1>
-          <p className="text-xs text-slate-500 mt-1 font-normal flex items-center justify-center gap-1.5">
-            <ShieldCheck size={13} className="text-emerald-600" />
-            <span>Accounts Ledger Portal</span>
+          <p className="text-xs text-slate-500 mt-1 font-normal text-center">
+            Accounts Ledger Portal
           </p>
         </div>
 
@@ -137,7 +136,7 @@ export default function Login() {
             </div>
 
             {error && (
-              <div className="p-2.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg font-normal">
+              <div className="text-xs text-rose-600 font-normal">
                 {error}
               </div>
             )}
@@ -191,7 +190,7 @@ export default function Login() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="p-2.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg font-normal">
+              <div className="text-xs text-rose-600 font-normal">
                 {error}
               </div>
             )}
