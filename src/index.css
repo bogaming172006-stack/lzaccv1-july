@@ -8,11 +8,12 @@
 }
 
 :root {
+  color-scheme: light;
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --color-primary-navy: #0f172a;
   --color-primary-blue: #059669;
   --color-accent-blue: #10b981;
-  --color-surface-bg: #f8fafc;
+  --color-surface-bg: #ffffff;
 }
 
 /* App Theme Green Gradient & Emerald Highlights */
@@ -52,7 +53,7 @@ button.hover\:bg-blue-700:hover,
 
 html, body {
   font-family: var(--font-sans);
-  background-color: #f8fafc;
+  background-color: #ffffff;
   color: #0f172a;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

@@ -918,11 +918,12 @@ export default function Navigation() {
         </div>
       </aside>
 
-      {/* ========================================================================= */}
-      {/* MOBILE BOTTOM NAVIGATION BAR (Compact Modern 5-Slot Layout) */}
-      {/* ========================================================================= */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-slate-200/90 flex items-center justify-around px-1 z-40 shadow-[0_-3px_12px_rgba(0,0,0,0.05)] text-slate-500">
-        <NavLink
+      <nav 
+        className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200/90 flex flex-col justify-end z-40 shadow-[0_-3px_12px_rgba(0,0,0,0.05)] text-slate-500"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        <div className="h-14 w-full flex items-center justify-around px-1 bg-white">
+          <NavLink
           to="/"
           end
           className={({ isActive }) =>
@@ -982,16 +983,17 @@ export default function Navigation() {
           <span>Day Log</span>
         </NavLink>
 
-        <button
-          onClick={() => setShowMobileMore(!showMobileMore)}
-          type="button"
-          className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] font-medium transition-colors ${
-            showMobileMore ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#059669] font-bold') : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <Menu size={18} className="mb-0.5" />
-          <span>Menu</span>
-        </button>
+          <button
+            onClick={() => setShowMobileMore(!showMobileMore)}
+            type="button"
+            className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] font-medium transition-colors ${
+              showMobileMore ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#059669] font-bold') : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Menu size={18} className="mb-0.5" />
+            <span>Menu</span>
+          </button>
+        </div>
       </nav>
     </>
   );
