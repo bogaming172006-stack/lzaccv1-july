@@ -163,7 +163,7 @@ const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       {/* PWA Mobile Bottom Navigation Safe Area (White background to ensure system bar is crisp white) */}
       <div 
         className="fixed bottom-0 left-0 right-0 bg-white sm:hidden z-30 pointer-events-none" 
-        style={{ height: 'max(env(safe-area-inset-bottom, 0px), 0px)' }}
+        style={{ height: 'max(env(safe-area-inset-bottom, 0px), 0px)', backgroundColor: '#ffffff' }}
         aria-hidden="true"
       />
     </div>

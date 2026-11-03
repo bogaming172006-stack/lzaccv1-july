@@ -6,16 +6,25 @@
     <title>Greenzar Accounting System</title>
     <meta name="description" content="An elegant accounting and ledger management system with thermal receipt printing." />
     <meta name="color-scheme" content="light" />
-    <meta name="theme-color" content="#059669" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#059669" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#059669" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#ffffff" />
     <meta name="navigation-bar-color" content="#ffffff" />
-    <meta name="msapplication-navbutton-color" content="#059669" />
+    <meta name="msapplication-navbutton-color" content="#ffffff" />
+    <meta name="msapplication-TileColor" content="#ffffff" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Greenzar" />
     <meta name="application-name" content="Greenzar" />
+    <script>
+      (function() {
+        try {
+          var metas = document.querySelectorAll('meta[name="theme-color"]');
+          metas.forEach(function(m) { m.setAttribute('content', '#ffffff'); });
+        } catch(e) {}
+      })();
+    </script>
     <style>
       :root {
         color-scheme: light;

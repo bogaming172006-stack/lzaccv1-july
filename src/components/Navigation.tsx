@@ -920,9 +920,9 @@ export default function Navigation() {
 
       <nav 
         className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200/90 flex flex-col justify-end z-40 shadow-[0_-3px_12px_rgba(0,0,0,0.05)] text-slate-500"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', backgroundColor: '#ffffff' }}
       >
-        <div className="h-14 w-full flex items-center justify-around px-1 bg-white">
+        <div className="h-14 w-full flex items-center justify-around px-1 bg-white" style={{ backgroundColor: '#ffffff' }}>
           <NavLink
           to="/"
           end
