@@ -150,9 +150,9 @@ const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   
   return (
     <div className={`flex flex-col sm:flex-row h-screen bg-white sm:bg-gray-50 overflow-hidden font-sans ${themeClass}`}>
-      {/* PWA Mobile Sky Blue Gradient Status Bar Safe Area */}
+      {/* PWA Mobile Green Gradient Status Bar Safe Area */}
       <div 
-        className="w-full bg-gradient-to-r from-[#0284c7] via-[#0ea5e9] to-[#0369a1] sm:hidden shrink-0" 
+        className="w-full bg-gradient-to-r from-[#047857] via-[#059669] to-[#065f46] sm:hidden shrink-0" 
         style={{ height: 'env(safe-area-inset-top, 0px)' }}
         aria-hidden="true"
       />
@@ -417,14 +417,14 @@ const AppContent: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
-    // Keep PWA status bar theme-color aligned with the sky blue brand gradient
+    // Keep PWA status bar theme-color aligned with the green brand gradient
     const metaTags = document.querySelectorAll('meta[name="theme-color"]');
     if (metaTags.length > 0) {
-      metaTags.forEach(tag => tag.setAttribute('content', '#0284c7'));
+      metaTags.forEach(tag => tag.setAttribute('content', '#059669'));
     } else {
       const meta = document.createElement('meta');
       meta.name = 'theme-color';
-      meta.content = '#0284c7';
+      meta.content = '#059669';
       document.head.appendChild(meta);
     }
   }, []);

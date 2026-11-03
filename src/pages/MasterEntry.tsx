@@ -1731,12 +1731,12 @@ export default function MasterEntry() {
                       onKeyDown={handleInvoiceKeyDown}
                       onBlur={handleInvoiceBlur}
                       onChange={e => { setInvoiceNo(e.target.value.toUpperCase()); setPartyLockedByInvoice(false); setLockedInvoiceDetails(null); }}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-2 h-[34px] text-[11px] font-mono text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#0284c7] focus:ring-1 focus:ring-[#0284c7]/20 transition uppercase"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2 h-[34px] text-[11px] font-mono text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#059669] focus:ring-1 focus:ring-[#059669]/20 transition uppercase"
                       placeholder="REF OR INV"
                     />
                     {isCheckingInvoice && (
                       <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-2.5 w-2.5 border-2 border-[#0284c7] border-t-transparent"></div>
+                        <div className="animate-spin rounded-full h-2.5 w-2.5 border-2 border-[#059669] border-t-transparent"></div>
                       </div>
                     )}
                   </div>
@@ -1767,7 +1767,7 @@ export default function MasterEntry() {
                         onChange={e => setPartySearch(e.target.value)}
                         onKeyDown={handlePartySearchKeyDown}
                         disabled={isSaleLedger && !invoiceNo.trim()}
-                        className="w-full bg-white border border-slate-200 rounded-lg pl-6 pr-1.5 h-[34px] text-[11px] text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#0284c7] focus:ring-1 focus:ring-[#0284c7]/20 transition disabled:bg-slate-50 disabled:cursor-not-allowed"
+                        className="w-full bg-white border border-slate-200 rounded-lg pl-6 pr-1.5 h-[34px] text-[11px] text-[#0F172A] outline-none placeholder:text-slate-400 focus:border-[#059669] focus:ring-1 focus:ring-[#059669]/20 transition disabled:bg-slate-50 disabled:cursor-not-allowed"
                       />
 
                       {partySearch && (
@@ -1783,7 +1783,7 @@ export default function MasterEntry() {
                                   setTimeout(() => amountRef.current?.focus(), 10);
                                 }}
                                 className={`w-full text-left px-2.5 py-1.5 flex justify-between items-center transition-all ${
-                                  idx === searchSelectedIndex ? 'bg-sky-50 border-l-2 border-[#0284c7] pl-2' : 'hover:bg-slate-50'
+                                  idx === searchSelectedIndex ? 'bg-emerald-50 border-l-2 border-[#059669] pl-2' : 'hover:bg-slate-50'
                                 }`}
                               >
                                 <div className="min-w-0 pr-1">
@@ -1817,7 +1817,7 @@ export default function MasterEntry() {
                       <button
                         type="button"
                         onClick={() => { setSelectedParty(null); setTimeout(() => partySearchRef.current?.focus(), 10); }}
-                        className="text-[9px] font-normal text-[#0284c7] hover:underline cursor-pointer bg-slate-50 hover:bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 transition shrink-0"
+                        className="text-[9px] font-normal text-[#059669] hover:underline cursor-pointer bg-slate-50 hover:bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 transition shrink-0"
                       >
                         Change
                       </button>
@@ -1877,7 +1877,7 @@ export default function MasterEntry() {
                   <span>Amount (₹)</span>
                   <span className="text-[#DC2626] ml-0.5 font-normal">*</span>
                 </label>
-                <div className="flex items-stretch rounded-lg border border-slate-200 bg-white overflow-hidden focus-within:border-[#0284c7] focus-within:ring-1 focus-within:ring-[#0284c7]/20 h-[34px] transition">
+                <div className="flex items-stretch rounded-lg border border-slate-200 bg-white overflow-hidden focus-within:border-[#059669] focus-within:ring-1 focus-within:ring-[#059669]/20 h-[34px] transition">
                   <div className="w-7 bg-slate-50 border-r border-slate-200 flex items-center justify-center font-normal text-slate-500 text-xs select-none shrink-0">
                     ₹
                   </div>
@@ -1914,7 +1914,7 @@ export default function MasterEntry() {
                   value={notes}
                   onChange={e => handleTextChange(e, setNotes)}
                   disabled={isSaleLedger && !invoiceNo.trim()}
-                  className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs text-[#0F172A] outline-none placeholder:text-slate-400 placeholder:font-normal min-h-[44px] h-[44px] focus:min-h-[64px] focus:border-[#0284c7] focus:ring-1 focus:ring-[#0284c7]/20 transition resize-y disabled:bg-slate-50 leading-tight"
+                  className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs text-[#0F172A] outline-none placeholder:text-slate-400 placeholder:font-normal min-h-[44px] h-[44px] focus:min-h-[64px] focus:border-[#059669] focus:ring-1 focus:ring-[#059669]/20 transition resize-y disabled:bg-slate-50 leading-tight"
                   placeholder="Note"
                   rows={2}
                 />
@@ -1930,7 +1930,7 @@ export default function MasterEntry() {
                 )}
                 {isCreditDisabledByInvoice && (
                   <div className="w-full max-w-[380px] mb-1.5 text-[10px] flex items-center justify-center gap-1 text-slate-600 animate-in fade-in">
-                    <AlertTriangle size={12} className="text-sky-600 shrink-0" />
+                    <AlertTriangle size={12} className="text-emerald-600 shrink-0" />
                     <span className="font-normal text-slate-800">Invoice #{invoiceNo.toUpperCase()} must be debited first.</span>
                   </div>
                 )}

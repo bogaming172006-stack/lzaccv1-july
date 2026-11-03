@@ -587,7 +587,7 @@ export default function PartyList() {
             <button 
               type="button"
               onClick={() => setShowAddModal(true)}
-              className="sm:hidden p-1.5 text-[#0F172A] hover:text-[#0284c7] hover:bg-slate-100 rounded-lg active:scale-95 transition cursor-pointer"
+              className="sm:hidden p-1.5 text-[#0F172A] hover:text-[#059669] hover:bg-slate-100 rounded-lg active:scale-95 transition cursor-pointer"
               title="Add Customer"
               aria-label="Add Customer"
             >

@@ -275,8 +275,8 @@ export default function Dashboard() {
           {/* MOBILE METRICS SECTION (< md) - 100% UNCHANGED                            */}
           {/* ========================================================================= */}
           <div className="md:hidden">
-            {/* Total Outstanding Banner - Sky Blue Gradient */}
-            <div className="bg-gradient-to-br from-[#0284c7] via-[#0ea5e9] to-[#0369a1] text-white rounded-2xl p-4 sm:p-5 shadow-[0_4px_16px_rgba(2,132,199,0.32)] mb-4">
+            {/* Total Outstanding Banner - Green Gradient */}
+            <div className="bg-gradient-to-br from-[#059669] via-[#10b981] to-[#047857] text-white rounded-2xl p-4 sm:p-5 shadow-[0_4px_16px_rgba(5,150,105,0.32)] mb-4">
               <div className="text-[11.5px] font-semibold tracking-wider uppercase opacity-95 mb-2">
                 {isExpense ? 'Total Expenses (Payable)' : 'Total Outstanding'} • {totalDebtorsCount} {totalDebtorsCount === 1 ? 'party' : 'parties'} with balance
               </div>
@@ -286,16 +286,16 @@ export default function Dashboard() {
                 <span className="text-[13px] font-semibold ml-1.5 tracking-wider">DR</span>
               </div>
               <div className="flex justify-between items-center gap-2.5 flex-wrap">
-                <div className="bg-[rgba(2,80,130,0.55)] border border-white/20 px-3 py-1.5 rounded-full text-xs font-semibold text-[#34D399] flex items-center gap-1">
+                <div className="bg-[rgba(4,120,87,0.65)] border border-white/20 px-3 py-1.5 rounded-full text-xs font-semibold text-emerald-100 flex items-center gap-1">
                   <span>Advance:</span>
                   <span>₹{totalAdvancePayables.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => navigate('/parties')}
-                  className="bg-white text-[#0284c7] hover:bg-sky-50 border-none rounded-full px-3.5 py-1.5 text-[12.5px] font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                  className="bg-white text-[#059669] hover:bg-emerald-50 border-none rounded-full px-3.5 py-1.5 text-[12.5px] font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
                 >
-                  <Users size={14} className="text-[#0284c7]" />
+                  <Users size={14} className="text-[#059669]" />
                   <span>All Parties ({parties.length}) →</span>
                 </button>
               </div>
@@ -362,9 +362,9 @@ export default function Dashboard() {
           {/* ========================================================================= */}
           <div className="hidden md:grid md:grid-cols-4 md:gap-4 mb-6">
             {/* Card 1: Total Outstanding */}
-            <div className="bg-gradient-to-br from-[#0284c7] to-[#0369a1] text-white rounded-2xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+            <div className="bg-gradient-to-br from-[#059669] to-[#047857] text-white rounded-2xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between text-sky-100 text-xs font-bold uppercase tracking-wider mb-2">
+                <div className="flex items-center justify-between text-emerald-100 text-xs font-bold uppercase tracking-wider mb-2">
                   <span>{isExpense ? 'Total Payable' : 'Total Outstanding'}</span>
                   <span className="bg-white/20 px-2 py-0.5 rounded-full text-[11px] font-semibold">
                     {totalDebtorsCount} {totalDebtorsCount === 1 ? 'party' : 'parties'}
@@ -377,7 +377,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between">
-                <span className="text-[11px] text-sky-100">Debit Balance Due</span>
+                <span className="text-[11px] text-emerald-100">Debit Balance Due</span>
                 <button
                   type="button"
                   onClick={() => navigate('/parties')}
