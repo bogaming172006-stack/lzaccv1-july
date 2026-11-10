@@ -7,7 +7,9 @@ import {
   ArrowDownRight, 
   Users, 
   Plus, 
-  ChevronRight
+  ChevronRight,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { useLedger } from '../LedgerContext';
 import { useAuth } from '../AuthContext';
@@ -31,6 +33,35 @@ export default function Dashboard() {
   const [newLedgerType, setNewLedgerType] = useState<Ledger['type']>('SALE');
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreatingLedger, setIsCreatingLedger] = useState(false);
+
+  // See / Key Option: toggle viewing the outstanding amount
+  const [showOutstandingAmount, setShowOutstandingAmount] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('dashboard_show_outstanding') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleShowOutstanding = () => {
+    setShowOutstandingAmount(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('dashboard_show_outstanding', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === 's' || e.key === 'S' || e.key === 'o' || e.key === 'O') && !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+        toggleShowOutstanding();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
 
 
@@ -228,8 +259,8 @@ export default function Dashboard() {
   const todayCreditCount = todayTxs.filter(t => t.type === 'CREDIT').length;
 
   return (
-    <div className="w-full min-h-screen bg-white md:bg-[#F8FAFC] pb-16 font-customer">
-      <div className="w-full min-h-screen bg-white flex flex-col relative md:max-w-5xl lg:max-w-7xl md:mx-auto md:my-4 md:rounded-2xl md:border md:border-slate-200/80 md:shadow-xs overflow-hidden">
+    <div className="w-full min-h-screen bg-white pb-16 font-customer">
+      <div className="w-full min-h-screen bg-white flex flex-col relative md:max-w-5xl lg:max-w-7xl md:mx-auto overflow-hidden">
         
         {/* Top Header */}
         <div className="p-4 sm:p-5 md:px-8 md:py-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -277,18 +308,48 @@ export default function Dashboard() {
           <div className="md:hidden">
             {/* Total Outstanding Banner - Green Gradient */}
             <div className="bg-gradient-to-br from-[#059669] via-[#10b981] to-[#047857] text-white rounded-2xl p-4 sm:p-5 shadow-[0_4px_16px_rgba(5,150,105,0.32)] mb-4">
-              <div className="text-[11.5px] font-semibold tracking-wider uppercase opacity-95 mb-2">
-                {isExpense ? 'Total Expenses (Payable)' : 'Total Outstanding'} • {totalDebtorsCount} {totalDebtorsCount === 1 ? 'party' : 'parties'} with balance
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="text-[11.5px] font-semibold tracking-wider uppercase opacity-95 truncate">
+                  {isExpense ? 'Total Expenses (Payable)' : 'Total Outstanding'} • {totalDebtorsCount} {totalDebtorsCount === 1 ? 'party' : 'parties'} with balance
+                </div>
+                {/* See / Key Option Button */}
+                <button
+                  type="button"
+                  onClick={toggleShowOutstanding}
+                  className="bg-white/15 hover:bg-white/25 active:scale-95 text-white border border-white/20 rounded-full px-2.5 py-1 text-[11px] font-medium flex items-center gap-1.5 shadow-2xs transition cursor-pointer shrink-0"
+                  title={showOutstandingAmount ? "Hide outstanding amount" : "Press to see outstanding amount"}
+                >
+                  {showOutstandingAmount ? <EyeOff size={13} /> : <Eye size={13} />}
+                  <span>{showOutstandingAmount ? 'Hide' : 'See'}</span>
+                </button>
               </div>
+
               <div className="text-[23px] sm:text-[26px] font-bold tracking-tight mb-4 flex items-baseline select-all tabular-nums">
-                <span className="text-[21px] mr-0.5 font-normal">₹</span>
-                <span>{totalOutstanding.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                <span className="text-[13px] font-semibold ml-1.5 tracking-wider">DR</span>
+                {showOutstandingAmount ? (
+                  <>
+                    <span className="text-[21px] mr-0.5 font-normal">₹</span>
+                    <span>{totalOutstanding.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="text-[13px] font-semibold ml-1.5 tracking-wider">DR</span>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={toggleShowOutstanding}
+                    className="flex items-center gap-2 cursor-pointer group text-left"
+                    title="Press to see outstanding amount"
+                  >
+                    <span className="text-xl tracking-widest font-mono text-white/90 group-hover:text-white transition">₹ • • • • • • • •</span>
+                    <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-white/20 group-hover:bg-white/30 text-white/95 transition">
+                      Press to see
+                    </span>
+                  </button>
+                )}
               </div>
+
               <div className="flex justify-between items-center gap-2.5 flex-wrap">
                 <div className="bg-[rgba(4,120,87,0.65)] border border-white/20 px-3 py-1.5 rounded-full text-xs font-semibold text-emerald-100 flex items-center gap-1">
                   <span>Advance:</span>
-                  <span>₹{totalAdvancePayables.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr</span>
+                  <span>{showOutstandingAmount ? `₹${totalAdvancePayables.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr` : '₹ • • • • Cr'}</span>
                 </div>
                 <button
                   type="button"
@@ -358,120 +419,68 @@ export default function Dashboard() {
           </div>
 
           {/* ========================================================================= */}
-          {/* DESKTOP METRICS GRID (md+) - Wide, High-End Enterprise Layout             */}
+          {/* DESKTOP METRICS (md+) - Only Total Outstanding Card                       */}
           {/* ========================================================================= */}
-          <div className="hidden md:grid md:grid-cols-4 md:gap-4 mb-6">
-            {/* Card 1: Total Outstanding */}
-            <div className="bg-gradient-to-br from-[#059669] to-[#047857] text-white rounded-2xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between text-emerald-100 text-xs font-bold uppercase tracking-wider mb-2">
-                  <span>{isExpense ? 'Total Payable' : 'Total Outstanding'}</span>
-                  <span className="bg-white/20 px-2 py-0.5 rounded-full text-[11px] font-semibold">
-                    {totalDebtorsCount} {totalDebtorsCount === 1 ? 'party' : 'parties'}
+          <div className="hidden md:block mb-6">
+            {/* Total Outstanding Card - Desktop */}
+            <div className="bg-gradient-to-br from-[#059669] via-[#10b981] to-[#047857] text-white rounded-2xl p-6 shadow-sm relative overflow-hidden flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold uppercase tracking-wider text-emerald-100">
+                    {isExpense ? 'Total Expenses (Payable)' : 'Total Outstanding'}
+                  </span>
+                  <span className="bg-white/20 px-2.5 py-0.5 rounded-full text-xs font-semibold text-white">
+                    {totalDebtorsCount} {totalDebtorsCount === 1 ? 'party' : 'parties'} with balance
                   </span>
                 </div>
-                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight tabular-nums flex items-baseline">
-                  <span className="text-xl font-normal mr-1">₹</span>
-                  <span>{totalOutstanding.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  <span className="text-xs font-bold ml-1.5 opacity-90">DR</span>
-                </div>
+                {/* See / Hide Option Button */}
+                <button
+                  type="button"
+                  onClick={toggleShowOutstanding}
+                  className="bg-white/15 hover:bg-white/25 active:scale-95 text-white border border-white/20 rounded-full px-3 py-1 text-xs font-medium flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                  title={showOutstandingAmount ? "Hide outstanding amount" : "Press to see outstanding amount"}
+                >
+                  {showOutstandingAmount ? <EyeOff size={14} /> : <Eye size={14} />}
+                  <span>{showOutstandingAmount ? 'Hide' : 'See'}</span>
+                </button>
               </div>
-              <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between">
-                <span className="text-[11px] text-emerald-100">Debit Balance Due</span>
+
+              {/* Amount Display */}
+              <div className="text-3xl lg:text-4xl font-extrabold tracking-tight mb-4 flex items-baseline select-all tabular-nums">
+                {showOutstandingAmount ? (
+                  <>
+                    <span className="text-2xl mr-1 font-normal opacity-90">₹</span>
+                    <span>{totalOutstanding.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="text-base font-bold ml-2 tracking-wider opacity-95">DR</span>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={toggleShowOutstanding}
+                    className="flex items-center gap-3 cursor-pointer group text-left"
+                    title="Press to see outstanding amount"
+                  >
+                    <span className="text-3xl tracking-widest font-mono text-white/90 group-hover:text-white transition">₹ • • • • • • • •</span>
+                    <span className="text-xs font-normal px-2.5 py-1 rounded-full bg-white/20 group-hover:bg-white/30 text-white/95 transition">
+                      Press to see
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              {/* Bottom Row */}
+              <div className="flex items-center justify-between pt-3 border-t border-white/15 flex-wrap gap-2">
+                <div className="bg-[rgba(4,120,87,0.65)] border border-white/20 px-3.5 py-1.5 rounded-full text-xs font-semibold text-emerald-100 flex items-center gap-1.5">
+                  <span>Advance:</span>
+                  <span>{showOutstandingAmount ? `₹${totalAdvancePayables.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr` : '₹ • • • • Cr'}</span>
+                </div>
                 <button
                   type="button"
                   onClick={() => navigate('/parties')}
-                  className="text-xs font-bold text-white hover:underline cursor-pointer"
+                  className="bg-white text-[#059669] hover:bg-emerald-50 border-none rounded-full px-4 py-1.5 text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
                 >
-                  View All Due →
-                </button>
-              </div>
-            </div>
-
-            {/* Card 2: Advance Payments */}
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs relative flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    Advance Payments
-                  </span>
-                  <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full text-[11px] font-semibold border border-emerald-100">
-                    {totalAdvanceCount} {totalAdvanceCount === 1 ? 'party' : 'parties'}
-                  </span>
-                </div>
-                <div className="text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight tabular-nums flex items-baseline">
-                  <span className="text-xl font-normal text-slate-400 mr-1">₹</span>
-                  <span>{totalAdvancePayables.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  <span className="text-xs font-bold text-emerald-600 ml-1.5">CR</span>
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[11px] text-slate-500">Credit Balance Held</span>
-                <button
-                  type="button"
-                  onClick={() => navigate('/parties')}
-                  className="text-xs font-bold text-emerald-600 hover:underline cursor-pointer"
-                >
-                  View Advance →
-                </button>
-              </div>
-            </div>
-
-            {/* Card 3: Today's Debit */}
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 border-l-4 border-l-[#EF4444] shadow-2xs relative flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-[#EF4444]"></span>
-                    Todays Debit
-                  </span>
-                  <div className="w-6 h-6 rounded-md bg-[#FEE2E2] text-[#DC2626] flex items-center justify-center shrink-0">
-                    <ArrowDownRight size={14} strokeWidth={2.5} />
-                  </div>
-                </div>
-                <div className="text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight tabular-nums flex items-baseline">
-                  <span className="text-xl font-normal text-slate-400 mr-1">₹</span>
-                  <span>{todayDebit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>{todayDebitCount} {todayDebitCount === 1 ? 'voucher' : 'vouchers'} posted</span>
-                <button
-                  type="button"
-                  onClick={() => navigate('/log')}
-                  className="font-bold text-[#DC2626] hover:underline cursor-pointer"
-                >
-                  Log →
-                </button>
-              </div>
-            </div>
-
-            {/* Card 4: Today's Credit */}
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 border-l-4 border-l-[#10B981] shadow-2xs relative flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-[#10B981]"></span>
-                    Todays Credit
-                  </span>
-                  <div className="w-6 h-6 rounded-md bg-[#DCFCE7] text-[#059669] flex items-center justify-center shrink-0">
-                    <ArrowUpRight size={14} strokeWidth={2.5} />
-                  </div>
-                </div>
-                <div className="text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight tabular-nums flex items-baseline">
-                  <span className="text-xl font-normal text-slate-400 mr-1">₹</span>
-                  <span>{todayCredit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>{todayCreditCount} {todayCreditCount === 1 ? 'receipt' : 'receipts'} received</span>
-                <button
-                  type="button"
-                  onClick={() => navigate('/log')}
-                  className="font-bold text-[#059669] hover:underline cursor-pointer"
-                >
-                  Log →
+                  <Users size={14} className="text-[#059669]" />
+                  <span>All Parties ({parties.length}) →</span>
                 </button>
               </div>
             </div>

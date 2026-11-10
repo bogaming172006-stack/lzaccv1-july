@@ -1199,43 +1199,17 @@ export default function MasterEntry() {
         /* ============================================================ */
         /* CLASSIC / OLD DESKTOP INTERFACE                             */
         /* ============================================================ */
-        <div className="w-full min-h-screen bg-white md:bg-[#F8FAFC] pb-16 font-sans">
-          <div className="w-full min-h-screen bg-white flex flex-col relative md:max-w-5xl lg:max-w-7xl md:mx-auto md:my-4 md:rounded-2xl md:border md:border-slate-200/80 md:shadow-xs p-4 sm:p-6 md:p-8 overflow-hidden">
-            {/* Header matching screenshot */}
+        <div className="w-full min-h-screen bg-white pb-16 font-sans">
+          <div className="w-full min-h-screen bg-white flex flex-col relative md:max-w-5xl lg:max-w-7xl md:mx-auto p-4 sm:p-6 md:p-8 overflow-hidden">
+            {/* Header */}
             <div className="mb-6 pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium mb-1.5">
-                <Home size={14} className="text-blue-600 shrink-0" />
-                <button 
-                  type="button" 
-                  onClick={() => navigate('/')} 
-                  className="hover:text-blue-600 transition-colors cursor-pointer"
-                >
-                  Home
-                </button>
-                <ChevronRight size={12} className="text-slate-400 shrink-0" />
-                <span className="text-slate-600 font-semibold">Master Entry / Input</span>
-              </div>
-              
               <div className="flex items-start sm:items-center justify-between gap-4">
                 <div>
                   <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0f172a] tracking-tight">Master Entry</h1>
-                  <p className="text-xs text-slate-500 mt-0.5">Quick voucher posting for {activeLedger.name}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Entry {activeLedger.name}</p>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowPendingBillsModal(true)}
-                    className="flex items-center gap-2 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs cursor-pointer active:scale-95"
-                    title={`${todayPendingBills.length} pending orders waiting to be debited`}
-                  >
-                    <FileText size={15} className="text-[#0055a5]" />
-                    <span>Unlisted Orders</span>
-                    <span className="bg-blue-50 text-[#0055a5] border border-blue-200/60 text-[10px] font-bold px-2 py-0.5 rounded-full min-w-5 text-center">
-                      {todayPendingBills.length}
-                    </span>
-                  </button>
-
                   <button
                     type="button"
                     onClick={() => navigate('/log')}
@@ -1247,18 +1221,15 @@ export default function MasterEntry() {
               </div>
             </div>
 
-            {/* Desktop 2-Column Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              {/* Left Column: Voucher Form (col-span-7) */}
+            {/* Desktop Two-Column Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Column: Voucher Entry Form */}
               <div className="lg:col-span-7 space-y-4">
                 {/* Desktop Entry Card */}
                 <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white">
                   <CardHeader
                     title={
-                      <div className="flex items-center justify-between w-full">
-                        <h3 className="font-bold text-base text-slate-900">Record Transaction Voucher</h3>
-                        <span className="text-[11px] font-mono text-slate-400">Ledger: {activeLedger.name}</span>
-                      </div>
+                      <h3 className="font-bold text-base text-slate-900">Record Transaction Voucher</h3>
                     }
                   />
 
@@ -1477,7 +1448,7 @@ export default function MasterEntry() {
                       {billingMatch && (
                         <div 
                           onClick={() => applyBillingMatch(billingMatch)}
-                          className="p-3 bg-blue-50/90 hover:bg-blue-100/70 border border-blue-200 rounded-xl transition cursor-pointer flex items-center justify-between"
+                          className="p-3 bg-blue-50/90 hover:bg-blue-100/70 rounded-xl transition cursor-pointer flex items-center justify-between"
                         >
                           <div className="flex items-center gap-2.5">
                             <FileText size={17} className="text-[#0055a5] shrink-0" />
@@ -1607,86 +1578,93 @@ export default function MasterEntry() {
                 </Card>
               </div>
 
-              {/* Right Column: Side Productivity Panel (lg:col-span-5) */}
-              <div className="lg:col-span-5 space-y-5">
-                {/* 1. Unlisted Orders (Pending Bills) Card */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
-                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#0055a5] flex items-center justify-center font-bold text-xs">
-                        <FileText size={15} />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-900">Unlisted Orders</h3>
-                        <p className="text-[11px] text-slate-400">Orders ready to debit</p>
-                      </div>
+              {/* Right Column: Restored Options (Unlisted Orders List) WITHOUT Top Text */}
+              <div className="lg:col-span-5 space-y-4">
+                <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white">
+                  <CardBody className="p-4 space-y-3">
+                    {/* Search Input Filter for Options */}
+                    <div className="relative">
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={desktopPendingSearch}
+                        onChange={e => setDesktopPendingSearch(e.target.value)}
+                        placeholder="Search bill # or party..."
+                        className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+                      />
+                      {desktopPendingSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setDesktopPendingSearch('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
-                    <span className="bg-blue-50 text-[#0055a5] border border-blue-200/60 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                      {todayPendingBills.length} pending
-                    </span>
-                  </div>
 
-                  {todayPendingBills.length > 0 ? (
-                    <>
-                      {/* Search in pending bills */}
-                      <div className="relative mb-3">
-                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                        <input
-                          type="text"
-                          placeholder="Filter pending orders..."
-                          value={desktopPendingSearch}
-                          onChange={e => setDesktopPendingSearch(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
-                        />
-                      </div>
+                    {/* Bills Options List */}
+                    <div className="overflow-y-auto max-h-[620px] space-y-2 pr-0.5">
+                      {(() => {
+                        const filtered = todayPendingBills.filter(b => {
+                          if (!desktopPendingSearch.trim()) return true;
+                          const q = desktopPendingSearch.toLowerCase();
+                          return (
+                            b.bill_no?.toLowerCase().includes(q) ||
+                            b.customer_name?.toLowerCase().includes(q) ||
+                            String(b.total_amount).includes(q)
+                          );
+                        });
 
-                      <div className="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar pr-1">
-                        {todayPendingBills
-                          .filter(b => {
-                            if (!desktopPendingSearch.trim()) return true;
-                            const q = desktopPendingSearch.toLowerCase();
-                            return (
-                              (b.bill_no && b.bill_no.toLowerCase().includes(q)) ||
-                              (b.customer_name && b.customer_name.toLowerCase().includes(q)) ||
-                              (b.phone && b.phone.includes(q))
-                            );
-                          })
-                          .slice(0, 15)
-                          .map(bill => (
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="py-8 text-center text-slate-400 text-xs">
+                              {todayPendingBills.length === 0 
+                                ? "No pending unlisted bills."
+                                : "No bills matching search."}
+                            </div>
+                          );
+                        }
+
+                        return filtered.map(bill => {
+                          const key = bill.id || bill.bill_no;
+
+                          return (
                             <div
-                              key={bill.id || bill.bill_no}
-                              className="p-3 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/20 transition-all flex items-center justify-between gap-3 group"
+                              key={key}
+                              className="p-3 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition shadow-2xs"
                             >
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-mono font-bold text-xs text-slate-900 group-hover:text-[#0055a5]">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <span className="text-xs font-mono font-bold text-slate-900 shrink-0">
                                     #{bill.bill_no}
                                   </span>
-                                  <span className="text-[10px] text-slate-400 truncate">({bill.customer_name})</span>
+                                  <span className="text-slate-300 text-xs">•</span>
+                                  <p className="text-xs font-semibold text-slate-800 uppercase truncate">
+                                    {bill.customer_name}
+                                  </p>
                                 </div>
-                                <div className="text-[11px] font-bold text-slate-700 font-mono mt-0.5">
-                                  ₹{Number(bill.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-xs font-bold text-slate-900">
+                                    ₹{Number(bill.total_amount).toFixed(2)}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => applyBillingMatch(bill)}
+                                    className="px-2.5 py-1 bg-[#0055a5] hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                                  >
+                                    <Check size={12} strokeWidth={2.4} />
+                                    Apply
+                                  </button>
                                 </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => applyBillingMatch(bill)}
-                                className="px-3 py-1.5 bg-[#0055a5] hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-all cursor-pointer shrink-0 active:scale-95"
-                              >
-                                Apply
-                              </button>
                             </div>
-                          ))}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="py-6 text-center text-slate-400 text-xs">
-                      <Check size={20} className="mx-auto mb-1 text-emerald-500" />
-                      <p className="font-semibold text-slate-700">All orders up to date</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">No unlisted orders waiting to be debited.</p>
+                          );
+                        });
+                      })()}
                     </div>
-                  )}
-                </div>
+                  </CardBody>
+                </Card>
               </div>
             </div>
           </div>
@@ -2163,28 +2141,28 @@ export default function MasterEntry() {
       {/* Confirmation Modal */}
       {showConfirmModal && selectedParty && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden text-xs">
-            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
-              <h3 className="font-bold text-slate-900 text-sm">Review & Post Voucher</h3>
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-sm border border-slate-200 overflow-hidden text-xs">
+            <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+              <h3 className="font-normal text-slate-800 text-sm">Review Entry</h3>
             </div>
             <div className="p-5 space-y-3">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Party Account:</span>
-                <span className="font-bold text-slate-900">{selectedParty.name}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-normal">Party Account:</span>
+                <span className="font-normal text-slate-800">{selectedParty.name}</span>
               </div>
               {(isSaleLedger || invoiceNo) && (
-                <div className="flex justify-between">
-                  <span className="text-slate-500">{isSaleLedger ? 'Invoice No:' : 'Reference:'}</span>
-                  <span className="font-mono text-slate-900">{invoiceNo || '-'}</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-normal">{isSaleLedger ? 'Invoice No:' : 'Reference:'}</span>
+                  <span className="font-normal text-slate-800">{invoiceNo || '-'}</span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="text-slate-500">Voucher Type:</span>
-                <span className={`font-bold ${type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>{type}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-normal">Entry Type:</span>
+                <span className={`font-normal ${type === 'DEBIT' ? 'text-rose-600' : 'text-emerald-600'}`}>{type}</span>
               </div>
-              <div className="flex justify-between border-t border-slate-200 pt-2 font-bold text-sm">
-                <span className="text-slate-700">Total Amount:</span>
-                <span className="font-mono text-slate-900">
+              <div className="flex justify-between items-center border-t border-slate-200 pt-3">
+                <span className="text-slate-600 font-normal">Total Amount:</span>
+                <span className="font-normal text-slate-900">
                   ₹{type === 'CREDIT' && separateCredit
                     ? ((parseFloat(cashAmount) || 0) + (parseFloat(acAmount) || 0)).toFixed(2)
                     : parseFloat(amount).toFixed(2)}
@@ -2195,7 +2173,7 @@ export default function MasterEntry() {
               <button 
                 onClick={() => setShowConfirmModal(false)}
                 disabled={isSubmitting}
-                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-semibold"
+                className="px-4 py-2 text-slate-600 hover:bg-slate-200/70 rounded-lg font-normal transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -2203,11 +2181,11 @@ export default function MasterEntry() {
                 ref={confirmBtnRef}
                 onClick={handleConfirmSubmit}
                 disabled={isSubmitting}
-                className={`px-5 py-2 text-white rounded-lg font-bold shadow-xs ${
+                className={`px-4 py-2 text-white rounded-lg font-normal transition-colors cursor-pointer ${
                   type === 'DEBIT' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'
                 }`}
               >
-                {isSubmitting ? 'Posting...' : 'Confirm & Save'}
+                {isSubmitting ? 'Posting...' : 'Confirm'}
               </button>
             </div>
           </div>
@@ -2217,15 +2195,15 @@ export default function MasterEntry() {
       {/* Alert Notice Modal */}
       {alertInfo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden text-xs">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-sm border border-slate-200 overflow-hidden text-xs">
             <div className={`p-4 border-b ${alertInfo.isError ? 'bg-rose-50 border-rose-100' : 'bg-blue-50 border-blue-100'}`}>
-              <h3 className={`font-bold text-sm flex items-center gap-1.5 ${alertInfo.isError ? 'text-rose-700' : 'text-blue-700'}`}>
+              <h3 className={`font-normal text-sm flex items-center gap-1.5 ${alertInfo.isError ? 'text-rose-700' : 'text-blue-700'}`}>
                 <AlertTriangle size={16} />
                 {alertInfo.title || (alertInfo.isError ? 'Validation Notice' : 'Notice')}
               </h3>
             </div>
             <div className="p-5">
-              <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">{alertInfo.message}</p>
+              <p className="text-slate-700 whitespace-pre-wrap leading-relaxed font-normal">{alertInfo.message}</p>
             </div>
             <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
               <button 
@@ -2240,7 +2218,7 @@ export default function MasterEntry() {
                     }
                   }, 50);
                 }}
-                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-bold shadow-xs"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-normal transition-colors cursor-pointer"
               >
                 Got it
               </button>
@@ -2270,13 +2248,13 @@ export default function MasterEntry() {
       {/* Success Notification Banner Modal */}
       {showSuccess && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4 border border-slate-200">
-            <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-              <Check size={28} />
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-sm p-6 text-center space-y-4 border border-slate-200">
+            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+              <Check size={24} />
             </div>
             <div>
-              <h3 className="font-extrabold text-slate-900 text-base">Voucher Posted!</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Recorded in {activeLedger?.name}</p>
+              <h3 className="font-normal text-slate-800 text-sm">Entred!</h3>
+              <p className="text-xs text-slate-500 mt-1 font-normal">Recorded in {activeLedger?.name}</p>
             </div>
 
             <div className="flex items-center gap-2.5 pt-1">
@@ -2289,7 +2267,7 @@ export default function MasterEntry() {
                     setReceiptPartyPhone(lastSavedTx.partyPhone);
                     setShowSuccess(false);
                   }}
-                  className="flex-1 py-2.5 px-3 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer truncate"
+                  className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-normal flex items-center justify-center gap-1.5 transition-colors cursor-pointer truncate"
                 >
                   <Printer size={14} className="shrink-0" />
                   <span className="truncate">Print Receipt</span>
@@ -2304,7 +2282,7 @@ export default function MasterEntry() {
                     invoiceRef.current.focus();
                   }
                 }}
-                className="flex-1 py-2.5 px-3 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white rounded-xl text-xs font-bold flex items-center justify-center transition-all cursor-pointer truncate"
+                className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-normal flex items-center justify-center transition-colors cursor-pointer truncate"
               >
                 <span className="truncate">Post Next</span>
               </button>

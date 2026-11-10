@@ -25,6 +25,15 @@ const enforceWhiteNavigation = () => {
 };
 enforceWhiteNavigation();
 
+// Auto-update Service Worker to immediately discard stale cached blue theme or manifest
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    for (const reg of registrations) {
+      reg.update().catch(() => {});
+    }
+  }).catch(() => {});
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

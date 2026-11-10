@@ -299,12 +299,12 @@ export default function Log() {
                         </span>
                       )}
                       {tab === 'DEBIT' && (
-                        <span className="hidden md:inline text-[10px] sm:text-[11px] font-mono font-bold text-rose-600">
+                        <span className="hidden md:inline text-[10px] sm:text-[11px] font-mono font-bold text-slate-900">
                           ₹{totalDebit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       )}
                       {tab === 'CREDIT' && (
-                        <span className="hidden md:inline text-[10px] sm:text-[11px] font-mono font-bold text-emerald-600">
+                        <span className="hidden md:inline text-[10px] sm:text-[11px] font-mono font-bold text-slate-900">
                           ₹{totalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       )}
@@ -319,10 +319,10 @@ export default function Log() {
                   type="button"
                   id="filter-options-btn"
                   onClick={() => setShowFilterDropdown(prev => !prev)}
-                  className={`inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 text-[11px] sm:text-xs font-semibold transition-all cursor-pointer ${
+                  className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold border transition-all cursor-pointer shadow-2xs ${
                     datePreset !== 'TODAY' || entryFilter !== 'ALL'
-                      ? 'text-blue-700'
-                      : 'text-slate-700 hover:text-slate-900'
+                      ? 'bg-blue-50 border-blue-300 text-blue-700'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}
                   title="Filter entries by Date & Classification"
                 >
@@ -567,7 +567,7 @@ export default function Log() {
             <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-slate-100 text-[10.5px]">
               <span className="text-slate-400 font-medium">Active:</span>
               {datePreset !== 'TODAY' && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-blue-700 font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-200">
                   <Calendar size={10} />
                   <span>
                     {datePreset === 'YESTERDAY' ? 'Yesterday' : `${startDate} to ${endDate}`}
@@ -575,7 +575,7 @@ export default function Log() {
                   <button
                     type="button"
                     onClick={() => applyDatePreset('TODAY')}
-                    className="hover:text-blue-900 ml-0.5 cursor-pointer"
+                    className="hover:text-blue-900 ml-0.5"
                     title="Reset date to Today"
                   >
                     <X size={10} />
@@ -583,12 +583,12 @@ export default function Log() {
                 </span>
               )}
               {entryFilter !== 'ALL' && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-amber-700 font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium border border-amber-200">
                   <span>{entryFilter === 'INVOICE' ? 'Only Invoices' : 'Only Info'}</span>
                   <button
                     type="button"
                     onClick={() => setEntryFilter('ALL')}
-                    className="hover:text-amber-900 ml-0.5 cursor-pointer"
+                    className="hover:text-amber-900 ml-0.5"
                     title="Reset to All Entries"
                   >
                     <X size={10} />

@@ -252,7 +252,7 @@ export default function PartyList() {
       await setDoc(doc(db, 'statement_dispatches', dispatchId), dispatchRecord);
       setLastDispatches(prev => ({ ...prev, [party.id]: now }));
       setContextMenu(null);
-      setToastMessage(`Statement dispatch logged for ${party.name} (${existingContact})!`);
+      setToastMessage('Statement are sended');
     } catch (err) {
       console.error('Failed to log statement dispatch:', err);
       setToastMessage('Error dispatching statement. Please try again.');
@@ -296,7 +296,7 @@ export default function PartyList() {
       await setDoc(doc(db, 'statement_dispatches', dispatchId), dispatchRecord);
       setLastDispatches(prev => ({ ...prev, [partyId]: now }));
       setContactModalParty(null);
-      setToastMessage(`Contact saved & statement dispatched for ${contactModalParty.name}!`);
+      setToastMessage('Statement are sended');
     } catch (err) {
       console.error('Failed to save contact & dispatch statement:', err);
       setToastMessage('Error saving contact details. Please try again.');
@@ -530,8 +530,8 @@ export default function PartyList() {
   const creditorsCount = useMemo(() => parties.filter(p => p.currentDue < 0).length, [parties]);
 
   return (
-    <div className={`w-full min-h-screen bg-white md:bg-[#F8FAFC] pb-16 font-customer ${density === 'ultra' ? 'text-[11px]' : 'text-xs'}`}>
-      <div className="w-full min-h-screen bg-white flex flex-col relative md:max-w-5xl lg:max-w-7xl md:mx-auto md:my-4 md:rounded-2xl md:border md:border-slate-200/80 md:shadow-xs md:min-h-[calc(100vh-2rem)] transition-all">
+    <div className={`w-full min-h-screen bg-white pb-16 font-customer ${density === 'ultra' ? 'text-[11px]' : 'text-xs'}`}>
+      <div className="w-full min-h-screen bg-white flex flex-col relative md:max-w-5xl lg:max-w-7xl md:mx-auto transition-all">
         
         {/* ========================================================================= */}
         {/* HEADER BAR                                                                */}
@@ -875,10 +875,10 @@ export default function PartyList() {
                         <div className="flex items-center gap-1 shrink-0">
                           {party.currentDue !== 0 && (
                             <div className="text-right hidden min-[320px]:block">
-                              <div className={`text-[10.5px] font-bold ${party.currentDue > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                              <div className="text-[10.5px] font-bold text-slate-900">
                                 {party.currentDue > 0 ? '-' : '+'}{formatCustomerCurrency(party.currentDue, currency)}
                               </div>
-                              <span className={`text-[8px] font-bold uppercase tracking-wider ${party.currentDue > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                              <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500">
                                 {party.currentDue > 0 ? 'DR' : 'CR'}
                               </span>
                             </div>
@@ -955,10 +955,10 @@ export default function PartyList() {
 
                         {/* Col 10-11: Balance */}
                         <div className="col-span-2 text-right pr-2">
-                          <div className={`text-sm font-bold tabular-nums ${party.currentDue > 0 ? 'text-[#DC2626]' : party.currentDue < 0 ? 'text-[#059669]' : 'text-slate-700'}`}>
+                          <div className="text-sm font-bold tabular-nums text-slate-900">
                             {party.currentDue > 0 ? '-' : party.currentDue < 0 ? '+' : ''}{formatCustomerCurrency(party.currentDue, currency)}
                           </div>
-                          <span className={`inline-block text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded ${party.currentDue > 0 ? 'bg-rose-50 text-[#DC2626]' : party.currentDue < 0 ? 'bg-emerald-50 text-[#059669]' : 'bg-slate-100 text-slate-500'}`}>
+                          <span className="inline-block text-[9px] font-bold uppercase tracking-wider text-slate-700">
                             {party.currentDue > 0 ? 'DR (DEBTOR)' : party.currentDue < 0 ? 'CR (CREDITOR)' : 'SETTLED'}
                           </span>
                         </div>
@@ -1669,14 +1669,18 @@ export default function PartyList() {
         {/* TOAST NOTIFICATION                                                        */}
         {/* ========================================================================= */}
         {toastMessage && (
-          <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2.5 animate-in slide-in-from-bottom-2 fade-in">
-            <span>{toastMessage}</span>
+          <div 
+            className="fixed bottom-16 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 bg-transparent text-black text-xs sm:text-sm font-bold px-3 py-1.5 flex items-center gap-2 animate-in fade-in duration-150 select-none pointer-events-auto"
+            style={{ background: 'transparent', backgroundColor: 'transparent' }}
+          >
+            <span style={{ color: '#000000' }}>{toastMessage}</span>
             <button 
               type="button" 
               onClick={() => setToastMessage(null)} 
-              className="text-slate-400 hover:text-white cursor-pointer"
+              className="text-black hover:opacity-60 cursor-pointer p-0.5"
+              style={{ color: '#000000' }}
             >
-              <X size={13} />
+              <X size={14} />
             </button>
           </div>
         )}

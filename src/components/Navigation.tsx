@@ -256,7 +256,7 @@ export default function Navigation() {
                     onClick={() => { handleLedgerSwitch(l.id); setShowLedgerMenu(false); }}
                     className={`w-full text-left px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
                       activeLedger?.id === l.id 
-                        ? l.type === 'PURCHASE' ? 'bg-purple-900 text-amber-300 font-medium' : 'bg-[#0055a5] text-white font-normal' 
+                        ? l.type === 'PURCHASE' ? 'bg-purple-900 text-amber-300 font-medium' : 'bg-[#059669] text-white font-normal' 
                         : 'text-slate-700 hover:bg-slate-100'
                     }`}
                   >
@@ -267,7 +267,7 @@ export default function Navigation() {
               {currentUser.isAdmin && (
                 <button 
                   onClick={() => { setShowNewLedgerModal(true); setShowLedgerMenu(false); }}
-                  className="w-full flex items-center text-left px-2.5 py-1.5 text-xs text-[#0055a5] hover:bg-blue-50 rounded-lg font-medium"
+                  className="w-full flex items-center text-left px-2.5 py-1.5 text-xs text-[#059669] hover:bg-blue-50 rounded-lg font-medium"
                 >
                   <Plus size={13} className="mr-1.5" />
                   Add New Ledger
@@ -282,34 +282,34 @@ export default function Navigation() {
                 <NavLink 
                   to="/tr-note" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? (isPurchase ? 'bg-purple-50 text-purple-700 font-bold' : 'bg-emerald-50 text-emerald-700 font-bold') : 'text-slate-700 hover:bg-slate-50'}`}
                 >
-                  <FileCheck2 size={16} className="mr-2.5 text-[#0055a5]" />
+                  <FileCheck2 size={16} className={`mr-2.5 ${isPurchase ? 'text-purple-600' : 'text-[#059669]'}`} />
                   TR Note (Adjustment)
                 </NavLink>
 
                 <NavLink 
                   to="/statement" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? (isPurchase ? 'bg-purple-50 text-purple-700 font-bold' : 'bg-emerald-50 text-emerald-700 font-bold') : 'text-slate-700 hover:bg-slate-50'}`}
                 >
-                  <FileSpreadsheet size={16} className="mr-2.5 text-[#0055a5]" />
+                  <FileSpreadsheet size={16} className={`mr-2.5 ${isPurchase ? 'text-purple-600' : 'text-[#059669]'}`} />
                   Account Statement
                 </NavLink>
 
                 <NavLink 
                   to="/declaration" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? (isPurchase ? 'bg-purple-50 text-purple-700 font-bold' : 'bg-emerald-50 text-emerald-700 font-bold') : 'text-slate-700 hover:bg-slate-50'}`}
                 >
-                  <FileText size={16} className="mr-2.5 text-[#0055a5]" />
+                  <FileText size={16} className={`mr-2.5 ${isPurchase ? 'text-purple-600' : 'text-[#059669]'}`} />
                   Bill Declaration & Audit
                 </NavLink>
 
                 <NavLink 
                   to="/activities" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? (isPurchase ? 'bg-purple-50 text-purple-700 font-bold' : 'bg-emerald-50 text-emerald-700 font-bold') : 'text-slate-700 hover:bg-slate-50'}`}
                 >
                   <Activity size={16} className="mr-2.5 text-slate-500" />
                   Overall Transaction
@@ -318,7 +318,7 @@ export default function Navigation() {
                 <NavLink 
                   to="/invoice-sheets" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? (isPurchase ? 'bg-purple-50 text-purple-700 font-bold' : 'bg-emerald-50 text-emerald-700 font-bold') : 'text-slate-700 hover:bg-slate-50'}`}
                 >
                   <BookOpen size={16} className="mr-2.5 text-slate-500" />
                   Invoice Sheets
@@ -331,7 +331,7 @@ export default function Navigation() {
                 <NavLink 
                   to="/accounts-mail" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? (isPurchase ? 'bg-purple-50 text-purple-700 font-bold' : 'bg-emerald-50 text-emerald-700 font-bold') : 'text-slate-700 hover:bg-slate-50'}`}
                 >
                   <FileSpreadsheet size={16} className="mr-2.5 text-emerald-600" />
                   Google Sheets Auto-Sync
@@ -340,16 +340,16 @@ export default function Navigation() {
                 <NavLink 
                   to="/backup-restore" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? (isPurchase ? 'bg-purple-50 text-purple-700 font-bold' : 'bg-emerald-50 text-emerald-700 font-bold') : 'text-slate-700 hover:bg-slate-50'}`}
                 >
-                  <Database size={16} className="mr-2.5 text-blue-600" />
+                  <Database size={16} className="mr-2.5 text-emerald-600" />
                   Backup & Restore
                 </NavLink>
                 
                 <NavLink 
                   to="/admin" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? (isPurchase ? 'bg-purple-50 text-purple-700 font-bold' : 'bg-emerald-50 text-emerald-700 font-bold') : 'text-slate-700 hover:bg-slate-50'}`}
                 >
                   <Settings size={16} className="mr-2.5 text-slate-600" />
                   User Management
@@ -361,45 +361,45 @@ export default function Navigation() {
                   to="/" 
                   end
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? (isPurchase ? 'bg-purple-50 text-purple-700 font-bold' : 'bg-emerald-50 text-emerald-700 font-bold') : 'text-slate-700 hover:bg-slate-50'}`}
                 >
-                  <LayoutDashboard size={16} className="mr-2.5 text-[#0055a5]" />
+                  <LayoutDashboard size={16} className={`mr-2.5 ${isPurchase ? 'text-purple-600' : 'text-[#059669]'}`} />
                   Dashboard
                 </NavLink>
 
                 <NavLink 
                   to="/parties" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? (isPurchase ? 'bg-purple-50 text-purple-700 font-bold' : 'bg-emerald-50 text-emerald-700 font-bold') : 'text-slate-700 hover:bg-slate-50'}`}
                 >
-                  <UsersIcon size={16} className="mr-2.5 text-[#0055a5]" />
+                  <UsersIcon size={16} className={`mr-2.5 ${isPurchase ? 'text-purple-600' : 'text-[#059669]'}`} />
                   Party Ledger
                 </NavLink>
 
                 <NavLink 
                   to="/master-entry" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? (isPurchase ? 'bg-purple-50 text-purple-700 font-bold' : 'bg-emerald-50 text-emerald-700 font-bold') : 'text-slate-700 hover:bg-slate-50'}`}
                 >
-                  <CreditCard size={16} className="mr-2.5 text-[#0055a5]" />
+                  <CreditCard size={16} className={`mr-2.5 ${isPurchase ? 'text-purple-600' : 'text-[#059669]'}`} />
                   Input
                 </NavLink>
 
                 <NavLink 
                   to="/log" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? (isPurchase ? 'bg-purple-50 text-purple-700 font-bold' : 'bg-emerald-50 text-emerald-700 font-bold') : 'text-slate-700 hover:bg-slate-50'}`}
                 >
-                  <FileText size={16} className="mr-2.5 text-[#0055a5]" />
+                  <FileText size={16} className={`mr-2.5 ${isPurchase ? 'text-purple-600' : 'text-[#059669]'}`} />
                   Day Log
                 </NavLink>
 
                 <NavLink 
                   to="/invoice-sheets" 
                   onClick={() => setShowMobileMore(false)} 
-                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={({ isActive }) => `flex items-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isActive ? (isPurchase ? 'bg-purple-50 text-purple-700 font-bold' : 'bg-emerald-50 text-emerald-700 font-bold') : 'text-slate-700 hover:bg-slate-50'}`}
                 >
-                  <BookOpen size={16} className="mr-2.5 text-[#0055a5]" />
+                  <BookOpen size={16} className={`mr-2.5 ${isPurchase ? 'text-purple-600' : 'text-[#059669]'}`} />
                   Invoice Sheet
                 </NavLink>
               </>
@@ -497,7 +497,7 @@ export default function Navigation() {
                           isCurrent
                             ? isLedgerPurchase 
                               ? 'bg-gradient-to-r from-purple-800 to-purple-950 text-white font-medium shadow-xs border-l-3 border-amber-400'
-                              : 'bg-[#0055a5] text-white font-normal' 
+                              : 'bg-[#059669] text-white font-normal' 
                             : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 font-normal'
                         }`}
                       >
@@ -510,7 +510,7 @@ export default function Navigation() {
                   <div className="border-t border-slate-100 p-1.5 bg-slate-50">
                     <button 
                       onClick={() => { setShowNewLedgerModal(true); setShowLedgerMenu(false); }}
-                      className="w-full flex items-center justify-center text-left px-2.5 py-1.5 text-xs text-[#0055a5] hover:text-blue-700 hover:bg-blue-50 rounded-lg font-normal transition-colors"
+                      className="w-full flex items-center justify-center text-left px-2.5 py-1.5 text-xs text-[#059669] hover:text-blue-700 hover:bg-blue-50 rounded-lg font-normal transition-colors"
                     >
                       <Plus size={14} className="mr-1.5" />
                       Create New Ledger
@@ -536,7 +536,7 @@ export default function Navigation() {
                   className={({ isActive }) =>
                     `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                       isActive
-                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-[#0055a5] text-white shadow-xs font-normal')
+                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-gradient-to-r from-[#059669] via-[#10b981] to-[#047857] text-white shadow-[0_2px_12px_rgba(16,185,129,0.38)] font-medium')
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                     }`
                   }
@@ -554,7 +554,7 @@ export default function Navigation() {
                   className={({ isActive }) =>
                     `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                       isActive
-                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-[#0055a5] text-white shadow-xs font-normal')
+                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-gradient-to-r from-[#059669] via-[#10b981] to-[#047857] text-white shadow-[0_2px_12px_rgba(16,185,129,0.38)] font-medium')
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                     }`
                   }
@@ -572,7 +572,7 @@ export default function Navigation() {
                   className={({ isActive }) =>
                     `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                       isActive
-                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-[#0055a5] text-white shadow-xs font-normal')
+                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-gradient-to-r from-[#059669] via-[#10b981] to-[#047857] text-white shadow-[0_2px_12px_rgba(16,185,129,0.38)] font-medium')
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                     }`
                   }
@@ -590,7 +590,7 @@ export default function Navigation() {
                   className={({ isActive }) =>
                     `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                       isActive
-                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-[#0055a5] text-white shadow-xs font-normal')
+                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-gradient-to-r from-[#059669] via-[#10b981] to-[#047857] text-white shadow-[0_2px_12px_rgba(16,185,129,0.38)] font-medium')
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                     }`
                   }
@@ -608,7 +608,7 @@ export default function Navigation() {
                   className={({ isActive }) =>
                     `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                       isActive
-                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-[#0055a5] text-white shadow-xs font-normal')
+                        ? (isPurchase ? 'bg-purple-900 text-white shadow-xs font-normal' : 'bg-gradient-to-r from-[#059669] via-[#10b981] to-[#047857] text-white shadow-[0_2px_12px_rgba(16,185,129,0.38)] font-medium')
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                     }`
                   }
@@ -636,7 +636,7 @@ export default function Navigation() {
                     className={({ isActive }) =>
                       `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                         isActive
-                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          ? 'bg-gradient-to-r from-[#059669] via-[#10b981] to-[#047857] text-white shadow-[0_2px_12px_rgba(16,185,129,0.38)] font-medium'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                       }`
                     }
@@ -654,7 +654,7 @@ export default function Navigation() {
                     className={({ isActive }) =>
                       `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                         isActive
-                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          ? 'bg-gradient-to-r from-[#059669] via-[#10b981] to-[#047857] text-white shadow-[0_2px_12px_rgba(16,185,129,0.38)] font-medium'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                       }`
                     }
@@ -672,7 +672,7 @@ export default function Navigation() {
                     className={({ isActive }) =>
                       `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                         isActive
-                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          ? 'bg-gradient-to-r from-[#059669] via-[#10b981] to-[#047857] text-white shadow-[0_2px_12px_rgba(16,185,129,0.38)] font-medium'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                       }`
                     }
@@ -690,7 +690,7 @@ export default function Navigation() {
                     className={({ isActive }) =>
                       `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                         isActive
-                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          ? 'bg-gradient-to-r from-[#059669] via-[#10b981] to-[#047857] text-white shadow-[0_2px_12px_rgba(16,185,129,0.38)] font-medium'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                       }`
                     }
@@ -708,7 +708,7 @@ export default function Navigation() {
                     className={({ isActive }) =>
                       `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                         isActive
-                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          ? 'bg-gradient-to-r from-[#059669] via-[#10b981] to-[#047857] text-white shadow-[0_2px_12px_rgba(16,185,129,0.38)] font-medium'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                       }`
                     }
@@ -727,7 +727,7 @@ export default function Navigation() {
                       className={({ isActive }) =>
                         `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                           isActive
-                            ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                            ? 'bg-gradient-to-r from-[#059669] via-[#10b981] to-[#047857] text-white shadow-[0_2px_12px_rgba(16,185,129,0.38)] font-medium'
                             : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                         }`
                       }
@@ -754,7 +754,7 @@ export default function Navigation() {
                     className={({ isActive }) =>
                       `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                         isActive
-                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          ? 'bg-[#059669] text-white shadow-xs font-normal'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                       }`
                     }
@@ -772,7 +772,7 @@ export default function Navigation() {
                     className={({ isActive }) =>
                       `flex items-center justify-between px-3 py-2 text-[13px] rounded-lg transition-all ${
                         isActive
-                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          ? 'bg-[#059669] text-white shadow-xs font-normal'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                       }`
                     }
@@ -797,7 +797,7 @@ export default function Navigation() {
                     className={({ isActive }) =>
                       `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                         isActive
-                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          ? 'bg-[#059669] text-white shadow-xs font-normal'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                       }`
                     }
@@ -823,7 +823,7 @@ export default function Navigation() {
                     className={({ isActive }) =>
                       `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                         isActive
-                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          ? 'bg-[#059669] text-white shadow-xs font-normal'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                       }`
                     }
@@ -841,7 +841,7 @@ export default function Navigation() {
                     className={({ isActive }) =>
                       `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                         isActive
-                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          ? 'bg-[#059669] text-white shadow-xs font-normal'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                       }`
                     }
@@ -859,7 +859,7 @@ export default function Navigation() {
                     className={({ isActive }) =>
                       `flex items-center px-3 py-2 text-[13px] rounded-lg transition-all ${
                         isActive
-                          ? 'bg-[#0055a5] text-white shadow-xs font-normal'
+                          ? 'bg-[#059669] text-white shadow-xs font-normal'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-normal'
                       }`
                     }
@@ -887,7 +887,7 @@ export default function Navigation() {
               <div className={`w-8 h-8 rounded-lg ${
                 isPurchase 
                   ? 'bg-purple-900 text-amber-300 ring-1 ring-amber-400/50' 
-                  : 'bg-[#0055a5] text-white'
+                  : 'bg-[#059669] text-white'
               } flex items-center justify-center font-bold text-xs shrink-0 shadow-xs`}>
                 {currentUser.name.charAt(0).toUpperCase()}
               </div>
@@ -918,81 +918,87 @@ export default function Navigation() {
         </div>
       </aside>
 
+      {/* Mobile Bottom Navigation Bar - Fixed pure white bar with clear active indicator */}
       <nav 
         className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200/90 flex flex-col justify-end z-40 shadow-[0_-3px_12px_rgba(0,0,0,0.05)] text-slate-500"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', backgroundColor: '#ffffff' }}
       >
         <div className="h-14 w-full flex items-center justify-around px-1 bg-white" style={{ backgroundColor: '#ffffff' }}>
-          <NavLink
-          to="/"
-          end
-          className={({ isActive }) =>
-            `flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] font-medium transition-colors ${
-              isActive ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#059669] font-bold') : 'text-slate-500 hover:text-slate-900'
-            }`
-          }
-        >
-          <LayoutDashboard size={18} className="mb-0.5" />
-          <span>Dashboard</span>
-        </NavLink>
+          {(() => {
+            const isDashboard = location.pathname === '/';
+            const isParties = location.pathname.startsWith('/parties') || location.pathname.startsWith('/party');
+            const isInput = location.pathname.startsWith('/master-entry');
+            const isLog = location.pathname.startsWith('/log');
+            const isOther = !isDashboard && !isParties && !isInput && !isLog;
 
-        <NavLink
-          to="/parties"
-          className={({ isActive }) =>
-            `flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] font-medium transition-colors ${
-              isActive ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#059669] font-bold') : 'text-slate-500 hover:text-slate-900'
-            }`
-          }
-        >
-          <UsersIcon size={18} className="mb-0.5" />
-          <span>Parties</span>
-        </NavLink>
+            const activeColor = isPurchase ? 'text-purple-700 font-bold' : 'text-[#059669] font-bold';
+            const inactiveColor = 'text-slate-500 hover:text-slate-900 font-medium';
 
-        {/* Highlighted Master Entry Action - Green Gradient Button */}
-        <NavLink
-          to="/master-entry"
-          className="flex flex-col items-center justify-center flex-1 h-full relative"
-        >
-          {({ isActive }) => (
-            <>
-              <div className={`flex items-center justify-center w-10 h-10 rounded-full shadow-md border-2 border-white -top-3 absolute transition-transform active:scale-95 ${
-                isPurchase
-                  ? 'bg-gradient-to-tr from-purple-800 to-purple-950 text-amber-300 ring-1 ring-amber-400/90'
-                  : 'bg-gradient-to-tr from-[#059669] to-[#34d399] text-white shadow-emerald-500/35'
-              }`}>
-                <Plus size={20} className={isActive ? "rotate-90 transition-transform duration-200" : ""} />
-              </div>
-              <span className={`text-[10px] mt-6.5 font-medium ${
-                isActive ? (isPurchase ? 'text-purple-800 font-bold' : 'text-[#059669] font-bold') : 'text-slate-500'
-              }`}>
-                Input
-              </span>
-            </>
-          )}
-        </NavLink>
+            return (
+              <>
+                <NavLink
+                  to="/"
+                  end
+                  className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] transition-colors ${
+                    isDashboard ? activeColor : inactiveColor
+                  }`}
+                >
+                  <LayoutDashboard size={18} className="mb-0.5" />
+                  <span>Dashboard</span>
+                </NavLink>
 
-        <NavLink
-          to="/log"
-          className={({ isActive }) =>
-            `flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] font-medium transition-colors ${
-              isActive ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#059669] font-bold') : 'text-slate-500 hover:text-slate-900'
-            }`
-          }
-        >
-          <FileText size={18} className="mb-0.5" />
-          <span>Day Log</span>
-        </NavLink>
+                <NavLink
+                  to="/parties"
+                  className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] transition-colors ${
+                    isParties ? activeColor : inactiveColor
+                  }`}
+                >
+                  <UsersIcon size={18} className="mb-0.5" />
+                  <span>Parties</span>
+                </NavLink>
 
-          <button
-            onClick={() => setShowMobileMore(!showMobileMore)}
-            type="button"
-            className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] font-medium transition-colors ${
-              showMobileMore ? (isPurchase ? 'text-purple-700 font-bold' : 'text-[#059669] font-bold') : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Menu size={18} className="mb-0.5" />
-            <span>Menu</span>
-          </button>
+                {/* Highlighted Master Entry Action - Green Gradient Button */}
+                <NavLink
+                  to="/master-entry"
+                  className="flex flex-col items-center justify-center flex-1 h-full relative"
+                >
+                  <div className={`flex items-center justify-center w-10 h-10 rounded-full shadow-md border-2 border-white -top-3 absolute transition-transform active:scale-95 ${
+                    isPurchase
+                      ? 'bg-gradient-to-tr from-purple-800 to-purple-950 text-amber-300 ring-1 ring-amber-400/90'
+                      : 'bg-gradient-to-tr from-[#059669] to-[#34d399] text-white shadow-emerald-500/35'
+                  }`}>
+                    <Plus size={20} className={isInput ? "rotate-90 transition-transform duration-200" : ""} />
+                  </div>
+                  <span className={`text-[10px] mt-6.5 ${
+                    isInput ? activeColor : 'text-slate-500 font-medium'
+                  }`}>
+                    Input
+                  </span>
+                </NavLink>
+
+                <NavLink
+                  to="/log"
+                  className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] transition-colors ${
+                    isLog ? activeColor : inactiveColor
+                  }`}
+                >
+                  <FileText size={18} className="mb-0.5" />
+                  <span>Day Log</span>
+                </NavLink>
+
+                <button
+                  onClick={() => setShowMobileMore(!showMobileMore)}
+                  type="button"
+                  className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10.5px] transition-colors ${
+                    showMobileMore || isOther ? activeColor : inactiveColor
+                  }`}
+                >
+                  <Menu size={18} className="mb-0.5" />
+                  <span>Menu</span>
+                </button>
+              </>
+            );
+          })()}
         </div>
       </nav>
     </>

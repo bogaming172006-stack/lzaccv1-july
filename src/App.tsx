@@ -149,7 +149,7 @@ const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }
   
   return (
-    <div className={`flex flex-col sm:flex-row h-screen bg-white sm:bg-gray-50 overflow-hidden font-sans ${themeClass}`}>
+    <div className={`flex flex-col sm:flex-row h-screen bg-white overflow-hidden font-sans ${themeClass}`}>
       {/* PWA Mobile Green Gradient Status Bar Safe Area */}
       <div 
         className="w-full bg-gradient-to-r from-[#047857] via-[#059669] to-[#065f46] sm:hidden shrink-0" 
@@ -157,7 +157,7 @@ const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         aria-hidden="true"
       />
       <Navigation />
-      <main className="flex-1 overflow-y-auto w-full h-full relative bg-white sm:bg-transparent">
+      <main className="flex-1 overflow-y-auto w-full h-full relative bg-white pb-16 sm:pb-0">
         {children}
       </main>
       {/* PWA Mobile Bottom Navigation Safe Area (White background to ensure system bar is crisp white) */}
@@ -423,16 +423,20 @@ const AppContent: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
-    // Keep PWA status bar theme-color aligned with the green brand gradient
-    const metaTags = document.querySelectorAll('meta[name="theme-color"]');
-    if (metaTags.length > 0) {
-      metaTags.forEach(tag => tag.setAttribute('content', '#059669'));
-    } else {
-      const meta = document.createElement('meta');
-      meta.name = 'theme-color';
-      meta.content = '#059669';
-      document.head.appendChild(meta);
-    }
+    // Keep PWA navigation bar and status bar background clean white as requested
+    const metaNames = ['theme-color', 'navigation-bar-color', 'msapplication-navbutton-color', 'msapplication-TileColor'];
+    metaNames.forEach(name => {
+      let meta = document.querySelector(`meta[name="${name}"]`);
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.setAttribute('name', name);
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute('content', '#ffffff');
+    });
+    document.querySelectorAll('meta[name="theme-color"]').forEach(tag => {
+      tag.setAttribute('content', '#ffffff');
+    });
   }, []);
 
   React.useEffect(() => {

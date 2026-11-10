@@ -1285,8 +1285,8 @@ export default function PartyDetail() {
   const initial = party.name.trim().charAt(0).toUpperCase() || 'C';
 
   return (
-    <div className={`w-full min-h-screen bg-white md:bg-[#F8FAFC] pb-16 font-customer ${density === 'ultra' ? 'text-[11px]' : 'text-xs'}`}>
-      <div className="w-full min-h-screen bg-white flex flex-col relative md:max-w-5xl lg:max-w-7xl md:mx-auto md:my-4 md:rounded-2xl md:border md:border-slate-200/80 md:shadow-xs md:min-h-[calc(100vh-2rem)] transition-all">
+    <div className={`w-full min-h-screen bg-white pb-16 font-customer ${density === 'ultra' ? 'text-[11px]' : 'text-xs'}`}>
+      <div className="w-full min-h-screen bg-white flex flex-col relative md:max-w-5xl lg:max-w-7xl md:mx-auto transition-all">
         
         {/* ========================================================================= */}
         {/* COMPACT SCREEN 2: TRANSACTION PAGE HEADER                                 */}
