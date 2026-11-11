@@ -28,7 +28,9 @@ import {
   Clock,
   Home,
   LayoutGrid,
-  List
+  List,
+  Banknote,
+  QrCode
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
@@ -81,6 +83,7 @@ export default function MasterEntry() {
   const [separateCredit, setSeparateCredit] = useState(false);
   const [cashAmount, setCashAmount] = useState('');
   const [acAmount, setAcAmount] = useState('');
+  const [upiAmount, setUpiAmount] = useState('');
   const [invoiceNo, setInvoiceNo] = useState('');
   const [notes, setNotes] = useState('');
   const { handleTextChange } = useLedgerTextCase();
@@ -537,6 +540,7 @@ export default function MasterEntry() {
   const amountRef = useRef<HTMLInputElement>(null);
   const cashAmountRef = useRef<HTMLInputElement>(null);
   const acAmountRef = useRef<HTMLInputElement>(null);
+  const upiAmountRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -727,12 +731,24 @@ export default function MasterEntry() {
       if (e.shiftKey) {
         cashAmountRef.current?.focus();
       } else {
+        upiAmountRef.current?.focus();
+      }
+    }
+  };
+
+  const handleUpiAmountKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        acAmountRef.current?.focus();
+      } else {
         const cVal = parseFloat(cashAmount) || 0;
         const aVal = parseFloat(acAmount) || 0;
-        if (cVal + aVal <= 0) {
+        const uVal = parseFloat(upiAmount) || 0;
+        if (cVal + aVal + uVal <= 0) {
           setAlertInfo({
             title: "Amount Required",
-            message: "Please enter at least Cash Credit or Bank A/C Credit amount.",
+            message: "Please enter at least Cash Credit, AC Credit, or UPI Credit amount.",
             isError: true
           });
           return;
@@ -747,7 +763,7 @@ export default function MasterEntry() {
       e.preventDefault();
       if (e.shiftKey) {
         if (type === 'CREDIT' && separateCredit) {
-          acAmountRef.current?.focus();
+          upiAmountRef.current?.focus();
         } else {
           amountRef.current?.focus();
         }
@@ -771,7 +787,7 @@ export default function MasterEntry() {
           return;
         }
         const isOk = type === 'CREDIT' && separateCredit
-          ? ((parseFloat(cashAmount) || 0) + (parseFloat(acAmount) || 0) > 0)
+          ? ((parseFloat(cashAmount) || 0) + (parseFloat(acAmount) || 0) + (parseFloat(upiAmount) || 0) > 0)
           : (amount && !isNaN(Number(amount)) && Number(amount) > 0);
         if (isOk) {
           handlePreSubmit(e as any);
@@ -812,7 +828,7 @@ export default function MasterEntry() {
     setType(newType);
     if (newType === 'CREDIT') {
       if (separateCredit) {
-        if (amount && !cashAmount && !acAmount) {
+        if (amount && !cashAmount && !acAmount && !upiAmount) {
           setCashAmount(amount);
         }
         setTimeout(() => cashAmountRef.current?.focus(), 50);
@@ -820,10 +836,11 @@ export default function MasterEntry() {
         setTimeout(() => amountRef.current?.focus(), 50);
       }
     } else {
-      if (separateCredit && !amount && (cashAmount || acAmount)) {
+      if (separateCredit && !amount && (cashAmount || acAmount || upiAmount)) {
         const cVal = parseFloat(cashAmount) || 0;
         const aVal = parseFloat(acAmount) || 0;
-        setAmount((cVal + aVal).toString());
+        const uVal = parseFloat(upiAmount) || 0;
+        setAmount((cVal + aVal + uVal).toString());
       }
       setTimeout(() => amountRef.current?.focus(), 50);
     }
@@ -832,29 +849,31 @@ export default function MasterEntry() {
   useEffect(() => {
     if (type === 'CREDIT') {
       if (separateCredit) {
-        if (amount && !cashAmount && !acAmount) {
+        if (amount && !cashAmount && !acAmount && !upiAmount) {
           setCashAmount(amount);
         }
       }
     } else {
-      if (separateCredit && !amount && (cashAmount || acAmount)) {
+      if (separateCredit && !amount && (cashAmount || acAmount || upiAmount)) {
         const cVal = parseFloat(cashAmount) || 0;
         const aVal = parseFloat(acAmount) || 0;
-        setAmount((cVal + aVal).toString());
+        const uVal = parseFloat(upiAmount) || 0;
+        setAmount((cVal + aVal + uVal).toString());
       }
     }
   }, [type, separateCredit]);
 
   useEffect(() => {
     if (separateCredit) {
-      if (amount && !cashAmount && !acAmount) {
+      if (amount && !cashAmount && !acAmount && !upiAmount) {
         setCashAmount(amount);
       }
     } else {
       const cVal = parseFloat(cashAmount) || 0;
       const aVal = parseFloat(acAmount) || 0;
-      if (cVal + aVal > 0) {
-        setAmount((cVal + aVal).toString());
+      const uVal = parseFloat(upiAmount) || 0;
+      if (cVal + aVal + uVal > 0) {
+        setAmount((cVal + aVal + uVal).toString());
       }
     }
   }, [separateCredit]);
@@ -1068,9 +1087,10 @@ export default function MasterEntry() {
     if (directionType === 'CREDIT' && separateCredit) {
       const cashVal = parseFloat(cashAmount) || 0;
       const acVal = parseFloat(acAmount) || 0;
-      const totalVal = cashVal + acVal;
+      const upiVal = parseFloat(upiAmount) || 0;
+      const totalVal = cashVal + acVal + upiVal;
       if (totalVal <= 0) {
-        setAlertInfo({ message: "Please enter a valid Cash Credit or A/C Credit amount.", isError: true });
+        setAlertInfo({ message: "Please enter a valid Cash Credit, AC Credit, or UPI Credit amount.", isError: true });
         return;
       }
     } else {
@@ -1107,7 +1127,7 @@ export default function MasterEntry() {
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedParty, amount, isSubmitting, type, separateCredit, cashAmount, acAmount]);
+  }, [selectedParty, amount, isSubmitting, type, separateCredit, cashAmount, acAmount, upiAmount]);
 
   const handleConfirmSubmit = async () => {
     if (isSubmitting || !selectedParty || !activeLedger) return;
@@ -1118,12 +1138,14 @@ export default function MasterEntry() {
     if (type === 'CREDIT' && separateCredit) {
       const cashVal = parseFloat(cashAmount) || 0;
       const acVal = parseFloat(acAmount) || 0;
-      numAmount = cashVal + acVal;
+      const upiVal = parseFloat(upiAmount) || 0;
+      numAmount = cashVal + acVal + upiVal;
       if (numAmount <= 0) return;
 
       const breakdownParts: string[] = [];
       if (cashVal > 0) breakdownParts.push(`Cash: ₹${cashVal.toFixed(2)}`);
       if (acVal > 0) breakdownParts.push(`A/C: ₹${acVal.toFixed(2)}`);
+      if (upiVal > 0) breakdownParts.push(`UPI: ₹${upiVal.toFixed(2)}`);
       if (breakdownParts.length > 0) {
         const breakdownStr = `[${breakdownParts.join(', ')}]`;
         finalNotes = finalNotes ? `${breakdownStr} - ${finalNotes}` : breakdownStr;
@@ -1164,6 +1186,7 @@ export default function MasterEntry() {
       setAmount('');
       setCashAmount('');
       setAcAmount('');
+      setUpiAmount('');
       setNotes('');
       setSelectedParty(null);
       setPartySearch('');
@@ -1226,14 +1249,15 @@ export default function MasterEntry() {
               {/* Left Column: Voucher Entry Form */}
               <div className="lg:col-span-7 space-y-4">
                 {/* Desktop Entry Card */}
-                <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white">
+                <Card className="!border-0 shadow-sm rounded-2xl overflow-hidden !bg-[#f1f5f9]">
                   <CardHeader
+                    className="!bg-[#f1f5f9] !border-b-0"
                     title={
-                      <h3 className="font-bold text-base text-slate-900">Record Transaction Voucher</h3>
+                      <h3 className="font-bold text-base text-slate-900">Record Transaction</h3>
                     }
                   />
 
-                  <CardBody className="p-6 space-y-5">
+                  <CardBody className="p-6 space-y-5 !bg-[#f1f5f9]">
                     <form onSubmit={handlePreSubmit} className="space-y-5">
                       {/* 1. Debit / Credit Selection Checkboxes */}
                       <div>
@@ -1317,7 +1341,7 @@ export default function MasterEntry() {
 
                       {/* Separate Cash & Bank Option (if Credit and not Expense) */}
                       {type === 'CREDIT' && !isExpenseLedger && (
-                        <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
+                        <div className="flex items-center justify-between p-3 bg-white border-0 rounded-xl shadow-xs">
                           <label htmlFor="desktopSeparateCredit" className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-700 select-none">
                             <input
                               type="checkbox"
@@ -1328,14 +1352,14 @@ export default function MasterEntry() {
                             />
                             <span>Separate Credit</span>
                           </label>
-                          <span className="text-[10px] font-mono text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded">
-                            F3 / Alt+S
+                          <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                            Tap
                           </span>
                         </div>
                       )}
 
                       {/* 2. Form Inputs Grid: Invoice No & Account Party */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-0">
                         {/* Invoice Number */}
                         <div>
                           <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
@@ -1349,8 +1373,8 @@ export default function MasterEntry() {
                               onKeyDown={handleInvoiceKeyDown}
                               onBlur={handleInvoiceBlur}
                               onChange={e => { setInvoiceNo(e.target.value.toUpperCase()); setPartyLockedByInvoice(false); setLockedInvoiceDetails(null); }}
-                              placeholder={isSaleLedger ? "REQUIRED FOR SALE" : "OPTIONAL (REF OR INV)"}
-                              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-mono uppercase text-slate-900 placeholder:text-slate-400 placeholder:font-sans placeholder:normal-case focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+                              placeholder={isSaleLedger ? "" : "OPTIONAL (REF OR INV)"}
+                              className="w-full bg-white border-0 rounded-xl px-4 py-2.5 text-sm font-mono uppercase text-slate-900 placeholder:text-slate-400 placeholder:font-sans placeholder:normal-case focus:ring-1 focus:ring-blue-500 outline-none transition shadow-xs"
                             />
                             {isCheckingInvoice && (
                               <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -1366,7 +1390,7 @@ export default function MasterEntry() {
                             ACCOUNT PARTY <span className="text-rose-500">*</span>
                           </label>
                           {partyLockedByInvoice && selectedParty ? (
-                            <div className="h-[44px] px-3.5 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-between text-xs">
+                            <div className="h-[44px] px-3.5 border-0 rounded-xl bg-white shadow-xs flex items-center justify-between text-xs">
                               <span className="font-bold text-slate-900 truncate">{selectedParty.name}</span>
                               <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-slate-200 text-slate-700">Locked</span>
                             </div>
@@ -1378,9 +1402,9 @@ export default function MasterEntry() {
                                 value={partySearch}
                                 onChange={e => setPartySearch(e.target.value)}
                                 onKeyDown={handlePartySearchKeyDown}
-                                placeholder="Search party by name or phone..."
+                                placeholder=""
                                 disabled={isSaleLedger && !invoiceNo.trim()}
-                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition disabled:bg-slate-50 disabled:cursor-not-allowed"
+                                className="w-full bg-white border-0 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-1 focus:ring-blue-500 outline-none transition shadow-xs disabled:bg-white disabled:cursor-not-allowed"
                               />
                               {partySearch && (
                                 <div className="absolute z-30 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100 left-0">
@@ -1425,7 +1449,7 @@ export default function MasterEntry() {
                               )}
                             </div>
                           ) : (
-                            <div className="h-[44px] px-3.5 border border-slate-200 rounded-xl bg-white flex items-center justify-between text-xs">
+                            <div className="h-[44px] px-3.5 border-0 rounded-xl bg-white shadow-xs flex items-center justify-between text-xs">
                               <div className="min-w-0 pr-2">
                                 <div className="font-bold text-slate-900 truncate">{selectedParty.name}</div>
                                 <div className="text-[10.5px] text-slate-500 truncate">
@@ -1435,7 +1459,7 @@ export default function MasterEntry() {
                               <button
                                 type="button"
                                 onClick={() => { setSelectedParty(null); setTimeout(() => partySearchRef.current?.focus(), 10); }}
-                                className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer bg-slate-50 hover:bg-slate-100 px-2 py-1 rounded border border-slate-200 transition shrink-0"
+                                className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded border-0 transition shrink-0"
                               >
                                 Change
                               </button>
@@ -1448,7 +1472,7 @@ export default function MasterEntry() {
                       {billingMatch && (
                         <div 
                           onClick={() => applyBillingMatch(billingMatch)}
-                          className="p-3 bg-blue-50/90 hover:bg-blue-100/70 rounded-xl transition cursor-pointer flex items-center justify-between"
+                          className="p-3 bg-blue-50/90 hover:bg-blue-100/70 rounded-xl transition cursor-pointer flex items-center justify-between border-0 shadow-2xs"
                         >
                           <div className="flex items-center gap-2.5">
                             <FileText size={17} className="text-[#0055a5] shrink-0" />
@@ -1470,38 +1494,74 @@ export default function MasterEntry() {
 
                       {/* 3. Amount Section */}
                       {type === 'CREDIT' && separateCredit ? (
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                          {/* 1. Cash Credit */}
                           <div>
                             <label className="block text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1.5">
-                              Cash Credit (₹) <span className="text-rose-500">*</span>
+                              Cash <span className="text-rose-500">*</span>
                             </label>
-                            <input
-                              ref={cashAmountRef}
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={cashAmount}
-                              onChange={e => setCashAmount(e.target.value)}
-                              onKeyDown={handleCashAmountKeyDown}
-                              placeholder="0.00"
-                              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono font-semibold text-slate-900 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 outline-none"
-                            />
+                            <div className="flex items-stretch rounded-xl border-0 bg-white shadow-xs overflow-hidden h-[44px] transition focus-within:ring-1 focus-within:ring-emerald-500">
+                              <div className="w-10 bg-white flex items-center justify-center text-emerald-600 shrink-0 select-none">
+                                <Banknote size={17} strokeWidth={2.2} />
+                              </div>
+                              <input
+                                ref={cashAmountRef}
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={cashAmount}
+                                onChange={e => setCashAmount(e.target.value)}
+                                onKeyDown={handleCashAmountKeyDown}
+                                placeholder=""
+                                className="flex-1 px-2.5 text-sm font-semibold font-mono text-slate-900 outline-none bg-white placeholder:text-slate-400"
+                              />
+                            </div>
                           </div>
+
+                          {/* 2. Bank A/C Credit */}
                           <div>
-                            <label className="block text-xs font-bold text-blue-700 uppercase tracking-wider mb-1.5">
-                              Bank A/C Credit (₹) <span className="text-rose-500">*</span>
+                            <label className="block text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1.5">
+                              AC<span className="text-rose-500">*</span>
                             </label>
-                            <input
-                              ref={acAmountRef}
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={acAmount}
-                              onChange={e => setAcAmount(e.target.value)}
-                              onKeyDown={handleAcAmountKeyDown}
-                              placeholder="0.00"
-                              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono font-semibold text-slate-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 outline-none"
-                            />
+                            <div className="flex items-stretch rounded-xl border-0 bg-white shadow-xs overflow-hidden h-[44px] transition focus-within:ring-1 focus-within:ring-emerald-500">
+                              <div className="w-10 bg-white flex items-center justify-center text-emerald-600 shrink-0 select-none">
+                                <Building2 size={17} strokeWidth={2.2} />
+                              </div>
+                              <input
+                                ref={acAmountRef}
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={acAmount}
+                                onChange={e => setAcAmount(e.target.value)}
+                                onKeyDown={handleAcAmountKeyDown}
+                                placeholder=""
+                                className="flex-1 px-2.5 text-sm font-semibold font-mono text-slate-900 outline-none bg-white placeholder:text-slate-400"
+                              />
+                            </div>
+                          </div>
+
+                          {/* 3. UPI Credit */}
+                          <div>
+                            <label className="block text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1.5">
+                              UPI <span className="text-rose-500">*</span>
+                            </label>
+                            <div className="flex items-stretch rounded-xl border-0 bg-white shadow-xs overflow-hidden h-[44px] transition focus-within:ring-1 focus-within:ring-emerald-500">
+                              <div className="w-10 bg-white flex items-center justify-center text-emerald-600 shrink-0 select-none">
+                                <QrCode size={17} strokeWidth={2.2} />
+                              </div>
+                              <input
+                                ref={upiAmountRef}
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={upiAmount}
+                                onChange={e => setUpiAmount(e.target.value)}
+                                onKeyDown={handleUpiAmountKeyDown}
+                                placeholder=""
+                                className="flex-1 px-2.5 text-sm font-semibold font-mono text-slate-900 outline-none bg-white placeholder:text-slate-400"
+                              />
+                            </div>
                           </div>
                         </div>
                       ) : (
@@ -1509,8 +1569,8 @@ export default function MasterEntry() {
                           <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
                             Amount (₹) <span className="text-rose-500">*</span>
                           </label>
-                          <div className="flex items-stretch rounded-xl border border-slate-200 bg-white overflow-hidden focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 h-[46px] transition">
-                            <div className="w-12 bg-slate-50 border-r border-slate-200 flex items-center justify-center font-semibold text-slate-700 text-base select-none shrink-0">
+                          <div className="flex items-stretch rounded-xl border-0 bg-white shadow-xs overflow-hidden focus-within:ring-1 focus-within:ring-blue-500 h-[46px] transition">
+                            <div className="w-12 bg-white border-r-0 flex items-center justify-center font-semibold text-slate-700 text-base select-none shrink-0">
                               ₹
                             </div>
                             <input
@@ -1522,8 +1582,8 @@ export default function MasterEntry() {
                               value={amount}
                               onChange={e => setAmount(e.target.value)}
                               disabled={isSaleLedger && !invoiceNo.trim()}
-                              className="flex-1 px-4 text-sm font-semibold font-mono text-slate-900 outline-none placeholder:text-slate-400 bg-transparent disabled:bg-slate-50"
-                              placeholder="0.00"
+                              className="flex-1 px-4 text-sm font-semibold font-mono text-slate-900 outline-none placeholder:text-slate-400 bg-white disabled:bg-white"
+                              placeholder=""
                             />
                           </div>
                           {amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0 && (
@@ -1547,9 +1607,9 @@ export default function MasterEntry() {
                           value={notes}
                           onChange={e => handleTextChange(e, setNotes)}
                           disabled={isSaleLedger && !invoiceNo.trim()}
-                          placeholder="Particulars / voucher remarks..."
+                          placeholder=""
                           rows={3}
-                          className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition resize-y disabled:bg-slate-50 min-h-[90px]"
+                          className="w-full bg-white border-0 shadow-xs rounded-xl p-4 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:ring-1 focus:ring-blue-500 transition resize-y disabled:bg-white min-h-[90px]"
                         />
                       </div>
 
@@ -1580,8 +1640,8 @@ export default function MasterEntry() {
 
               {/* Right Column: Restored Options (Unlisted Orders List) WITHOUT Top Text */}
               <div className="lg:col-span-5 space-y-4">
-                <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white">
-                  <CardBody className="p-4 space-y-3">
+                <Card className="!border-0 shadow-sm rounded-2xl overflow-hidden !bg-[#f1f5f9]">
+                  <CardBody className="p-4 space-y-3 !bg-[#f1f5f9]">
                     {/* Search Input Filter for Options */}
                     <div className="relative">
                       <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -1590,7 +1650,7 @@ export default function MasterEntry() {
                         value={desktopPendingSearch}
                         onChange={e => setDesktopPendingSearch(e.target.value)}
                         placeholder="Search bill # or party..."
-                        className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+                        className="w-full pl-9 pr-8 py-2.5 bg-white border-0 shadow-xs rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:ring-1 focus:ring-blue-500 outline-none transition"
                       />
                       {desktopPendingSearch && (
                         <button
@@ -1632,7 +1692,7 @@ export default function MasterEntry() {
                           return (
                             <div
                               key={key}
-                              className="p-3 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition shadow-2xs"
+                              className="p-3 rounded-xl border-0 bg-white hover:shadow-xs transition shadow-2xs"
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -1869,7 +1929,7 @@ export default function MasterEntry() {
                     onChange={e => setAmount(e.target.value)}
                     disabled={isSaleLedger && !invoiceNo.trim()}
                     className="flex-1 px-2.5 text-xs font-normal font-mono text-[#0F172A] outline-none placeholder:text-slate-400 placeholder:font-normal bg-transparent disabled:bg-slate-50"
-                    placeholder="0.00"
+                    placeholder=""
                   />
                 </div>
                 {amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0 && (
@@ -2164,7 +2224,7 @@ export default function MasterEntry() {
                 <span className="text-slate-600 font-normal">Total Amount:</span>
                 <span className="font-normal text-slate-900">
                   ₹{type === 'CREDIT' && separateCredit
-                    ? ((parseFloat(cashAmount) || 0) + (parseFloat(acAmount) || 0)).toFixed(2)
+                    ? ((parseFloat(cashAmount) || 0) + (parseFloat(acAmount) || 0) + (parseFloat(upiAmount) || 0)).toFixed(2)
                     : parseFloat(amount).toFixed(2)}
                 </span>
               </div>

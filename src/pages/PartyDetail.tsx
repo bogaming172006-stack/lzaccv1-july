@@ -1707,7 +1707,7 @@ export default function PartyDetail() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-1">Bank A/C Credit (₹)</label>
+                    <label className="block text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-1">Bank A/C Credit (₹)</label>
                     <input
                       required
                       type="number"
@@ -1721,7 +1721,7 @@ export default function PartyDetail() {
                         const aVal = parseFloat(e.target.value) || 0;
                         setTxAmount(cVal + aVal > 0 ? (cVal + aVal).toString() : '');
                       }}
-                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 font-mono focus:border-blue-600 focus:outline-none"
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900 font-mono focus:border-emerald-600 focus:outline-none"
                       placeholder="0.00"
                     />
                   </div>

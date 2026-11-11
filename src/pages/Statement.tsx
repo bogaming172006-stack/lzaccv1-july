@@ -37,7 +37,7 @@ import { formatAmountInWords } from '../lib/numberToWords';
 import { fetchPartyGroups, mergePartyGroups } from '../lib/partyGroupService';
 
 type DatePreset = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'all_time' | 'custom';
-type StatementViewMode = 'party_wise' | 'flat';
+type StatementViewMode = 'party_wise' | 'flat' | 'day_log';
 
 interface PartyLedgerStatement {
   party: Party;
@@ -98,6 +98,7 @@ export default function Statement() {
   // UI View Mode
   const [viewMode, setViewMode] = useState<StatementViewMode>('party_wise');
   const [expandedParties, setExpandedParties] = useState<Record<string, boolean>>({});
+  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Selected detail modal
@@ -576,6 +577,95 @@ export default function Statement() {
       });
     });
     setExpandedParties(newState);
+  };
+
+  // -------------------------------------------------------------
+  // Day Log Calculation (Date-by-Date Daily Debit & Credit Aggregation)
+  // -------------------------------------------------------------
+  const dayLogData = useMemo(() => {
+    const dayMap = new Map<string, {
+      dateKey: string;
+      dateFormatted: string;
+      dayName: string;
+      dateDisplay: string;
+      totalDebits: number;
+      totalCredits: number;
+      txCount: number;
+      transactions: typeof flatChronologicalRows;
+    }>();
+
+    flatChronologicalRows.forEach(row => {
+      const d = new Date(row.timestamp);
+      const dateKey = format(d, 'yyyy-MM-dd');
+      let dayEntry = dayMap.get(dateKey);
+      if (!dayEntry) {
+        dayEntry = {
+          dateKey,
+          dateFormatted: format(d, 'dd/MM/yyyy'),
+          dayName: format(d, 'EEEE'),
+          dateDisplay: format(d, 'dd MMM yyyy'),
+          totalDebits: 0,
+          totalCredits: 0,
+          txCount: 0,
+          transactions: []
+        };
+        dayMap.set(dateKey, dayEntry);
+      }
+      dayEntry.totalDebits += row.debit;
+      dayEntry.totalCredits += row.credit;
+      dayEntry.txCount += 1;
+      dayEntry.transactions.push(row);
+    });
+
+    // Sort days chronologically ascending
+    const sortedDays = Array.from(dayMap.values()).sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+
+    // Calculate running cumulative balance starting from globalSummary.totalOpening
+    let running = globalSummary.totalOpening;
+    return sortedDays.map(day => {
+      const netMovement = day.totalDebits - day.totalCredits;
+      running += netMovement;
+      return {
+        ...day,
+        netMovement,
+        runningBalance: running
+      };
+    });
+  }, [flatChronologicalRows, globalSummary.totalOpening]);
+
+  const dayLogTotals = useMemo(() => {
+    let debits = 0;
+    let credits = 0;
+    let totalTx = 0;
+    dayLogData.forEach(d => {
+      debits += d.totalDebits;
+      credits += d.totalCredits;
+      totalTx += d.txCount;
+    });
+    return {
+      debits,
+      credits,
+      net: debits - credits,
+      daysCount: dayLogData.length,
+      totalTx
+    };
+  }, [dayLogData]);
+
+  // Toggle individual date expand/collapse for Day Log
+  const toggleDateExpand = (dateKey: string) => {
+    setExpandedDates(prev => ({
+      ...prev,
+      [dateKey]: prev[dateKey] === undefined ? false : !prev[dateKey]
+    }));
+  };
+
+  // Expand all / collapse all dates for Day Log
+  const handleToggleAllDates = (expand: boolean) => {
+    const newState: Record<string, boolean> = {};
+    dayLogData.forEach(d => {
+      newState[d.dateKey] = expand;
+    });
+    setExpandedDates(newState);
   };
 
   // -------------------------------------------------------------
@@ -1211,6 +1301,352 @@ export default function Statement() {
     }
   };
 
+  // -------------------------------------------------------------
+  // 5. EXPORT DAY LOG CALCULATION (SINGLE COMPREHENSIVE PDF)
+  // -------------------------------------------------------------
+  const handleExportDayLogPdf = () => {
+    setIsExportingPdf(true);
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const activeLedgerName = ledgers.find(l => l.id === effectiveLedgerId)?.name || 'Consolidated Ledgers';
+      const entityName = selectedParty ? selectedParty.name : `Day Log Calculation (${activeLedgerName})`;
+
+      // Header Banner
+      doc.setFillColor(0, 85, 165); // #0055a5 brand blue
+      doc.rect(0, 0, 210, 22, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text('GREENZAR FOOD & BEVERAGE ERP', 14, 9);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Official Day Log Statement & Calculation (Date-to-Date)', 14, 15);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text(`DATE: ${format(new Date(), 'dd-MMM-yyyy')}`, 196, 9, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      doc.text(`TIME: ${format(new Date(), 'hh:mm a')}`, 196, 15, { align: 'right' });
+
+      // Entity Info Box
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`STATEMENT: DAY LOG CALCULATION (${startDate} to ${endDate})`, 14, 29);
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Scope: ${entityName} | Active Days: ${dayLogData.length} | Transactions: ${dayLogTotals.totalTx}`, 14, 34);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(`Date Range: ${startDate} to ${endDate}`, 196, 29, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Generated by: ${currentUser?.name || 'Operator'}`, 196, 34, { align: 'right' });
+
+      // Summary Table Box
+      const summaryBody: any[][] = [
+        [
+          `Opening Balance:\nRs. ${Math.abs(globalSummary.totalOpening).toFixed(2)} ${globalSummary.totalOpening >= 0 ? 'Dr' : 'Cr'}`,
+          `Total Date-to-Date Debits:\nRs. ${globalSummary.totalDebits.toFixed(2)}`,
+          `Total Date-to-Date Credits:\nRs. ${globalSummary.totalCredits.toFixed(2)}`,
+          `Net Period Movement:\nRs. ${globalSummary.netMovement.toFixed(2)} (${globalSummary.netMovement >= 0 ? '+Dr' : '-Cr'})`,
+          `Closing Balance:\nRs. ${Math.abs(globalSummary.totalClosing).toFixed(2)} ${globalSummary.totalClosing >= 0 ? 'Dr' : 'Cr'}`
+        ]
+      ];
+
+      autoTable(doc, {
+        startY: 39,
+        head: [['Executive Summary Totals (Date-to-Date)', '', '', '', '']],
+        body: summaryBody,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [241, 245, 249],
+          textColor: [15, 23, 42],
+          fontSize: 7.5,
+          fontStyle: 'bold'
+        },
+        bodyStyles: {
+          fontSize: 7.5,
+          fontStyle: 'bold',
+          textColor: [15, 23, 42],
+          fillColor: [248, 250, 252]
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      // Section 1: Day-by-Day Summary Table
+      const daySummaryRows: any[][] = [];
+      dayLogData.forEach((day, idx) => {
+        daySummaryRows.push([
+          String(idx + 1),
+          day.dateFormatted,
+          day.dayName,
+          String(day.txCount),
+          day.totalDebits > 0 ? day.totalDebits.toFixed(2) : '-',
+          day.totalCredits > 0 ? day.totalCredits.toFixed(2) : '-',
+          `${day.netMovement >= 0 ? '+' : ''}${day.netMovement.toFixed(2)}`,
+          `${Math.abs(day.runningBalance).toFixed(2)} ${day.runningBalance >= 0 ? 'Dr' : 'Cr'}`
+        ]);
+      });
+
+      daySummaryRows.push([
+        { content: 'TOTALS (DATE-TO-DATE)', colSpan: 4, styles: { fontStyle: 'bold', halign: 'right', fillColor: [241, 245, 249] } },
+        { content: globalSummary.totalDebits.toFixed(2), styles: { fontStyle: 'bold', halign: 'right', textColor: [185, 28, 28], fillColor: [241, 245, 249] } },
+        { content: globalSummary.totalCredits.toFixed(2), styles: { fontStyle: 'bold', halign: 'right', textColor: [21, 128, 61], fillColor: [241, 245, 249] } },
+        { content: `${globalSummary.netMovement >= 0 ? '+' : ''}${globalSummary.netMovement.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [241, 245, 249] } },
+        { content: `${Math.abs(globalSummary.totalClosing).toFixed(2)} ${globalSummary.totalClosing >= 0 ? 'Dr' : 'Cr'}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [241, 245, 249] } }
+      ]);
+
+      const lastY = (doc as any).lastAutoTable?.finalY || 55;
+
+      autoTable(doc, {
+        startY: lastY + 5,
+        head: [['#', 'Date', 'Day', 'Vouchers', 'Daily Debits (Rs)', 'Daily Credits (Rs)', 'Day Net (Rs)', 'Cumulative Balance (Rs)']],
+        body: daySummaryRows,
+        theme: 'striped',
+        headStyles: {
+          fillColor: [0, 85, 165],
+          textColor: [255, 255, 255],
+          fontSize: 7.5,
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 10 },
+          1: { halign: 'center', cellWidth: 22 },
+          2: { halign: 'left', cellWidth: 24 },
+          3: { halign: 'center', cellWidth: 18 },
+          4: { halign: 'right', cellWidth: 28 },
+          5: { halign: 'right', cellWidth: 28 },
+          6: { halign: 'right', cellWidth: 24 },
+          7: { halign: 'right', cellWidth: 28 }
+        },
+        bodyStyles: {
+          fontSize: 7.2,
+          textColor: [15, 23, 42]
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      // Section 2: Itemized Transaction Log (All Transactions Date-to-Date)
+      const txRows: any[][] = [];
+      dayLogData.forEach(day => {
+        txRows.push([
+          {
+            content: `▶ DATE: ${day.dateDisplay} (${day.dayName})  —  ${day.txCount} Vouchers  |  Debits: Rs. ${day.totalDebits.toFixed(2)}  |  Credits: Rs. ${day.totalCredits.toFixed(2)}  |  Day Net: ${day.netMovement >= 0 ? '+' : ''}${day.netMovement.toFixed(2)}`,
+            colSpan: 8,
+            styles: { fillColor: [241, 245, 249], fontStyle: 'bold', textColor: [15, 23, 42], fontSize: 7.5 }
+          }
+        ]);
+
+        day.transactions.forEach((tx, tIdx) => {
+          txRows.push([
+            String(tIdx + 1),
+            tx.timeFormatted,
+            tx.invoiceNo !== '-' ? `#${tx.invoiceNo}` : '-',
+            tx.partyName,
+            tx.particulars,
+            tx.paymentMode,
+            tx.debit > 0 ? tx.debit.toFixed(2) : '-',
+            tx.credit > 0 ? tx.credit.toFixed(2) : '-'
+          ]);
+        });
+      });
+
+      txRows.push([
+        { content: 'TOTAL OF ALL TRANSACTIONS (DATE-TO-DATE):', colSpan: 6, styles: { fontStyle: 'bold', halign: 'right', fillColor: [241, 245, 249] } },
+        { content: globalSummary.totalDebits.toFixed(2), styles: { fontStyle: 'bold', halign: 'right', textColor: [185, 28, 28], fillColor: [241, 245, 249] } },
+        { content: globalSummary.totalCredits.toFixed(2), styles: { fontStyle: 'bold', halign: 'right', textColor: [21, 128, 61], fillColor: [241, 245, 249] } }
+      ]);
+
+      const lastY2 = (doc as any).lastAutoTable?.finalY || 100;
+
+      autoTable(doc, {
+        startY: lastY2 + 6,
+        head: [['#', 'Time', 'Voucher #', 'Party / Account', 'Particulars / Notes', 'Mode', 'Debit (Rs)', 'Credit (Rs)']],
+        body: txRows,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [30, 41, 59],
+          textColor: [255, 255, 255],
+          fontSize: 7.5,
+          fontStyle: 'bold'
+        },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 10 },
+          1: { halign: 'center', cellWidth: 18 },
+          2: { halign: 'center', cellWidth: 20 },
+          3: { halign: 'left', cellWidth: 42 },
+          4: { halign: 'left', cellWidth: 42 },
+          5: { halign: 'center', cellWidth: 16 },
+          6: { halign: 'right', cellWidth: 22 },
+          7: { halign: 'right', cellWidth: 22 }
+        },
+        bodyStyles: {
+          fontSize: 7,
+          textColor: [15, 23, 42]
+        },
+        margin: { left: 14, right: 14 },
+        didDrawPage: (data: any) => {
+          doc.setFontSize(7);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(148, 163, 184);
+          doc.text(`Page ${data.pageNumber}`, 196, 290, { align: 'right' });
+          doc.text('Greenzar ERP - Official Day Log Statement & Calculation', 14, 290);
+        }
+      });
+
+      doc.save(`Day_Log_Statement_${startDate}_to_${endDate}.pdf`);
+    } catch (err) {
+      console.error("Day Log PDF export failed:", err);
+      alert("Failed to export Day Log PDF.");
+    } finally {
+      setIsExportingPdf(false);
+      setShowExportMenu(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // 6. EXPORT DAY LOG CALCULATION (EXCEL WORKBOOK .XLSX)
+  // -------------------------------------------------------------
+  const handleExportDayLogExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: Day Log Calculation (Date-by-Date Daily Calculation)
+      const summarySheetData: any[][] = [
+        ['GREENZAR FOOD & BEVERAGE ERP'],
+        ['DAY LOG STATEMENT & CALCULATION (DATE-TO-DATE)'],
+        [],
+        ['Statement Period:', `${startDate} to ${endDate}`],
+        ['Generated Date:', format(new Date(), 'dd-MMM-yyyy hh:mm a')],
+        ['Opening Balance (Brought Forward):', globalSummary.totalOpening],
+        ['Total Date-to-Date Debits (Sales/Charges):', globalSummary.totalDebits],
+        ['Total Date-to-Date Credits (Receipts/Payments):', globalSummary.totalCredits],
+        ['Net Period Movement:', globalSummary.netMovement],
+        ['Closing Balance (Carried Forward):', globalSummary.totalClosing],
+        ['Total Active Days with Transactions:', dayLogData.length],
+        ['Total Transactions:', dayLogTotals.totalTx],
+        [],
+        ['Sr #', 'Date', 'Day', 'Vouchers', 'Daily Debits (Rs)', 'Daily Credits (Rs)', 'Day Net Movement (Rs)', 'Cumulative Balance (Rs)', 'Status']
+      ];
+
+      dayLogData.forEach((day, idx) => {
+        summarySheetData.push([
+          idx + 1,
+          day.dateFormatted,
+          day.dayName,
+          day.txCount,
+          day.totalDebits,
+          day.totalCredits,
+          day.netMovement,
+          day.runningBalance,
+          day.runningBalance >= 0 ? 'Dr (Due)' : 'Cr (Advance)'
+        ]);
+      });
+
+      // Totals Row
+      summarySheetData.push([
+        'TOTALS',
+        `${startDate} to ${endDate}`,
+        `${dayLogData.length} Days`,
+        dayLogTotals.totalTx,
+        globalSummary.totalDebits,
+        globalSummary.totalCredits,
+        globalSummary.netMovement,
+        globalSummary.totalClosing,
+        globalSummary.totalClosing >= 0 ? 'Net Dr' : 'Net Cr'
+      ]);
+
+      const wsSummary = XLSX.utils.aoa_to_sheet(summarySheetData);
+      wsSummary['!cols'] = [
+        { wch: 8 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 12 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 16 }
+      ];
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Day Log Calculation');
+
+      // Sheet 2: All Transactions (Date-by-Date Itemized)
+      const txSheetData: any[][] = [
+        ['GREENZAR FOOD & BEVERAGE ERP - ALL TRANSACTIONS (DATE-TO-DATE)'],
+        ['Period:', `${startDate} to ${endDate}`],
+        ['Generated On:', format(new Date(), 'dd-MMM-yyyy hh:mm a')],
+        [],
+        ['Sr #', 'Date', 'Time', 'Voucher / Invoice #', 'Party / Account', 'Party Phone', 'Particulars / Notes', 'Payment Mode', 'Ledger', 'Debit (Rs)', 'Credit (Rs)']
+      ];
+
+      flatChronologicalRows.forEach((r, idx) => {
+        txSheetData.push([
+          idx + 1,
+          r.dateFormatted,
+          r.timeFormatted,
+          r.invoiceNo,
+          r.partyName,
+          r.partyPhone || '-',
+          r.particulars,
+          r.paymentMode,
+          r.ledgerName,
+          r.debit,
+          r.credit
+        ]);
+      });
+
+      // Grand Totals Row
+      txSheetData.push([
+        'GRAND TOTALS',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        globalSummary.totalDebits,
+        globalSummary.totalCredits
+      ]);
+
+      const wsTx = XLSX.utils.aoa_to_sheet(txSheetData);
+      wsTx['!cols'] = [
+        { wch: 8 },
+        { wch: 14 },
+        { wch: 12 },
+        { wch: 20 },
+        { wch: 28 },
+        { wch: 16 },
+        { wch: 34 },
+        { wch: 16 },
+        { wch: 18 },
+        { wch: 16 },
+        { wch: 16 }
+      ];
+      XLSX.utils.book_append_sheet(wb, wsTx, 'Itemized Transactions');
+
+      XLSX.writeFile(wb, `Day_Log_Statement_${startDate}_to_${endDate}.xlsx`);
+    } catch (err) {
+      console.error("Day Log Excel export failed:", err);
+      alert("Failed to export Day Log Excel.");
+    } finally {
+      setIsExportingExcel(false);
+      setShowExportMenu(false);
+    }
+  };
+
   return (
     <div className="p-3 sm:p-6 max-w-[1600px] mx-auto space-y-5 print:p-0 print:m-0 print:max-w-none">
       
@@ -1287,19 +1723,47 @@ export default function Statement() {
 
                 {/* Export Dropdown Options */}
                 {showExportMenu && (
-                  <div className="absolute right-0 mt-1 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1 animate-in fade-in duration-100">
-                    <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Export CSV Formats
+                  <div className="absolute right-0 mt-1 w-72 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1 animate-in fade-in duration-100">
+                    <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 rounded">
+                      Day Log Calculation (Date-to-Date)
                     </p>
                     <button
                       type="button"
-                      onClick={handleExportPartyWiseCsv}
+                      onClick={handleExportDayLogPdf}
+                      className="w-full text-left px-2.5 py-2 text-xs font-semibold text-slate-800 hover:bg-emerald-50 hover:text-emerald-800 rounded-lg flex items-start gap-2"
+                    >
+                      <FileText size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-slate-900">Day Log Statement PDF</p>
+                        <p className="text-[10px] text-slate-500 font-normal">Single PDF with date-to-date calculation & all transactions</p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportDayLogExcel}
                       className="w-full text-left px-2.5 py-2 text-xs font-semibold text-slate-800 hover:bg-emerald-50 hover:text-emerald-800 rounded-lg flex items-start gap-2"
                     >
                       <FileSpreadsheet size={15} className="text-emerald-600 shrink-0 mt-0.5" />
                       <div>
+                        <p className="font-bold text-slate-900">Day Log Excel Sheet (.xlsx)</p>
+                        <p className="text-[10px] text-slate-500 font-normal">Daily debits, credits calculation & itemized logs</p>
+                      </div>
+                    </button>
+
+                    <div className="border-t border-slate-100 my-1"></div>
+
+                    <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Standard Ledger Exports
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleExportPartyWiseCsv}
+                      className="w-full text-left px-2.5 py-2 text-xs font-semibold text-slate-800 hover:bg-blue-50 hover:text-blue-800 rounded-lg flex items-start gap-2"
+                    >
+                      <FileSpreadsheet size={15} className="text-blue-600 shrink-0 mt-0.5" />
+                      <div>
                         <p className="font-bold">Party-Wise Ledger CSV</p>
-                        <p className="text-[10px] text-slate-500 font-normal">Sale parties first, then Purchase parties, Date-wise Debit & Credit</p>
+                        <p className="text-[10px] text-slate-500 font-normal">Sale parties first, then Purchase parties</p>
                       </div>
                     </button>
 
@@ -1315,18 +1779,13 @@ export default function Statement() {
                       </div>
                     </button>
 
-                    <div className="border-t border-slate-100 my-1"></div>
-
-                    <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Other Formats
-                    </p>
                     <button
                       type="button"
                       onClick={handleExportExcel}
                       className="w-full text-left px-2.5 py-2 text-xs font-semibold text-slate-800 hover:bg-teal-50 hover:text-teal-800 rounded-lg flex items-center gap-2"
                     >
                       <FileSpreadsheet size={15} className="text-teal-600" />
-                      <span>Excel Workbook (.xlsx)</span>
+                      <span>Party Ledger Excel (.xlsx)</span>
                     </button>
                     <button
                       type="button"
@@ -1334,7 +1793,7 @@ export default function Statement() {
                       className="w-full text-left px-2.5 py-2 text-xs font-semibold text-slate-800 hover:bg-blue-50 hover:text-blue-800 rounded-lg flex items-center gap-2"
                     >
                       <FileText size={15} className="text-[#0055a5]" />
-                      <span>Formal PDF Statement</span>
+                      <span>Formal Party Ledger PDF</span>
                     </button>
                   </div>
                 )}
@@ -1343,23 +1802,23 @@ export default function Statement() {
               {/* Excel Direct Button */}
               <button
                 type="button"
-                onClick={handleExportExcel}
+                onClick={viewMode === 'day_log' ? handleExportDayLogExcel : handleExportExcel}
                 disabled={!hasGenerated || isExportingExcel || globalSummary.totalPartiesCount === 0}
                 className="px-3 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <FileSpreadsheet size={14} />
-                <span>Excel</span>
+                <span>{viewMode === 'day_log' ? 'Day Log Excel' : 'Excel'}</span>
               </button>
 
               {/* PDF Direct Button */}
               <button
                 type="button"
-                onClick={handleExportPdf}
+                onClick={viewMode === 'day_log' ? handleExportDayLogPdf : handleExportPdf}
                 disabled={!hasGenerated || isExportingPdf || globalSummary.totalPartiesCount === 0}
                 className="px-3.5 py-2 bg-[#0055a5] hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <FileText size={14} />
-                <span>{isExportingPdf ? 'Generating...' : 'PDF'}</span>
+                <span>{isExportingPdf ? 'Generating...' : (viewMode === 'day_log' ? 'Day Log PDF' : 'PDF')}</span>
               </button>
             </div>
           }
@@ -1680,7 +2139,7 @@ export default function Statement() {
 
       {/* View Mode Toggle Bar */}
       <div className="flex items-center justify-between flex-wrap gap-2 print:hidden">
-        <div className="inline-flex bg-slate-200/80 p-0.5 rounded-lg">
+        <div className="inline-flex bg-slate-200/80 p-0.5 rounded-lg flex-wrap gap-0.5">
           <button
             type="button"
             onClick={() => setViewMode('party_wise')}
@@ -1691,7 +2150,7 @@ export default function Statement() {
             }`}
           >
             <Users size={13} />
-            <span>Party-by-Party Ledger (Sales First, Purchases Next)</span>
+            <span>Party-by-Party Ledger</span>
           </button>
           
           <button
@@ -1704,7 +2163,20 @@ export default function Statement() {
             }`}
           >
             <Layers size={13} />
-            <span>Continuous Timeline View</span>
+            <span>Continuous Timeline</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setViewMode('day_log')}
+            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              viewMode === 'day_log'
+                ? 'bg-white text-emerald-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Calendar size={13} className={viewMode === 'day_log' ? 'text-emerald-600' : ''} />
+            <span>Day Log Calculation (Date-to-Date)</span>
           </button>
         </div>
 
@@ -1713,7 +2185,7 @@ export default function Statement() {
             <button
               type="button"
               onClick={() => handleToggleAllParties(true)}
-              className="text-[11px] text-blue-700 hover:underline font-semibold"
+              className="text-[11px] text-blue-700 hover:underline font-semibold cursor-pointer"
             >
               Expand All
             </button>
@@ -1721,9 +2193,29 @@ export default function Statement() {
             <button
               type="button"
               onClick={() => handleToggleAllParties(false)}
-              className="text-[11px] text-slate-600 hover:underline font-semibold"
+              className="text-[11px] text-slate-600 hover:underline font-semibold cursor-pointer"
             >
               Collapse All
+            </button>
+          </div>
+        )}
+
+        {viewMode === 'day_log' && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleToggleAllDates(true)}
+              className="text-[11px] text-emerald-700 hover:underline font-semibold cursor-pointer"
+            >
+              Expand All Days
+            </button>
+            <span className="text-slate-300">|</span>
+            <button
+              type="button"
+              onClick={() => handleToggleAllDates(false)}
+              className="text-[11px] text-slate-600 hover:underline font-semibold cursor-pointer"
+            >
+              Collapse All Days
             </button>
           </div>
         )}
@@ -2045,6 +2537,274 @@ export default function Statement() {
             </table>
           </div>
         </Card>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* VIEW 3: DAY LOG CALCULATION (DATE-TO-DATE) */}
+      {/* ------------------------------------------------------------- */}
+      {viewMode === 'day_log' && (
+        <div className="space-y-4">
+          {/* Day Log Quick Action Bar */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+                <Calendar size={20} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm font-bold text-slate-900">Day Log Calculation (Date-to-Date)</h3>
+                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {dayLogData.length} Active Days
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Calculated from <strong className="text-slate-700">{startDate}</strong> to <strong className="text-slate-700">{endDate}</strong> across all debits and credits
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleExportDayLogPdf}
+                disabled={isExportingPdf || dayLogData.length === 0}
+                className="px-3.5 py-1.5 bg-[#0055a5] hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <FileText size={13} />
+                <span>Single PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportDayLogExcel}
+                disabled={isExportingExcel || dayLogData.length === 0}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <FileSpreadsheet size={13} />
+                <span>Excel Sheet</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 1. Date-by-Date Summary Calculation Table */}
+          <Card className="overflow-hidden shadow-2xs border-slate-200">
+            <div className="px-4 py-3 bg-slate-50/90 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <TrendingUp size={15} className="text-[#0055a5]" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  Daily Debit & Credit Calculation Table
+                </h4>
+              </div>
+              <span className="text-[11px] text-slate-500 font-mono">
+                {dayLogTotals.totalTx} Total Transactions
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100/90 text-slate-700 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                    <th className="py-2.5 px-3 text-center w-10">#</th>
+                    <th className="py-2.5 px-3">Date</th>
+                    <th className="py-2.5 px-3">Day</th>
+                    <th className="py-2.5 px-3 text-center">Vouchers</th>
+                    <th className="py-2.5 px-3 text-right text-rose-700">Daily Debits (Dr)</th>
+                    <th className="py-2.5 px-3 text-right text-emerald-700">Daily Credits (Cr)</th>
+                    <th className="py-2.5 px-3 text-right">Day Net Diff</th>
+                    <th className="py-2.5 px-3 text-right">Cumulative Balance</th>
+                    <th className="py-2.5 px-3 text-center w-24">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-800">
+                  {dayLogData.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-12 text-center text-slate-400">
+                        <FileText size={32} className="mx-auto mb-2 text-slate-300 opacity-60" />
+                        <p className="font-semibold text-slate-600 text-sm">No transaction activity found for this period.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    dayLogData.map((day, idx) => (
+                      <tr key={day.dateKey} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                        <td className="py-2 px-3 font-semibold text-slate-900 whitespace-nowrap">{day.dateFormatted}</td>
+                        <td className="py-2 px-3 text-slate-600 whitespace-nowrap">{day.dayName}</td>
+                        <td className="py-2 px-3 text-center">
+                          <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[10.5px] font-semibold border border-slate-200">
+                            {day.txCount}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-semibold text-rose-700">
+                          {day.totalDebits > 0 ? `₹${day.totalDebits.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '-'}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-semibold text-emerald-700">
+                          {day.totalCredits > 0 ? `₹${day.totalCredits.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '-'}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-semibold">
+                          <span className={day.netMovement >= 0 ? 'text-rose-700' : 'text-emerald-700'}>
+                            {day.netMovement >= 0 ? '+' : ''}₹{day.netMovement.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                          ₹{Math.abs(day.runningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {day.runningBalance >= 0 ? 'Dr' : 'Cr'}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => toggleDateExpand(day.dateKey)}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold transition-colors cursor-pointer"
+                          >
+                            {expandedDates[day.dateKey] !== false ? 'Hide' : 'View'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-bold text-slate-900 text-xs">
+                  <tr>
+                    <td colSpan={3} className="py-3 px-3 uppercase tracking-wider text-[11px] text-slate-600">
+                      Total ({dayLogData.length} Days):
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono">
+                      {dayLogTotals.totalTx}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono text-rose-700">
+                      ₹{globalSummary.totalDebits.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono text-emerald-700">
+                      ₹{globalSummary.totalCredits.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono">
+                      <span className={globalSummary.netMovement >= 0 ? 'text-rose-700' : 'text-emerald-700'}>
+                        {globalSummary.netMovement >= 0 ? '+' : ''}₹{globalSummary.netMovement.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
+                      ₹{Math.abs(globalSummary.totalClosing).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {globalSummary.totalClosing >= 0 ? 'Dr' : 'Cr'}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </Card>
+
+          {/* 2. Detailed Itemized Transactions by Date */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <FileText size={14} className="text-[#0055a5]" />
+                <span>Date-Wise Itemized Transaction Log</span>
+              </h4>
+              <button
+                type="button"
+                onClick={() => handleToggleAllDates(!Object.values(expandedDates).some(Boolean))}
+                className="text-xs text-blue-700 hover:underline font-semibold cursor-pointer"
+              >
+                {Object.values(expandedDates).some(Boolean) ? 'Collapse All Dates' : 'Expand All Dates'}
+              </button>
+            </div>
+
+            {dayLogData.map(day => {
+              const isExpanded = expandedDates[day.dateKey] !== false; // Default expanded
+              return (
+                <div key={day.dateKey} className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+                  <div
+                    onClick={() => toggleDateExpand(day.dateKey)}
+                    className="px-4 py-3 bg-slate-50 hover:bg-slate-100/70 cursor-pointer flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <ChevronRight
+                        size={16}
+                        className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-90 text-[#0055a5]' : ''}`}
+                      />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 text-xs sm:text-sm">{day.dateDisplay}</span>
+                          <span className="text-slate-500 text-xs">({day.dayName})</span>
+                          <span className="bg-blue-100 text-blue-800 text-[10.5px] font-bold px-2 py-0.5 rounded-full">
+                            {day.txCount} {day.txCount === 1 ? 'Voucher' : 'Vouchers'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-xs font-mono">
+                      <span className="text-rose-700 font-semibold">Dr: ₹{day.totalDebits.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      <span className="text-slate-300">|</span>
+                      <span className="text-emerald-700 font-semibold">Cr: ₹{day.totalCredits.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      <span className="text-slate-300">|</span>
+                      <span className="font-bold text-slate-900">
+                        Bal: ₹{Math.abs(day.runningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {day.runningBalance >= 0 ? 'Dr' : 'Cr'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-100/60 text-slate-600 font-bold uppercase tracking-wider text-[10.5px] border-b border-slate-200">
+                            <th className="py-2 px-3 text-center w-10">#</th>
+                            <th className="py-2 px-3">Time</th>
+                            <th className="py-2 px-3">Voucher #</th>
+                            <th className="py-2 px-3">Party / Account</th>
+                            <th className="py-2 px-3">Particulars / Notes</th>
+                            <th className="py-2 px-3">Mode</th>
+                            <th className="py-2 px-3 text-right">Debit (Dr)</th>
+                            <th className="py-2 px-3 text-right">Credit (Cr)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-800">
+                          {day.transactions.map((tx, tIdx) => (
+                            <tr
+                              key={tx.id}
+                              onClick={() => setSelectedDetailTx(tx.rawTx)}
+                              className="hover:bg-blue-50/40 cursor-pointer transition-colors"
+                            >
+                              <td className="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">{tIdx + 1}</td>
+                              <td className="py-2 px-3 text-slate-600 whitespace-nowrap">{tx.timeFormatted}</td>
+                              <td className="py-2 px-3 font-mono">
+                                {tx.invoiceNo !== '-' ? (
+                                  <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[11px] border border-slate-200">
+                                    #{tx.invoiceNo}
+                                  </span>
+                                ) : '-'}
+                              </td>
+                              <td className="py-2 px-3 font-bold text-slate-900">{tx.partyName}</td>
+                              <td className="py-2 px-3 text-slate-600 max-w-xs truncate">{tx.particulars}</td>
+                              <td className="py-2 px-3 uppercase text-[10px] font-semibold text-slate-600">{tx.paymentMode}</td>
+                              <td className="py-2 px-3 text-right font-mono font-semibold text-rose-700">
+                                {tx.debit > 0 ? `₹${tx.debit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '-'}
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono font-semibold text-emerald-700">
+                                {tx.credit > 0 ? `₹${tx.credit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="bg-slate-50 font-bold text-xs border-t border-slate-200">
+                          <tr>
+                            <td colSpan={6} className="py-2 px-3 text-right text-slate-600 uppercase text-[10.5px]">
+                              Day Subtotal:
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono text-rose-700">
+                              ₹{day.totalDebits.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono text-emerald-700">
+                              ₹{day.totalCredits.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
         </>
       )}

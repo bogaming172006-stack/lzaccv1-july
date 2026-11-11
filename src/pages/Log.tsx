@@ -247,13 +247,13 @@ export default function Log() {
               : '';
             
             if (datePreset === 'TODAY') 
-              return `Showing today's activities • ${format(new Date(), 'dd MMMM yyyy')}${filterSuffix}`;
+              return `today's activities • ${format(new Date(), 'dd MMMM yyyy')}${filterSuffix}`;
             if (datePreset === 'YESTERDAY') 
-              return `Showing yesterday's activities • ${format(subDays(new Date(), 1), 'dd MMMM yyyy')}${filterSuffix}`;
+              return `yesterday's activities • ${format(subDays(new Date(), 1), 'dd MMMM yyyy')}${filterSuffix}`;
             if (datePreset === 'THIS_MONTH') 
-              return `Showing this month's activities • ${format(new Date(), 'MMMM yyyy')}${filterSuffix}`;
+              return `this month's activities • ${format(new Date(), 'MMMM yyyy')}${filterSuffix}`;
             if (datePreset === 'ALL') 
-              return `Showing all historical entries${filterSuffix}`;
+              return `all historical entries${filterSuffix}`;
             if (startDate && endDate && startDate === endDate) 
               return `Showing entries for ${format(new Date(startDate), 'dd MMM yyyy')}${filterSuffix}`;
             if (startDate || endDate) 
