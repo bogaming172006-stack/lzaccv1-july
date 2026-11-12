@@ -80,7 +80,6 @@ export default function MasterEntry() {
 
   const [type, setType] = useState<'DEBIT' | 'CREDIT'>('DEBIT');
   const [amount, setAmount] = useState('');
-  const [separateCredit, setSeparateCredit] = useState(false);
   const [cashAmount, setCashAmount] = useState('');
   const [acAmount, setAcAmount] = useState('');
   const [upiAmount, setUpiAmount] = useState('');
@@ -257,7 +256,6 @@ export default function MasterEntry() {
   useEffect(() => {
     if (isExpenseLedger) {
       setType('DEBIT');
-      setSeparateCredit(false);
     }
   }, [isExpenseLedger, activeLedger?.id]);
 
@@ -504,12 +502,6 @@ export default function MasterEntry() {
           }
         }
       }
-      if (e.key === 'F3' || (e.altKey && e.key.toLowerCase() === 's')) {
-        e.preventDefault();
-        if (!isExpenseLedger && !isCreditDisabledByInvoice) {
-          setSeparateCredit(prev => !prev);
-        }
-      }
       if (e.altKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         if (!isInvoiceAlreadyDebited) {
@@ -531,7 +523,7 @@ export default function MasterEntry() {
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [type, separateCredit, amount, showConfirmModal, isInvoiceAlreadyDebited, isCreditDisabledByInvoice, invoiceNo]);
+  }, [type, amount, showConfirmModal, isInvoiceAlreadyDebited, isCreditDisabledByInvoice, invoiceNo]);
 
   const [alertInfo, setAlertInfo] = useState<{message: string; isError: boolean; title?: string} | null>(null);
 
@@ -610,7 +602,7 @@ export default function MasterEntry() {
         if (result === true && !selectedParty) {
           partySearchRef.current?.focus();
         } else {
-          if (type === 'CREDIT' && separateCredit) {
+          if (type === 'CREDIT') {
             cashAmountRef.current?.focus();
           } else {
             amountRef.current?.focus();
@@ -652,7 +644,7 @@ export default function MasterEntry() {
         setPartySearch('');
         setSearchSelectedIndex(0);
         setTimeout(() => {
-          if (type === 'CREDIT' && separateCredit) {
+          if (type === 'CREDIT') {
             cashAmountRef.current?.focus();
           } else {
             amountRef.current?.focus();
@@ -660,7 +652,7 @@ export default function MasterEntry() {
         }, 10);
       } else if (selectedParty) {
         // Party is already selected, advance to amount
-        if (type === 'CREDIT' && separateCredit) {
+        if (type === 'CREDIT') {
           cashAmountRef.current?.focus();
         } else {
           amountRef.current?.focus();
@@ -762,7 +754,7 @@ export default function MasterEntry() {
     if (e.key === 'Enter') {
       e.preventDefault();
       if (e.shiftKey) {
-        if (type === 'CREDIT' && separateCredit) {
+        if (type === 'CREDIT') {
           upiAmountRef.current?.focus();
         } else {
           amountRef.current?.focus();
@@ -786,7 +778,7 @@ export default function MasterEntry() {
           partySearchRef.current?.focus();
           return;
         }
-        const isOk = type === 'CREDIT' && separateCredit
+        const isOk = type === 'CREDIT'
           ? ((parseFloat(cashAmount) || 0) + (parseFloat(acAmount) || 0) + (parseFloat(upiAmount) || 0) > 0)
           : (amount && !isNaN(Number(amount)) && Number(amount) > 0);
         if (isOk) {
@@ -794,10 +786,12 @@ export default function MasterEntry() {
         } else {
           setAlertInfo({
             title: "Amount Required",
-            message: "Please enter a valid voucher amount before submitting.",
+            message: type === 'CREDIT'
+              ? "Please enter a valid credit amount in Cash, AC, or UPI before submitting."
+              : "Please enter a valid voucher amount before submitting.",
             isError: true
           });
-          if (type === 'CREDIT' && separateCredit) {
+          if (type === 'CREDIT') {
             cashAmountRef.current?.focus();
           } else {
             amountRef.current?.focus();
@@ -827,20 +821,18 @@ export default function MasterEntry() {
     }
     setType(newType);
     if (newType === 'CREDIT') {
-      if (separateCredit) {
-        if (amount && !cashAmount && !acAmount && !upiAmount) {
-          setCashAmount(amount);
-        }
-        setTimeout(() => cashAmountRef.current?.focus(), 50);
-      } else {
-        setTimeout(() => amountRef.current?.focus(), 50);
+      if (amount && !cashAmount && !acAmount && !upiAmount) {
+        setCashAmount(amount);
       }
+      setTimeout(() => cashAmountRef.current?.focus(), 50);
     } else {
-      if (separateCredit && !amount && (cashAmount || acAmount || upiAmount)) {
+      if (!amount && (cashAmount || acAmount || upiAmount)) {
         const cVal = parseFloat(cashAmount) || 0;
         const aVal = parseFloat(acAmount) || 0;
         const uVal = parseFloat(upiAmount) || 0;
-        setAmount((cVal + aVal + uVal).toString());
+        if (cVal + aVal + uVal > 0) {
+          setAmount((cVal + aVal + uVal).toString());
+        }
       }
       setTimeout(() => amountRef.current?.focus(), 50);
     }
@@ -848,35 +840,20 @@ export default function MasterEntry() {
 
   useEffect(() => {
     if (type === 'CREDIT') {
-      if (separateCredit) {
-        if (amount && !cashAmount && !acAmount && !upiAmount) {
-          setCashAmount(amount);
-        }
-      }
-    } else {
-      if (separateCredit && !amount && (cashAmount || acAmount || upiAmount)) {
-        const cVal = parseFloat(cashAmount) || 0;
-        const aVal = parseFloat(acAmount) || 0;
-        const uVal = parseFloat(upiAmount) || 0;
-        setAmount((cVal + aVal + uVal).toString());
-      }
-    }
-  }, [type, separateCredit]);
-
-  useEffect(() => {
-    if (separateCredit) {
       if (amount && !cashAmount && !acAmount && !upiAmount) {
         setCashAmount(amount);
       }
     } else {
-      const cVal = parseFloat(cashAmount) || 0;
-      const aVal = parseFloat(acAmount) || 0;
-      const uVal = parseFloat(upiAmount) || 0;
-      if (cVal + aVal + uVal > 0) {
-        setAmount((cVal + aVal + uVal).toString());
+      if (!amount && (cashAmount || acAmount || upiAmount)) {
+        const cVal = parseFloat(cashAmount) || 0;
+        const aVal = parseFloat(acAmount) || 0;
+        const uVal = parseFloat(upiAmount) || 0;
+        if (cVal + aVal + uVal > 0) {
+          setAmount((cVal + aVal + uVal).toString());
+        }
       }
     }
-  }, [separateCredit]);
+  }, [type]);
 
   const handleInvoiceCheck = async (isPreSubmit: boolean): Promise<boolean | string> => {
     if (!invoiceNo || !activeLedger) return true;
@@ -1084,18 +1061,20 @@ export default function MasterEntry() {
       partySearchRef.current?.focus();
       return;
     }
-    if (directionType === 'CREDIT' && separateCredit) {
+    if (directionType === 'CREDIT') {
       const cashVal = parseFloat(cashAmount) || 0;
       const acVal = parseFloat(acAmount) || 0;
       const upiVal = parseFloat(upiAmount) || 0;
       const totalVal = cashVal + acVal + upiVal;
       if (totalVal <= 0) {
-        setAlertInfo({ message: "Please enter a valid Cash Credit, AC Credit, or UPI Credit amount.", isError: true });
+        setAlertInfo({ message: "Please enter a valid credit amount in Cash, AC, or UPI.", isError: true });
+        cashAmountRef.current?.focus();
         return;
       }
     } else {
       if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
         setAlertInfo({ message: "Please enter a valid voucher amount.", isError: true });
+        amountRef.current?.focus();
         return;
       }
     }
@@ -1120,14 +1099,16 @@ export default function MasterEntry() {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
-        if (selectedParty && amount && !isNaN(Number(amount)) && Number(amount) > 0 && !isSubmitting) {
+        const hasValidCredit = type === 'CREDIT' && ((parseFloat(cashAmount) || 0) + (parseFloat(acAmount) || 0) + (parseFloat(upiAmount) || 0) > 0);
+        const hasValidDebit = type === 'DEBIT' && amount && !isNaN(Number(amount)) && Number(amount) > 0;
+        if (selectedParty && (hasValidCredit || hasValidDebit) && !isSubmitting) {
           handlePreSubmit();
         }
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedParty, amount, isSubmitting, type, separateCredit, cashAmount, acAmount, upiAmount]);
+  }, [selectedParty, amount, isSubmitting, type, cashAmount, acAmount, upiAmount]);
 
   const handleConfirmSubmit = async () => {
     if (isSubmitting || !selectedParty || !activeLedger) return;
@@ -1135,7 +1116,7 @@ export default function MasterEntry() {
     let numAmount = 0;
     let finalNotes = notes.trim();
 
-    if (type === 'CREDIT' && separateCredit) {
+    if (type === 'CREDIT') {
       const cashVal = parseFloat(cashAmount) || 0;
       const acVal = parseFloat(acAmount) || 0;
       const upiVal = parseFloat(upiAmount) || 0;
@@ -1339,25 +1320,6 @@ export default function MasterEntry() {
                         )}
                       </div>
 
-                      {/* Separate Cash & Bank Option (if Credit and not Expense) */}
-                      {type === 'CREDIT' && !isExpenseLedger && (
-                        <div className="flex items-center justify-between p-3 bg-white border-0 rounded-xl shadow-xs">
-                          <label htmlFor="desktopSeparateCredit" className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-700 select-none">
-                            <input
-                              type="checkbox"
-                              id="desktopSeparateCredit"
-                              checked={separateCredit}
-                              onChange={e => setSeparateCredit(e.target.checked)}
-                              className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
-                            />
-                            <span>Separate Credit</span>
-                          </label>
-                          <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                            Tap
-                          </span>
-                        </div>
-                      )}
-
                       {/* 2. Form Inputs Grid: Invoice No & Account Party */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-0">
                         {/* Invoice Number */}
@@ -1417,7 +1379,7 @@ export default function MasterEntry() {
                                           setSelectedParty(p);
                                           setPartySearch('');
                                           setTimeout(() => {
-                                            if (type === 'CREDIT' && separateCredit) {
+                                            if (type === 'CREDIT') {
                                               cashAmountRef.current?.focus();
                                             } else {
                                               amountRef.current?.focus();
@@ -1493,7 +1455,7 @@ export default function MasterEntry() {
                       )}
 
                       {/* 3. Amount Section */}
-                      {type === 'CREDIT' && separateCredit ? (
+                      {type === 'CREDIT' ? (
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                           {/* 1. Cash Credit */}
                           <div>
@@ -2223,11 +2185,23 @@ export default function MasterEntry() {
               <div className="flex justify-between items-center border-t border-slate-200 pt-3">
                 <span className="text-slate-600 font-normal">Total Amount:</span>
                 <span className="font-normal text-slate-900">
-                  ₹{type === 'CREDIT' && separateCredit
+                  ₹{type === 'CREDIT'
                     ? ((parseFloat(cashAmount) || 0) + (parseFloat(acAmount) || 0) + (parseFloat(upiAmount) || 0)).toFixed(2)
                     : parseFloat(amount).toFixed(2)}
                 </span>
               </div>
+              {type === 'CREDIT' && (
+                <div className="flex justify-between items-center text-xs text-slate-500 pt-1">
+                  <span>Breakdown:</span>
+                  <span className="font-mono text-emerald-700">
+                    {[
+                      (parseFloat(cashAmount) || 0) > 0 ? `Cash: ₹${parseFloat(cashAmount).toFixed(2)}` : null,
+                      (parseFloat(acAmount) || 0) > 0 ? `AC: ₹${parseFloat(acAmount).toFixed(2)}` : null,
+                      (parseFloat(upiAmount) || 0) > 0 ? `UPI: ₹${parseFloat(upiAmount).toFixed(2)}` : null
+                    ].filter(Boolean).join(' | ') || '₹0.00'}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
               <button 

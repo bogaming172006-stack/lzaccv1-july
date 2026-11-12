@@ -4,6 +4,11 @@ export interface User {
   username?: string;
   pin: string;
   deviceId: string;
+  authorizedDeviceId?: string;
+  authorizedDeviceIds?: string[];
+  pendingDeviceId?: string;
+  pendingDeviceTime?: number;
+  lastAttemptedDevice?: string;
   lastActivity: number;
   isAdmin: boolean;
   role?: 'admin' | 'user' | string | boolean;
